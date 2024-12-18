@@ -221,9 +221,9 @@ h1 {
   background-repeat: repeat-x;
   background-position: right bottom;
   animation: wave 10s linear infinite;
-}
+} */
 
-@keyframes wave {
+/* @keyframes wave {
   0% {
     transform: translateX(0);
   }

@@ -94,11 +94,9 @@ function Homepage() {
                 </div>
             </div>
             <div className="wave-footer">
-                <img
-                    src="https://media.sessions.colearn.id/assets/other/images/2024-12-17T07:00:07.471Z-element-3-rev-2.png"
-                    alt="Wave Footer"
+                {/* <img
                     className="wave-image"
-                />
+                /> */}
             </div>
         </div>
     );
