@@ -201,10 +201,10 @@ h1 {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 150px;
+  height: 100px;
   overflow: hidden;
   background-image: url("https://media.sessions.colearn.id/assets/other/images/2024-12-17T07:00:07.471Z-element-3-rev-2.png");
-  background-size: auto 150px;
+  background-size: auto 100px;
   background-repeat: repeat-x;
   background-position: left bottom;
 }
@@ -215,9 +215,9 @@ h1 {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 150px;
+  height: 100px;
   background-image: url("https://media.sessions.colearn.id/assets/other/images/2024-12-17T07:00:07.471Z-element-3-rev-2.png");
-  background-size: auto 150px;
+  background-size: auto 100px;
   background-repeat: repeat-x;
   background-position: right bottom;
   animation: wave 10s linear infinite;
