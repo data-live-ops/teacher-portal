@@ -58,6 +58,10 @@ body {
   box-sizing: border-box;
 }
 
+.card:hover {
+  background: #cfe8ff;
+}
+
 .icon {
   width: 200px;
   height: 200px;
@@ -185,7 +189,7 @@ h1 {
 }
 
 .search-bar:focus {
-  border: 1px solid #007BFF
+  border: 1px solid #007BFF;
 }
 
 .search-icon {
