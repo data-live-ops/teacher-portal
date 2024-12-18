@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "teacher-portal-d3240",
+    "teacher-portal": "teacher-portal-d3240"
+  },
+  "targets": {},
+  "etags": {}
+}

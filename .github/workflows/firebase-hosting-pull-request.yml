@@ -1,0 +1,33 @@
+name: Deploy to Firebase Hosting on PR Merge
+
+on:
+  push:
+    branches:
+      - main # Ubah ini jika branch utama Anda berbeda
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 16 # Pastikan versi Node.js sesuai kebutuhan proyek
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build project
+      run: npm run build
+
+    - name: Deploy to Firebase Hosting
+      uses: FirebaseExtended/action-hosting-deploy@v0
+      with:
+        repoToken: "${{ secrets.GITHUB_TOKEN }}"
+        firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}"
+        channelId: live
+        projectId: teacher-portal-d3240
