@@ -268,12 +268,12 @@ h1 {
 
 @media (max-width: 1920px) and (max-height: 1080px) {
   .wave-footer {
-    height: 50px;
-    background-size: auto 50px;
+    height: 75px;
+    background-size: auto 75px;
   }
 
   .wave-footer::before {
-    height: 50px;
-    background-size: auto 50px;
+    height: 75px;
+    background-size: auto 75px;
   }
 }
