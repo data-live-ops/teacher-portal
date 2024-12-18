@@ -29,7 +29,7 @@ function Navigation({ onClick }) {
     return (
         <div className="navigation-page flex-home">
             <h1>Highlights</h1>
-            <div className="flex">
+            <div className="flex" style={{ marginBottom: "5rem" }}>
                 {navigation_data.map(item => (
                     <div key={item.id} className="card flex-home" onClick={() => onClick(item.page_name)} style={{ cursor: 'pointer' }}>
                         <img src={item.image_url} alt={item.image_alt} className="icon" />
