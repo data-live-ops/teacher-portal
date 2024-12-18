@@ -209,7 +209,7 @@ h1 {
   background-position: left bottom;
 }
 
-.wave-footer::before {
+/* .wave-footer::before {
   content: "";
   position: absolute;
   left: 0;
@@ -235,7 +235,7 @@ h1 {
   100% {
     transform: translateX(0);
   }
-}
+} */
 
 .dropdown {
   position: absolute;
