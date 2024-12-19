@@ -23,7 +23,7 @@ const Login = ({ onLoginSuccess }) => {
     return (
         <div className='login-page flex-home'>
             <div className='login-header'>
-                <img src='https://media.sessions.colearn.id/assets/other/images/2024-12-19T06:18:42.845Z-login-page.png' />
+                <img />
             </div>
             <div className='login-body flex-home'>
                 <img className='colearn-logo' src='https://colearn.id/_next/static/media/colearn_logo.ff15334a.svg' alt='colearn-logo' />
