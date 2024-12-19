@@ -11,7 +11,8 @@ body {
 }
 
 .hero-homepage,
-.navigation-page {
+.navigation-page,
+.login-page {
   position: relative;
   width: 100vw;
   height: 100vh;
@@ -270,6 +271,54 @@ h1 {
 
 .search-container {
   position: relative;
+}
+
+.login-page {
+  background: white;
+}
+
+.login-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.login-header img {
+  width: 100%;
+}
+
+.login-body {
+  width: 33%;
+  padding: 2rem 4rem;
+  background: #DBEEFF;
+  color: #1E5AF6;
+  border-radius: 1rem;
+  border: .3px solid #1E5AF6;
+  gap: 0.2rem;
+  margin-top: 5rem;
+}
+
+.colearn-logo {
+  width: 17rem;
+}
+
+.login-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: .5rem;
+}
+
+.login-button img {
+  width: 30px;
+  height: 30px;
+}
+
+.login-button {
+  cursor: pointer;
+  font-weight: 550;
+  font-size: 1.2rem;
 }
 
 @media (max-height: 1080px) {
