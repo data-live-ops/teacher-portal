@@ -7,7 +7,7 @@
 
 body {
   margin: 0;
-  background-color: #dbf0ff;
+  background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
 }
 
 .hero-homepage,
@@ -22,7 +22,7 @@ body {
   position: relative;
   width: 100%;
   height: 100vh;
-  background-color: #dbf0ff;
+  background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
   z-index: 0;
   visibility: visible;
 }
@@ -167,6 +167,48 @@ body {
   color: #F5FAFF;
 }
 
+.mobile-content-links {
+  height: 100vh;
+}
+
+.mobile-content-links>div:first-child {
+  height: 20%;
+  display: flex;
+  padding: 8rem 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.mobile-content-links>div:last-child {
+  height: 60%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-direction: column;
+  font-size: 1.2rem;
+  gap: .7rem;
+  font-weight: 550;
+  color: #1E5AF6;
+  text-align: center;
+}
+
+.mobile-button-links {
+  display: block;
+  background-image: url("https://media.sessions.colearn.id/assets/other/images/2025-01-06T09:17:30.785Z-Clip path group-3.png");
+  width: 70px;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  background-repeat: no-repeat;
+}
+
+.mobile-button-links:hover {
+  transform: scale(1.1);
+}
+
 .logo {
   width: 200px;
 }
@@ -189,6 +231,7 @@ h1 {
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   font-size: 1rem;
+  background: #F3FAFF;
 }
 
 .search-bar:focus {
@@ -216,34 +259,6 @@ h1 {
   background-position: left bottom;
 }
 
-/* .wave-footer::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100px;
-  background-image: url("https://media.sessions.colearn.id/assets/other/images/2024-12-17T07:00:07.471Z-element-3-rev-2.png");
-  background-size: auto 100px;
-  background-repeat: repeat-x;
-  background-position: right bottom;
-  animation: wave 10s linear infinite;
-} */
-
-/* @keyframes wave {
-  0% {
-    transform: translateX(0);
-  }
-
-  50% {
-    transform: translateX(-50%);
-  }
-
-  100% {
-    transform: translateX(0);
-  }
-} */
-
 .dropdown {
   position: absolute;
   background-color: white;
@@ -269,12 +284,8 @@ h1 {
   background-color: #f1f1f1;
 }
 
-.search-container {
-  position: relative;
-}
-
 .login-page {
-  background: white;
+  background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
 }
 
 .login-header {
@@ -291,12 +302,16 @@ h1 {
   height: 200px;
 }
 
+.login-page>.top-elements {
+  display: none;
+}
+
 .login-body {
   width: 33%;
   padding: 2rem 4rem;
   background: #DBEEFF;
   color: #1E5AF6;
-  border-radius: 1rem;
+  border-radius: .7rem;
   border: .3px solid #1E5AF6;
   gap: 0.2rem;
   margin-top: 5rem;
@@ -307,6 +322,11 @@ h1 {
 }
 
 .login-button {
+  padding: .5rem 1rem;
+  width: 80%;
+  background: white;
+  border: .3px solid #1E5AF6;
+  border-radius: .7rem;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -324,14 +344,170 @@ h1 {
   font-size: 1.2rem;
 }
 
-@media (max-height: 1080px) {
-  .wave-footer {
-    height: 6.5rem;
-    background-size: auto 6.5rem;
+@media (max-width: 1200px) {
+  .login-body {
+    width: 50%;
   }
 
-  .wave-footer::before {
-    height: 6.5rem;
-    background-size: auto 6.5rem;
+  .login-page>.login-header {
+    max-width: 100%;
+    height: 10rem
   }
+}
+
+@media (max-width: 768px) {
+  .login-body {
+    width: 80%;
+  }
+
+  .login-button {
+    width: 100%;
+  }
+
+  .login-header {
+    display: none;
+  }
+
+  .login-page .top-elements {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .top-left,
+  .top-right {
+    max-width: 42.5%;
+    height: auto;
+  }
+
+  .plus-button-navigation {
+    position: fixed;
+    bottom: 5%;
+    left: 45%;
+    width: 50px;
+    height: 50px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    z-index: 2000;
+    transition: transform 0.3s ease, background-image 0.3s ease;
+  }
+
+  .plus-button-navigation:hover {
+    transform: scale(1.1);
+  }
+
+  .navigation-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+  }
+
+  .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1;
+  }
+
+  .navigation-content {
+    position: relative;
+    z-index: 2;
+    gap: 20px;
+  }
+
+  .navigation-item {
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .navigation-content>.navigation-item {
+    position: absolute;
+  }
+
+  .item-1 {
+    top: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .item-2 {
+    top: 250px;
+    left: 100px;
+  }
+
+  .item-0 {
+    top: 250px;
+    right: 100px;
+  }
+
+  .navigation-item img {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+  }
+
+  .navigation-item h3 {
+    color: white;
+    font-size: 1rem;
+    margin-top: 10px;
+  }
+
+  .links-footer img {
+    display: none;
+  }
+
+}
+
+@media (max-width: 480px) {
+  .colearn-logo {
+    width: 12rem;
+  }
+
+  .login-button {
+    padding: 0;
+    font-size: .8rem;
+    gap: .2rem;
+  }
+
+  .search-bar {
+    width: 300px;
+  }
+
+  .search-icon {
+    top: 50%;
+    right: 3rem;
+  }
+
+  .dropdown {
+    position: absolute;
+    top: 100%;
+    right: 1.4rem;
+    width: 300px;
+    max-height: 100px;
+  }
+}
+
+@media (max-width: 370px) {
+  .login-button>img {
+    display: none;
+  }
+
+  .login-button {
+    padding: 2px;
+  }
+
+
 }

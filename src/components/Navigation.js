@@ -31,20 +31,23 @@ function Navigation({ onClick }) {
             <h1>Highlights</h1>
             <div className="flex" style={{ marginBottom: "5rem" }}>
                 {navigation_data.map(item => (
-                    <div key={item.id} className="card flex-home" onClick={() => onClick(item.page_name)} style={{ cursor: 'pointer' }}>
+                    <div
+                        key={item.id}
+                        className="card flex-home"
+                        onClick={() => {
+                            console.log("Clicked page_name:", item.page_name); // Debugging log
+                            onClick(item.page_name);
+                        }}
+                        style={{ cursor: "pointer" }}
+                    >
                         <img src={item.image_url} alt={item.image_alt} className="icon" />
                         <h3>{item.page_name.toUpperCase()}</h3>
                         <p>{item.description}</p>
                     </div>
+
                 ))}
             </div>
-            <div className="wave-footer">
-                {/* <img
-                    src="https://media.sessions.colearn.id/assets/other/images/2024-12-17T07:00:07.471Z-element-3-rev-2.png"
-                    alt="Wave Footer"
-                    className="wave-image"
-                /> */}
-            </div>
+            <div className="wave-footer"></div>
         </div>
     );
 }
