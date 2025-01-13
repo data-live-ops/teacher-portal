@@ -1,6 +1,6 @@
 import React from 'react';
 import { auth, googleProvider } from '../firebase-config';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import '../App.css';
 
 const Login = ({ onLoginSuccess }) => {
@@ -12,11 +12,17 @@ const Login = ({ onLoginSuccess }) => {
             if (userEmail.endsWith('@colearn.id')) {
                 onLoginSuccess(result.user);
             } else {
+                await signOut(auth);
                 throw new Error('Only users with @colearn.id email are allowed.');
             }
         } catch (error) {
             console.error("Error during Google Sign-In:", error.message);
             alert(error.message);
+            try {
+                await signOut(auth);
+            } catch (signOutError) {
+                console.error("Error signing out:", signOutError);
+            }
         }
     };
 
