@@ -172,30 +172,35 @@ body {
 }
 
 .mobile-content-links>div:first-child {
-  height: 20%;
+  height: 15%;
   display: flex;
-  padding: 8rem 0;
+  padding: 9rem 2rem 5rem;
   justify-content: center;
   align-items: center;
 }
 
+.mobile-content-links>div:first-child h1 {
+  font-size: 30px;
+}
+
 .mobile-content-links>div:last-child {
-  height: 60%;
+  height: 65%;
   display: flex;
   justify-content: flex-start;
   align-items: center;
   flex-direction: column;
-  font-size: 1.2rem;
+  font-size: 15px;
   gap: .7rem;
   font-weight: 550;
   color: #1E5AF6;
   text-align: center;
+  padding: 0 20px;
 }
 
 .mobile-button-links {
   display: block;
-  background-image: url("https://media.sessions.colearn.id/assets/other/images/2025-01-06T09:17:30.785Z-Clip path group-3.png");
-  width: 70px;
+  background-image: url("https://media.sessions.colearn.id/assets/other/images/2025-01-13T04:16:49.503Z-back button.png");
+  width: 40px;
   height: 100%;
   background-size: contain;
   background-repeat: no-repeat;
@@ -241,7 +246,7 @@ h1 {
 .search-icon {
   position: absolute;
   top: 50%;
-  right: 1rem;
+  right: 20px;
   transform: translateY(-50%);
   color: gray;
 }
@@ -383,12 +388,20 @@ h1 {
     height: auto;
   }
 
+  .hero-homepage>.content>img {
+    width: 150px;
+  }
+
+  .hero-homepage>.content>h1 {
+    font-size: 30px;
+  }
+
   .plus-button-navigation {
     position: fixed;
-    bottom: 5%;
+    bottom: 10%;
     left: 45%;
-    width: 50px;
-    height: 50px;
+    width: 35px;
+    height: 35px;
     background-size: contain;
     background-repeat: no-repeat;
     z-index: 2000;
@@ -445,23 +458,23 @@ h1 {
 
   .item-2 {
     top: 250px;
-    left: 100px;
+    left: 75px;
   }
 
   .item-0 {
     top: 250px;
-    right: 100px;
+    right: 75px;
   }
 
   .navigation-item img {
-    width: 100px;
-    height: 100px;
+    width: 75px;
+    height: 75px;
     object-fit: contain;
   }
 
   .navigation-item h3 {
     color: white;
-    font-size: 1rem;
+    font-size: .8rem;
     margin-top: 10px;
   }
 
@@ -487,14 +500,13 @@ h1 {
   }
 
   .search-icon {
-    top: 50%;
-    right: 3rem;
+    display: none;
   }
 
   .dropdown {
     position: absolute;
     top: 100%;
-    right: 1.4rem;
+    right: 0;
     width: 300px;
     max-height: 100px;
   }
@@ -510,4 +522,26 @@ h1 {
   }
 
 
+}
+
+@media (max-height: 768px) {
+  .plus-button-navigation {
+    bottom: 10%;
+  }
+
+  .item-1 {
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .item-2 {
+    top: 175px;
+    left: 75px;
+  }
+
+  .item-0 {
+    top: 175px;
+    right: 75px;
+  }
 }
