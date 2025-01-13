@@ -181,6 +181,7 @@ body {
 
 .mobile-content-links>div:first-child h1 {
   font-size: 30px;
+  text-align: center;
 }
 
 .mobile-content-links>div:last-child {
@@ -198,16 +199,19 @@ body {
 }
 
 .mobile-button-links {
-  display: block;
-  background-image: url("https://media.sessions.colearn.id/assets/other/images/2025-01-13T04:16:49.503Z-back button.png");
-  width: 40px;
-  height: 100%;
+  position: absolute;
+  bottom: 10%;
+  left: 45%;
+  width: 35px;
+  height: 35px;
   background-size: contain;
   background-repeat: no-repeat;
-  background-position: center;
+  z-index: 2000;
+  background-image: url("https://media.sessions.colearn.id/assets/other/images/2025-01-13T04:16:49.503Z-back button.png");
+  background-size: contain;
+  background-repeat: no-repeat;
   transition: transform 0.2s ease;
   cursor: pointer;
-  background-repeat: no-repeat;
 }
 
 .mobile-button-links:hover {
@@ -543,5 +547,12 @@ h1 {
   .item-0 {
     top: 175px;
     right: 75px;
+  }
+
+}
+
+@media (max-height: 640px) {
+  .mobile-button-links {
+    bottom: 5%;
   }
 }
