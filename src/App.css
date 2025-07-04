@@ -6,16 +6,157 @@
 }
 
 body {
+  width: 100%;
+  height: 100%;
   margin: 0;
-  background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
+  padding: 0;
 }
 
-.hero-homepage,
-.navigation-page,
 .login-page {
-  position: relative;
-  width: 100vw;
   height: 100vh;
+  width: 100vw;
+  padding: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.login-page .login-left-side {
+  width: 33%;
+}
+
+.login-page .login-left-side img {
+  width: 100%;
+}
+
+.login-page .login-right-side {
+  width: 63%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.login-page .login-right-side h1 {
+  color: #1E5AF6;
+  font-weight: 700;
+}
+
+.login-button {
+  padding: .5rem 1rem;
+  width: fit-content;
+  background: white;
+  border: .3px solid #1E5AF6;
+  border-radius: 25px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: .5rem;
+}
+
+.login-button img {
+  width: 30px;
+  height: 30px;
+}
+
+.login-button u {
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.login-button {
+  cursor: pointer;
+  font-weight: 550;
+  font-size: 1.2rem;
+}
+
+.login-button:hover {
+  background: #1E5AF6;
+  color: white;
+  border: none;
+}
+
+.navbar {
+  width: 100vw;
+  height: 75px;
+  background: linear-gradient(90deg, #123590 0%, #1E5AF6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+}
+
+.navbar-left span,
+.navbar-user {
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.navbar-left img {
+  width: 2.5rem;
+  border-radius: 5px;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-right img {
+  width: 2.5rem;
+  border-radius: 5px;
+}
+
+.navbar-right .unread-msg-logo,
+.navbar-right .navbar-profile {
+  width: 1.5rem;
+}
+
+.navbar-right .user-profile-photo {
+  border-radius: 25px;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-dropdown-menu {
+  position: absolute;
+  right: 2rem;
+  top: 60px;
+  font-weight: 600;
+  background: #1D56EB;
+  border: 1px solid #e0e0e0;
+  color: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  list-style: none;
+  padding: 0.5rem 0;
+  margin: 0;
+  min-width: 250px;
+  z-index: 1001;
+}
+
+.navbar-dropdown-menu li {
+  padding: 0.75rem 2.5rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.navbar-dropdown-menu li:hover {
+  background: #ffffff;
+  color: #1D56EB;
 }
 
 .page-links {
@@ -25,6 +166,7 @@ body {
   background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
   z-index: 0;
   visibility: visible;
+  overflow: hidden;
 }
 
 .flex-home {
@@ -32,14 +174,33 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
+  min-height: calc(100vh - 75px);
+}
+
+.navigation-page {
+  height: 100vh;
+  padding-top: 75px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.navigation-page span {
+  color: #1E5AF6;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 5rem;
 }
 
 .content-links {
   align-self: normal;
 }
 
-.flex {
+.cards-container {
+  background-color: #DBEEFF;
+  width: 100vw;
+  height: 50vh;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -47,12 +208,8 @@ body {
 }
 
 .card {
-  background: #F5FAFF;
   padding: 1rem 2rem;
   color: #2738A1;
-  width: 300px;
-  height: 450px;
-  border: 1px solid #3059ED;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -144,6 +301,12 @@ body {
 .content {
   text-align: center;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
 }
 
 .content-links {
@@ -219,11 +382,11 @@ body {
 }
 
 .logo {
-  width: 200px;
+  width: 10rem;
 }
 
 h1 {
-  color: #2238a8;
+  color: #1E5AF6;
   font-size: 3rem;
   font-weight: 700;
   margin: 0.5rem 0;
@@ -232,6 +395,23 @@ h1 {
 .search-container {
   position: relative;
   margin-top: 1rem;
+  z-index: 10;
+}
+
+.search-container input {
+  width: 100%;
+  padding: .7rem 15rem .7rem 1rem;
+  border: none;
+  border-radius: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  font-size: 1rem;
+  background-color: #DBEEFF;
+  color: #000000;
+  transition: border 0.2s ease;
+}
+
+.search-container input::placeholder {
+  color: #6E6969;
 }
 
 .search-bar {
@@ -253,6 +433,7 @@ h1 {
   right: 20px;
   transform: translateY(-50%);
   color: gray;
+  width: 1.5rem
 }
 
 .wave-footer {
@@ -293,28 +474,6 @@ h1 {
   background-color: #f1f1f1;
 }
 
-.login-page {
-  background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F7F8FF 13.54%, #F6F8FF 16.15%, #F5F8FF 18.75%, #F4F7FF 21.35%, #F3F7FF 23.96%, #F2F7FF 26.56%, #F1F6FF 29.17%, #F0F6FF 31.77%, #EFF6FF 34.37%, #EFF5FF 36.98%, #EEF5FF 39.58%, #EDF5FF 42.19%, #ECF4FF 44.79%, #EBF4FF 47.4%, #EAF4FF 50%, #E9F3FF 52.6%, #E8F3FF 55.21%, #E7F3FF 57.81%, #E6F2FF 60.42%, #E5F2FF 63.02%, #E5F2FF 65.62%, #E4F1FF 68.23%, #E3F1FF 70.83%, #E2F0FF 73.44%, #E1F0FF 76.04%, #E0F0FF 78.65%, #DFEFFF 81.25%, #DEEFFF 83.85%, #DDEFFF 86.46%, #DCEEFF 89.06%, #DBEEFF 91.67%);
-}
-
-.login-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-}
-
-.login-header {
-  background-size: 50% 50%;
-  background-image: url("https://media.sessions.colearn.id/assets/other/images/2024-12-19T06:18:42.845Z-login-page.png");
-  background-repeat: repeat-x;
-  height: 200px;
-}
-
-.login-page>.top-elements {
-  display: none;
-}
-
 .login-body {
   width: 33%;
   padding: 2rem 4rem;
@@ -328,29 +487,6 @@ h1 {
 
 .colearn-logo {
   width: 17rem;
-}
-
-.login-button {
-  padding: .5rem 1rem;
-  width: 80%;
-  background: white;
-  border: .3px solid #1E5AF6;
-  border-radius: .7rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: .5rem;
-}
-
-.login-button img {
-  width: 30px;
-  height: 30px;
-}
-
-.login-button {
-  cursor: pointer;
-  font-weight: 550;
-  font-size: 1.2rem;
 }
 
 @media (max-width: 1200px) {
@@ -392,12 +528,22 @@ h1 {
     height: auto;
   }
 
+  .hero-homepage,
+  .navigation-page {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    padding-top: 75px;
+    background: linear-gradient(180deg, #F8F9FF 8.33%, #F8F9FF 10.94%, #F6F8FF 16.15%, #F4F7FF 21.35%, #F2F7FF 26.56%, #F0F6FF 31.77%, #EFF5FF 36.98%, #EDF5FF 42.19%, #EBF4FF 47.4%, #E9F3FF 52.6%, #E7F3FF 57.81%, #E5F2FF 63.02%, #E3F1FF 70.83%, #E1F0FF 76.04%, #DFEFFF 81.25%, #DDEFFF 86.46%, #DBEEFF 91.67%);
+    box-sizing: border-box;
+  }
+
   .hero-homepage>.content>img {
     width: 150px;
   }
 
   .hero-homepage>.content>h1 {
-    font-size: 30px;
+    font-size: 100px;
   }
 
   .plus-button-navigation {

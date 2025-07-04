@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "../App.css";
+import Navbar from "./Navbar";
 
-function Homepage() {
+function Homepage({ user, onLogout }) {
     const [keywords, setKeywords] = useState([]);
     const [inputValue, setInputValue] = useState("");
     const [suggestions, setSuggestions] = useState([]);
@@ -97,44 +98,31 @@ function Homepage() {
         window.dispatchEvent(new CustomEvent("navigateTo", { detail: pageName }));
     };
 
-
     return (
         <div className="hero-homepage flex-home">
-            <div className="top-elements">
-                <img
-                    className="top-left"
-                    src="https://media.sessions.colearn.id/assets/other/images/2024-12-17T04:14:13.591Z-homepage-element-1.png"
-                    alt="Top Left Element"
-                />
-                <img
-                    className="top-right"
-                    src="https://media.sessions.colearn.id/assets/other/images/2024-12-17T04:15:04.952Z-homepage-element-2.png"
-                    alt="Top Right Element"
-                />
-            </div>
-
+            <Navbar userEmail={user} onLogoutClick={onLogout} />
             <div className="content">
+                <h1>Teacher Portal</h1>
                 <img
                     className="logo"
                     src="https://colearn.id/_next/static/media/colearn_logo.ff15334a.svg"
                     alt="colearn-logo"
                 />
-                <h1>Teacher Portal</h1>
                 <div className="search-container">
                     <input
                         className="search-bar"
-                        placeholder="What are you looking for?"
+                        placeholder="Search here..."
                         value={inputValue}
                         onChange={handleInputChange}
                     />
-                    <span className="search-icon">🔍</span>
+                    <img src="https://media.sessions.colearn.id/assets/other/images/2025-06-26T08:53:34.114Z-Search.png" className="search-icon" />
                     {suggestions.length > 0 && (
                         <ul className="dropdown">
                             {suggestions.map((item) => (
                                 <li
                                     key={item.id}
                                     className="dropdown-item"
-                                    onClick={() => handleSuggestionClick(item.fileLink)}
+                                    onClick={() => handleSuggestionClick(item.file_link)}
                                 >
                                     {item.keyword}
                                 </li>
@@ -143,8 +131,6 @@ function Homepage() {
                     )}
                 </div>
             </div>
-
-            <div className="wave-footer" style={{ display: isMobile ? 'none' : 'block' }}></div>
             {isMobile && (
                 <div
                     className="plus-button-navigation"
@@ -157,7 +143,6 @@ function Homepage() {
                     }}
                 ></div>
             )}
-
             {isNavigationVisible && (
                 <div className="navigation-modal">
                     <div className="overlay" onClick={toggleNavigation}></div>

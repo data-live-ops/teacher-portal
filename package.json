@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
     "core-js": "^3.39.0",
     "cra-template": "1.2.0",
     "firebase": "^11.1.0",
+    "node-cron": "^4.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-loading-skeleton": "^3.5.0",
@@ -17,7 +19,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "sync:start": "node src/lib/run-scheduler.mjs",
+    "sync:manual": "node src/lib/run-scheduler.mjs --manual",
+    "sync:stop": "pkill -f 'node src/lib/run-scheduler.mjs'"
   },
   "eslintConfig": {
     "extends": [

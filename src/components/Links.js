@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import '../App.css';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
+import { supabase } from '../lib/supabaseClient.mjs';
 
 
 function Links({ category, onBack }) {
@@ -12,11 +13,10 @@ function Links({ category, onBack }) {
     useEffect(() => {
         const fetchLinks = async () => {
             try {
-                const response = await fetch(`${categoriesUrl}`);
-                if (!response.ok) {
-                    throw new Error("Failed to fetch data");
-                }
-                const data = await response.json();
+                const { data, error } = await supabase
+                    .from('file_links')
+                    .select('*');
+
                 setLinksData(data);
             } catch (error) {
                 console.error("Error fetching links:", error);
@@ -27,7 +27,7 @@ function Links({ category, onBack }) {
             fetchLinks();
         }
     }, [category]);
-
+    console.log(`cek links data: ${linksData}`)
     useEffect(() => {
         const handleResize = () => {
             setIsMobile(window.innerWidth <= 768);
@@ -70,7 +70,7 @@ function Links({ category, onBack }) {
                     <div>
                         {filteredData.length > 0 ? (
                             filteredData.map((link, index) => (
-                                <a key={index} href={link.fileLink} target="_blank" rel="noopener noreferrer">
+                                <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
                                     {link.title}
                                 </a>
                             ))
@@ -94,7 +94,7 @@ function Links({ category, onBack }) {
                     {filteredData.length > 0
                         ? (
                             filteredData.map((link, index) => (
-                                <a key={index} href={link.fileLink} target="_blank" rel="noopener noreferrer">
+                                <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
                                     <button id={link.id}>{link.title}</button>
                                 </a>
                             ))

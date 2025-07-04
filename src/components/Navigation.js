@@ -27,13 +27,14 @@ function Navigation({ onClick }) {
     ];
 
     return (
-        <div className="navigation-page flex-home">
+        <div className="navigation-page">
             <h1>Highlights</h1>
-            <div className="flex" style={{ marginBottom: "5rem" }}>
+            <span>pick a category:</span>
+            <div className="cards-container" style={{ marginBottom: "5rem" }}>
                 {navigation_data.map(item => (
                     <div
                         key={item.id}
-                        className="card flex-home"
+                        className="card"
                         onClick={() => {
                             console.log("Clicked page_name:", item.page_name); // Debugging log
                             onClick(item.page_name);
@@ -42,12 +43,10 @@ function Navigation({ onClick }) {
                     >
                         <img src={item.image_url} alt={item.image_alt} className="icon" />
                         <h3>{item.page_name.toUpperCase()}</h3>
-                        <p>{item.description}</p>
                     </div>
 
                 ))}
             </div>
-            <div className="wave-footer"></div>
         </div>
     );
 }

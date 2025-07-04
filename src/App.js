@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase-config";
 import Navigation from "./components/Navigation";
 import Links from "./components/Links";
 import Homepage from "./components/Homepage";
 import Login from "./components/Login";
 import LoadingSpinner from "./components/Loading";
+import IndividualSchedule from "./components/IndividualSchedule";
+import PiketSchedule from "./components/PiketSchedule";
 
 function App() {
   const [activePage, setActivePage] = useState("homepage");
@@ -14,10 +16,12 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [user, setUserEmail] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsLoggedIn(!!user);
+      setUserEmail(user);
       setLoading(false);
     });
 
@@ -57,7 +61,19 @@ function App() {
 
   const handleLoginSuccess = (user) => {
     console.log("Logged in user:", user);
+    setUserEmail(user);
     setIsLoggedIn(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsLoggedIn(false);
+      setUserEmail(null);
+      console.log("User logged out successfully");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   if (loading) {
@@ -85,14 +101,14 @@ function App() {
               <>
                 {isMobile ? (
                   <>
-                    {activePage === "homepage" && <Homepage />}
+                    {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
                     {activePage === "links" && (
                       <Links category={category} onBack={handleBack} />
                     )}
                   </>
                 ) : (
                   <>
-                    {activePage === "homepage" && <Homepage />}
+                    {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
                     {activePage === "homepage" && (
                       <Navigation onClick={handleNavigationClick} />
                     )}
@@ -102,6 +118,28 @@ function App() {
                   </>
                 )}
               </>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/individual-schedule"
+          element={
+            isLoggedIn ? (
+              <IndividualSchedule user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/piket-schedule"
+          element={
+            isLoggedIn ? (
+              <PiketSchedule user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/login" replace />
             )
