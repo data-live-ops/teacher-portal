@@ -182,7 +182,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const teacherList = useMemo(() => {
         const names = allScheduleData
-            .map(s => s.teacher_name || s.mentor_name)
+            .flatMap(s => [s.teacher_name, s.mentor_name])
             .filter(Boolean);
         return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
     }, [allScheduleData]);
@@ -257,6 +257,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
     };
 
     const handleTeacherToggle = (teacherName) => {
+        console.log(`cek checked name: ${teacherName}`)
         setSelectedTeachers(prev => {
             if (prev.includes(teacherName)) {
                 return prev.filter(name => name !== teacherName);
@@ -265,6 +266,14 @@ const IndividualSchedule = ({ user, onLogout }) => {
             }
         });
     };
+
+    const getFirstNameOfMentor = (name) => {
+        if (!avatarData[name]) {
+            return String(name).split(' ')[0];
+        }
+
+        return name;
+    }
 
     const handleSelectAllTeachers = () => {
         if (selectedTeachers.length === teacherList.length) {
@@ -288,7 +297,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                     return false;
                 });
             } else {
-                // Show schedules for selected teachers
                 filtered = allScheduleData.filter(schedule => {
                     const teacherName = schedule.teacher_name || schedule.mentor_name;
                     const roleMatch = selectedRole === 'Teacher' ?
@@ -309,10 +317,16 @@ const IndividualSchedule = ({ user, onLogout }) => {
             });
 
             if (selectedTeachers.length > 0) {
-                filtered = filtered.filter(s => {
-                    const teacherName = s.teacher_name || s.mentor_name;
-                    return selectedTeachers.includes(teacherName);
-                });
+                filtered = allScheduleData.filter(schedule => {
+                    return selectedTeachers.some(teacher => {
+                        console.log(`cek nama yang dipilih: ${teacher}`);
+
+                        return teacher === schedule.teacher_name || teacher === schedule.mentor_name
+                    }
+                    )
+                }
+                );
+                console.log(`cek hasil filter: ${JSON.stringify(filtered)}`)
             }
         }
 
@@ -636,16 +650,20 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                                             </div>
                                                                         </div>
                                                                     )}
-                                                                    {schedule.mentor_email && avatarData[schedule.mentor_email] && schedule.mentor_email !== schedule.teacher_email && (
+                                                                    {schedule.mentor_email && schedule.mentor_email !== schedule.teacher_email && (
                                                                         <div className="avatar-container">
                                                                             <img
-                                                                                src={avatarData[schedule.mentor_email].url || '/default-avatar.png'}
+                                                                                src={
+                                                                                    avatarData[schedule.mentor_email]?.url
+                                                                                    || 'https://img.a.transfermarkt.technology/portrait/big/361070-1682331084.jpg?lm=1'
+                                                                                }
                                                                                 alt={schedule.mentor_name}
                                                                                 className="avatar-image"
-                                                                                onError={e => { e.target.src = '/default-avatar.png'; }}
+                                                                                onError={e => { e.target.src = 'https://img.a.transfermarkt.technology/portrait/big/361070-1682331084.jpg?lm=1'; }}
                                                                             />
                                                                             <div className="avatar-name">
-                                                                                {avatarData[schedule.mentor_email].last_name}
+                                                                                {avatarData[schedule.mentor_email]?.last_name
+                                                                                    || getFirstNameOfMentor(schedule.mentor_name)}
                                                                             </div>
                                                                         </div>
                                                                     )}
