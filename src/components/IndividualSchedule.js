@@ -267,9 +267,10 @@ const IndividualSchedule = ({ user, onLogout }) => {
         });
     };
 
-    const getFirstNameOfMentor = (name) => {
+    const getNickNameOfMentor = (name) => {
         if (!avatarData[name]) {
-            return String(name).split(' ')[0];
+            let words = String(name).split(" ");
+            return words.filter(word => word.length <= 5)[0];
         }
 
         return name;
@@ -655,15 +656,15 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                                             <img
                                                                                 src={
                                                                                     avatarData[schedule.mentor_email]?.url
-                                                                                    || 'https://img.a.transfermarkt.technology/portrait/big/361070-1682331084.jpg?lm=1'
+                                                                                    || 'https://media.sessions.colearn.id/assets/other/images/2025-07-04T13:46:28.685Z-partner asset-coco 3.png'
                                                                                 }
                                                                                 alt={schedule.mentor_name}
                                                                                 className="avatar-image"
-                                                                                onError={e => { e.target.src = 'https://img.a.transfermarkt.technology/portrait/big/361070-1682331084.jpg?lm=1'; }}
+                                                                                onError={e => { e.target.src = 'https://media.sessions.colearn.id/assets/other/images/2025-07-04T13:46:28.685Z-partner asset-coco 3.png'; }}
                                                                             />
                                                                             <div className="avatar-name">
                                                                                 {avatarData[schedule.mentor_email]?.last_name
-                                                                                    || getFirstNameOfMentor(schedule.mentor_name)}
+                                                                                    || getNickNameOfMentor(schedule.mentor_name)}
                                                                             </div>
                                                                         </div>
                                                                     )}
