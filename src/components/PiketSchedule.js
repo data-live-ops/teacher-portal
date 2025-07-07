@@ -823,6 +823,8 @@ const PiketSchedule = ({ user, onLogout }) => {
     const getButtonColor = (grade) => {
         if (['4', '5', '6'].includes(grade)) {
             return '#F86077';
+        } else if (grade === '10 IPA & KIM') {
+            return '#FFED76'
         } else if (grade.includes('SMP')) {
             return '#75ABFB';
         } else if (grade.includes('SMA')) {
