@@ -116,54 +116,39 @@ const IndividualSchedule = ({ user, onLogout }) => {
             if (allScheduleError) throw allScheduleError;
             setAllScheduleData(allSchedules || []);
 
-            let schedules;
-            let scheduleError;
+            let userSchedules = [];
 
             if (isRegistered) {
-                const { data, error } = await supabase
-                    .from('teacher_schedules')
-                    .select('*')
-                    .gte('period_week', weekRange.start)
-                    .lte('period_week', weekRange.end)
-                    .or(`teacher_email.eq.${userEmail},mentor_email.eq.${userEmail}`);
+                userSchedules = allSchedules?.filter(schedule =>
+                    schedule.teacher_email === userEmail || schedule.mentor_email === userEmail
+                ) || [];
 
-                schedules = data;
-                scheduleError = error;
+                const currentUserAsTeacher = userSchedules.find(s => s.teacher_email === userEmail);
+                const currentUserAsMentor = userSchedules.find(s => s.mentor_email === userEmail);
 
-                const currentUserName = schedules?.find(s =>
-                    s.teacher_email === userEmail || s.mentor_email === userEmail
-                )?.teacher_name || schedules?.find(s =>
-                    s.teacher_email === userEmail || s.mentor_email === userEmail
-                )?.mentor_name;
+                // Get user's name (prioritize teacher name, fallback to mentor name)
+                const currentUserName = currentUserAsTeacher?.teacher_name || currentUserAsMentor?.mentor_name;
 
                 if (currentUserName && selectedTeachers.length === 0) {
                     setSelectedTeachers([currentUserName]);
                 }
             } else {
-                schedules = allSchedules;
-                scheduleError = allScheduleError;
+                userSchedules = allSchedules || [];
             }
-
-            if (scheduleError) throw scheduleError;
 
             const roles = new Set();
             if (isRegistered) {
-                schedules?.forEach(schedule => {
-                    if (schedule.teacher_email === userEmail) {
-                        roles.add('Teacher');
-                    }
-                    if (schedule.mentor_email === userEmail) {
-                        roles.add('Mentor');
-                    }
-                });
-            } else {
-                if (schedules && schedules.length > 0) {
-                    const hasTeacher = schedules.some(s => s.teacher_email);
-                    const hasMentor = schedules.some(s => s.mentor_email);
+                const hasTeacherRole = userSchedules.some(schedule => schedule.teacher_email === userEmail);
+                if (hasTeacherRole) roles.add('Teacher');
 
-                    if (hasTeacher) roles.add('Teacher');
-                    if (hasMentor) roles.add('Mentor');
-                }
+                const hasMentorRole = userSchedules.some(schedule => schedule.mentor_email === userEmail);
+                if (hasMentorRole) roles.add('Mentor');
+            } else {
+                const hasTeacherData = (allSchedules || []).some(s => s.teacher_email);
+                const hasMentorData = (allSchedules || []).some(s => s.mentor_email);
+
+                if (hasTeacherData) roles.add('Teacher');
+                if (hasMentorData) roles.add('Mentor');
             }
 
             setAvailableRoles(Array.from(roles));
@@ -172,7 +157,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 setSelectedRole(Array.from(roles)[0]);
             }
 
-            setScheduleData(schedules || []);
+            setScheduleData(userSchedules);
 
         } catch (error) {
             console.error('Error fetching schedule data:', error);
@@ -299,40 +284,33 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 });
             } else {
                 filtered = allScheduleData.filter(schedule => {
-                    const teacherName = schedule.teacher_name || schedule.mentor_name;
-                    const roleMatch = selectedRole === 'Teacher' ?
-                        (schedule.teacher_email !== null && schedule.teacher_email !== '') :
-                        (schedule.mentor_email !== null && schedule.mentor_email !== '');
-
-                    return roleMatch && selectedTeachers.includes(teacherName);
+                    return selectedTeachers.some(teacherName =>
+                        schedule.teacher_name === teacherName || schedule.mentor_name === teacherName
+                    );
                 });
             }
         } else {
-            filtered = allScheduleData.filter(schedule => {
-                if (selectedRole === 'Teacher') {
-                    return schedule.teacher_email !== null && schedule.teacher_email !== '';
-                } else if (selectedRole === 'Mentor') {
-                    return schedule.mentor_email !== null && schedule.mentor_email !== '';
-                }
-                return false;
-            });
-
-            if (selectedTeachers.length > 0) {
+            if (selectedTeachers.length === 0) {
                 filtered = allScheduleData.filter(schedule => {
-                    return selectedTeachers.some(teacher => {
-                        console.log(`cek nama yang dipilih: ${teacher}`);
-
-                        return teacher === schedule.teacher_name || teacher === schedule.mentor_name
+                    if (selectedRole === 'Teacher') {
+                        return schedule.teacher_email && schedule.teacher_email.trim() !== '';
+                    } else if (selectedRole === 'Mentor') {
+                        return schedule.mentor_email && schedule.mentor_email.trim() !== '';
                     }
-                    )
-                }
-                );
-                console.log(`cek hasil filter: ${JSON.stringify(filtered)}`)
+                    return false;
+                });
+            } else {
+                // Filter by selected teachers for non-registered users
+                filtered = allScheduleData.filter(schedule => {
+                    return selectedTeachers.some(teacherName =>
+                        schedule.teacher_name === teacherName || schedule.mentor_name === teacherName
+                    );
+                });
             }
         }
 
         return filtered;
-    }, [allScheduleData, selectedRole, userEmail, isUserRegistered, selectedTeachers, teacherList]);
+    }, [allScheduleData, selectedRole, userEmail, isUserRegistered, selectedTeachers]);
 
     const reformatDate = (dateStr) => {
         const year = dateStr.getFullYear();
