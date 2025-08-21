@@ -110,12 +110,12 @@ function Homepage({ user, onLogout }) {
                 />
                 <div className="search-container">
                     <input
-                        className="search-bar"
+                        className="search-bar-on-homepage"
                         placeholder="Search here..."
                         value={inputValue}
                         onChange={handleInputChange}
                     />
-                    <img src="https://media.sessions.colearn.id/assets/other/images/2025-06-26T08:53:34.114Z-Search.png" className="search-icon" />
+                    <img src="https://media.sessions.colearn.id/assets/other/images/2025-06-26T08:53:34.114Z-Search.png" className="search-icon-on-homepage" />
                     {suggestions.length > 0 && (
                         <ul className="dropdown">
                             {suggestions.map((item) => (

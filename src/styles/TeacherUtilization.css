@@ -1,0 +1,203 @@
+/* Teacher Utilization Specific Styles */
+.teacher-utilization-container {
+    padding: 20px;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.utilization-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.utilization-table th {
+    background: #ffffff;
+    color: rgb(69, 69, 69);
+    padding: 15px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 2px solid #353535;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.utilization-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+.utilization-table tbody tr:hover {
+    background-color: #f7fafc;
+}
+
+.teacher-name .name-cell {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.hours-cell {
+    text-align: center;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.percentage-cell {
+    width: 120px;
+}
+
+.percentage-bar {
+    position: relative;
+    height: 24px;
+    background-color: #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.percentage-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #48bb78, #38a169);
+    border-radius: 12px;
+    transition: width 0.3s ease;
+}
+
+.percentage-fill.mentor {
+    background: linear-gradient(90deg, #4299e1, #3182ce);
+}
+
+.percentage-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.status-success {
+    background-color: #c6f6d5;
+    color: #22543d;
+    border: 1px solid #9ae6b4;
+}
+
+.status-badge.status-warning {
+    background-color: #fefcbf;
+    color: #744210;
+    border: 1px solid #f6e05e;
+}
+
+.status-badge.status-danger {
+    background-color: #fed7d7;
+    color: #742a2a;
+    border: 1px solid #fc8181;
+}
+
+.status-badge.status-neutral {
+    background-color: #e2e8f0;
+    color: #4a5568;
+    border: 1px solid #cbd5e0;
+}
+
+.responsibility-cell {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.filter-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.9rem;
+    min-width: 140px;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    max-height: 70vh;
+    border-radius: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.empty-state svg {
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+
+    .utilization-table th,
+    .utilization-table td {
+        padding: 10px 8px;
+        font-size: 0.8rem;
+    }
+
+    .percentage-cell {
+        width: 100px;
+    }
+
+    .responsibility-cell {
+        max-width: 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .teacher-utilization-container {
+        padding: 15px;
+    }
+
+    .header-actions {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+
+    .filter-group {
+        flex-wrap: wrap;
+    }
+
+    .stats-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+}

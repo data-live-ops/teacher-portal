@@ -62,6 +62,7 @@ const Navbar = ({ userEmail, onLoginClick, isLoggedIn, onLogoutClick }) => {
                             <li onClick={() => { navigate('/'); setShowMenu(false); }}>Home</li>
                             <li onClick={() => { navigate('/individual-schedule'); setShowMenu(false); }}>Individual Schedule</li>
                             <li onClick={() => { navigate('/piket-schedule'); setShowMenu(false); }}>Piket Schedule</li>
+                            <li onClick={() => { navigate('/teacher-assignment'); setShowMenu(false); }}>Teacher Assignment</li>
                             <li onClick={onLogoutClick}>Log Out</li>
                         </ul>
                     )}

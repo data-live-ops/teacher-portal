@@ -1,0 +1,67 @@
+.date-input-container {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+}
+
+.editable-input {
+    width: 180px;
+    padding: 8px 36px 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+    color: #111827;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.editable-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    outline: none;
+}
+
+.editable-input::placeholder {
+    color: #9ca3af;
+}
+
+.required {
+    border-color: #ef4444;
+    /* red-500 */
+}
+
+
+.date-input-container svg {
+    display: none;
+}
+
+.react-datepicker {
+    font-family: inherit;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    /* gray-200 */
+}
+
+.react-datepicker__header {
+    background-color: #f9fafb;
+    /* gray-50 */
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+    background-color: #3b82f6;
+    /* blue-500 */
+    color: white;
+}
+
+.react-datepicker__day--today {
+    font-weight: bold;
+    color: #2563eb;
+    /* blue-600 */
+}
+
+.react-datepicker__day:hover {
+    background-color: #e0f2fe;
+    /* blue-100 */
+    border-radius: 50%;
+}

@@ -9,6 +9,7 @@ import Login from "./components/Login";
 import LoadingSpinner from "./components/Loading";
 import IndividualSchedule from "./components/IndividualSchedule";
 import PiketSchedule from "./components/PiketSchedule";
+import TeacherAssignment from "./components/TeacherAssignment";
 
 function App() {
   const [activePage, setActivePage] = useState("homepage");
@@ -140,6 +141,17 @@ function App() {
           element={
             isLoggedIn ? (
               <PiketSchedule user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/teacher-assignment"
+          element={
+            isLoggedIn ? (
+              <TeacherAssignment user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/login" replace />
             )
