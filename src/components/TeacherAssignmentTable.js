@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, X, Check, Edit3, Trash2, Users, User } from 'lucide-react';
 import DateInput from './DateInput';
+import SortableFilterableHeader from './SortableFilterableHeader';
 
 const DaysSelector = ({ selectedDays, onChange, disabled = false }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -349,7 +350,13 @@ const TeacherAssignmentTable = ({
   columnWidths = {},
   startResizing,
   filters,
-  filteredAssignments = assignments
+  filteredAssignments = assignments,
+  sortConfig,
+  onSort,
+  columnFilters,
+  onColumnFilter,
+  getColumnValues,
+  handleClearColumnFilter
 }) => {
   const tableRef = useRef(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -721,42 +728,116 @@ const TeacherAssignmentTable = ({
                 Actions
                 {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('actions', e)}></div>}
               </th>
-              <th className="col-grade" style={{ width: `${mergedColumnWidths.grade}px` }}>
-                Grade
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('grade', e)}></div>}
-              </th>
-              <th className="col-subject" style={{ width: `${mergedColumnWidths.subject}px` }}>
-                Subject
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('subject', e)}></div>}
-              </th>
-              <th className="col-slot-name" style={{ width: `${mergedColumnWidths.slot_name}px` }}>
-                Slot Name
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('slot_name', e)}></div>}
-              </th>
-              <th className="col-rules" style={{ width: `${mergedColumnWidths.rules}px` }}>
-                Rules
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('rules', e)}></div>}
-              </th>
-              <th className="col-days" style={{ width: `${mergedColumnWidths.days}px` }}>
-                Days
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('days', e)}></div>}
-              </th>
-              <th className="col-time" style={{ width: `${mergedColumnWidths.time}px` }}>
-                Time
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('time', e)}></div>}
-              </th>
-              <th className="col-status" style={{ width: `${mergedColumnWidths.status}px` }}>
-                Status
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('status', e)}></div>}
-              </th>
-              <th className="col-guru-juara" style={{ width: `${mergedColumnWidths.guru_juara}px` }}>
-                Guru Juara
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('guru_juara', e)}></div>}
-              </th>
-              <th className="col-mentor" style={{ width: `${mergedColumnWidths.mentor}px` }}>
-                Mentor
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('mentor', e)}></div>}
-              </th>
+              <SortableFilterableHeader
+                column="grade"
+                title="Grade"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.grade || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.grade}
+                onResize={startResizing}
+                existingValues={getColumnValues("grade", "grade")}
+              />
+              <SortableFilterableHeader
+                column="Subject"
+                title="Subject"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.subject || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.subject}
+                onResize={startResizing}
+                existingValues={getColumnValues("subject", "subject")}
+              />
+              <SortableFilterableHeader
+                column="slot_name"
+                title="Slot Name"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.slot_name || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.slot_name}
+                onResize={startResizing}
+                existingValues={getColumnValues("slot_name", "slot_name")}
+              />
+              <SortableFilterableHeader
+                column="rules"
+                title="Rules"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.rules || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.rules}
+                onResize={startResizing}
+                existingValues={getColumnValues("rules", "rules")}
+              />
+              <SortableFilterableHeader
+                column="days"
+                title="Days"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.days || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.days}
+                onResize={startResizing}
+                existingValues={getColumnValues("days", "days")}
+              />
+              <SortableFilterableHeader
+                column="time_range"
+                title="Time Range"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.time_range || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.time_range}
+                onResize={startResizing}
+                existingValues={getColumnValues("time_range", "time_range")}
+              />
+              <SortableFilterableHeader
+                column="status"
+                title="Status"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.status || ''}
+                onFilter={onColumnFilter}
+                columnType="select"
+                width={mergedColumnWidths.status}
+                onResize={startResizing}
+                existingValues={getColumnValues("status", "status")}
+              />
+              <SortableFilterableHeader
+                column="guru_juara_name"
+                title="Guru Juara"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.guru_juara_name || ''}
+                onFilter={onColumnFilter}
+                onClearFilter={handleClearColumnFilter}
+                existingValues={getColumnValues("guru_juara_name", "guru_juara_name")}
+                columnType="select"
+                width={mergedColumnWidths.guru_juara}
+                onResize={startResizing}
+              />
+              <SortableFilterableHeader
+                column="mentor_name"
+                title="Mentor"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.mentor_name || ''}
+                onFilter={onColumnFilter}
+                onClearFilter={handleClearColumnFilter}
+                existingValues={getColumnValues("mentor_name", "mentor_name")}
+                columnType="select"
+                width={mergedColumnWidths.mentor}
+                onResize={startResizing}
+              />
               <th className="col-notes" style={{ width: `${mergedColumnWidths.notes}px` }}>
                 Notes
                 {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('notes', e)}></div>}
@@ -765,10 +846,19 @@ const TeacherAssignmentTable = ({
                 Capacity
                 {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('capacity', e)}></div>}
               </th>
-              <th className="col-curriculum" style={{ width: `${mergedColumnWidths.curriculum}px` }}>
-                Curriculum
-                {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('curriculum', e)}></div>}
-              </th>
+              <SortableFilterableHeader
+                column="curriculum"
+                title="Curriculum"
+                sortConfig={sortConfig}
+                onSort={onSort}
+                filterValue={columnFilters.curriculum || ''}
+                onFilter={onColumnFilter}
+                onClearFilter={handleClearColumnFilter}
+                existingValues={getColumnValues("curriculum", "curriculum")}
+                columnType="select"
+                width={mergedColumnWidths.curriculum}
+                onResize={startResizing}
+              />
               <th className="col-batch-start-date" style={{ width: `${mergedColumnWidths.batch_start_date}px` }}>
                 Batch Start
                 {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('batch_start_date', e)}></div>}

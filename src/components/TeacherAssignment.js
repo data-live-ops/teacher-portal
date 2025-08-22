@@ -6,79 +6,6 @@ import { supabase } from '../lib/supabaseClient.mjs';
 import TeacherAssignmentTable from './TeacherAssignmentTable';
 import TeacherUtilization from './TeacherUtilization';
 
-const DaysSelector = ({ selectedDays, onChange, disabled = false }) => {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-    return (
-        <div className="days-selector">
-            {days.map(day => (
-                <button
-                    key={day}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChange(day)}
-                    className={`day-button ${selectedDays.includes(day) ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
-                >
-                    {day.slice(0, 3)}
-                </button>
-            ))}
-        </div>
-    );
-};
-
-const EditableCell = ({ value, onChange, type = 'text', options = [], placeholder = '', required = false }) => {
-    if (type === 'select') {
-        return (
-            <select
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
-                className={`editable-select ${required && !value ? 'required' : ''}`}
-            >
-                <option value="">Select...</option>
-                {options.map(option => (
-                    <option key={typeof option === 'string' ? option : option.value}
-                        value={typeof option === 'string' ? option : option.value}>
-                        {typeof option === 'string' ? option : option.label}
-                    </option>
-                ))}
-            </select>
-        );
-    }
-
-    if (type === 'number') {
-        return (
-            <input
-                type="number"
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                className={`editable-input ${required && !value ? 'required' : ''}`}
-            />
-        );
-    }
-
-    if (type === 'date') {
-        return (
-            <input
-                type="date"
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
-                className={`editable-input ${required && !value ? 'required' : ''}`}
-            />
-        );
-    }
-    const handleChange = (e) => onChange(e.target.value);
-    return (
-        <input
-            type="text"
-            value={value || ''}
-            onChange={handleChange}
-            placeholder={placeholder}
-            className={`editable-input ${required && !value ? 'required' : ''}`}
-        />
-    );
-};
-
 const TeacherAssignment = ({ user, onLogout }) => {
     const [assignments, setAssignments] = useState([]);
     const [subjects, setSubjects] = useState([]);
@@ -108,6 +35,16 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [activeTab, setActiveTab] = useState('assignments');
     const [gradeForAllTeachers, setGradeForAllTeachers] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+    const [columnFilters, setColumnFilters] = useState({});
+    const [hasActiveFilters, setHasActiveFilters] = useState(false);
+
+    useEffect(() => {
+        const activeFiltersCount = Object.values(columnFilters).filter(
+            value => value && value.trim() !== ''
+        ).length;
+        setHasActiveFilters(activeFiltersCount > 0);
+    }, [columnFilters]);
 
     const [newAssignment, setNewAssignment] = useState({
         grade: '',
@@ -172,6 +109,38 @@ const TeacherAssignment = ({ user, onLogout }) => {
             </button>
         </div>
     );
+
+    const handleClearAllFilters = () => {
+        setColumnFilters({});
+    };
+
+    const handleClearColumnFilter = (column) => {
+        setColumnFilters(prev => {
+            const updated = { ...prev };
+            delete updated[column];
+            return updated;
+        });
+    };
+
+    const handleSort = (column) => {
+        let direction = 'asc';
+        if (sortConfig.key === column && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key: column, direction });
+    };
+
+    const handleColumnFilter = (column, value) => {
+        setColumnFilters(prev => {
+            const updated = { ...prev };
+            if (!value || value.trim() === '') {
+                delete updated[column];
+            } else {
+                updated[column] = value;
+            }
+            return updated;
+        });
+    };
 
     const handleResize = (event) => {
         if (!resizingRef.current) return;
@@ -336,8 +305,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 slot_start_date: s.slot_start_date,
                 slot_end_date: s.slot_end_date,
                 class_rule: s.class_rule,
-                guru_juara_name: s.guru_juara?.name || null,
-                mentor_name: s.mentor?.name || null
+                guru_juara_name: s.guru_juara?.name || teachers.find(t => t.id === s.guru_juara_id)?.name || null,
+                mentor_name: s.mentor?.name || teachers.find(t => t.id === s.mentor_id)?.name || null
             }));
 
             const uniqueTimeRanges = [...new Set(slotData
@@ -424,18 +393,91 @@ const TeacherAssignment = ({ user, onLogout }) => {
         }
     };
 
-    const filteredAssignments = assignments.filter(assignment => {
-        const matchesSearch = assignment.slot_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(assignment?.guru_juara_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String(assignment?.mentor_name).toLowerCase().includes(searchTerm.toLowerCase());
+    const filteredAssignments = useMemo(() => {
+        let result = [...assignments];
 
-        const matchesFilters =
-            (!filters.status || assignment.status === filters.status) &&
-            (!filters.subject || assignment.subject === filters.subject) &&
-            (!filters.grade || assignment.grade.toString() === filters.grade);
+        // Apply column filters
+        Object.entries(columnFilters).forEach(([column, filterValue]) => {
+            if (filterValue && filterValue.trim() !== '') {
+                result = result.filter(assignment => {
+                    const cellValue = assignment[column];
 
-        return matchesSearch && matchesFilters;
-    });
+                    if (column === 'days') {
+                        return assignment.days?.some(day =>
+                            day.toLowerCase().includes(filterValue.toLowerCase())
+                        );
+                    }
+
+                    if (typeof cellValue === 'string') {
+                        return cellValue.toLowerCase().includes(filterValue.toLowerCase());
+                    }
+
+                    if (typeof cellValue === 'number') {
+                        return cellValue.toString() === filterValue.toString();
+                    }
+
+                    return String(cellValue || '').toLowerCase().includes(filterValue.toLowerCase());
+                });
+            }
+        });
+
+        // Apply search term (existing logic)
+        if (searchTerm) {
+            result = result.filter(assignment =>
+                assignment.slot_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                String(assignment?.guru_juara_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                String(assignment?.mentor_name).toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // Apply existing filters
+        result = result.filter(assignment => {
+            const matchesFilters =
+                (!filters.status || assignment.status === filters.status) &&
+                (!filters.subject || assignment.subject === filters.subject) &&
+                (!filters.grade || assignment.grade.toString() === filters.grade);
+            return matchesFilters;
+        });
+
+        // Apply sorting
+        if (sortConfig.key) {
+            result.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
+
+                // Handle null/undefined values
+                if (aValue == null && bValue == null) return 0;
+                if (aValue == null) return sortConfig.direction === 'asc' ? 1 : -1;
+                if (bValue == null) return sortConfig.direction === 'asc' ? -1 : 1;
+
+                // Handle different data types
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+                }
+
+                // Handle dates
+                if (sortConfig.key.includes('date')) {
+                    const dateA = new Date(aValue);
+                    const dateB = new Date(bValue);
+                    return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+                }
+
+                // Handle arrays (for days)
+                if (Array.isArray(aValue) && Array.isArray(bValue)) {
+                    const strA = aValue.join(',');
+                    const strB = bValue.join(',');
+                    return sortConfig.direction === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+                }
+
+                // Default string comparison
+                const strA = String(aValue).toLowerCase();
+                const strB = String(bValue).toLowerCase();
+                return sortConfig.direction === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+            });
+        }
+
+        return result;
+    }, [assignments, columnFilters, sortConfig, searchTerm, filters]);
 
 
     const filteredTeachers = teachers.filter(teacher => {
@@ -683,6 +725,73 @@ const TeacherAssignment = ({ user, onLogout }) => {
         }
     }
 
+    const getUniqueValues = (data, column) => {
+        const values = data.map(item => {
+            const value = item[column];
+
+            if (column === 'days' && Array.isArray(value)) {
+                return value;
+            }
+
+            if (column === 'guru_juara_name' || column === 'mentor_name') {
+                return value;
+            }
+
+            return value;
+        }).filter(value => value != null && value !== '');
+
+        const flattened = values.reduce((acc, val) => {
+            if (Array.isArray(val)) {
+                return [...acc, ...val];
+            }
+            return [...acc, val];
+        }, []);
+
+        const unique = [...new Set(flattened)];
+
+        if (column === 'grade' || column === 'class_capacity') {
+            return unique.sort((a, b) => Number(a) - Number(b));
+        }
+
+        if (column.includes('date')) {
+            return unique.sort((a, b) => new Date(a) - new Date(b));
+        }
+
+        return unique.sort();
+    };
+
+    const getColumnValues = (column, excludeColumn = null) => {
+        let filteredData = [...assignments];
+
+        Object.entries(columnFilters).forEach(([filterColumn, filterValue]) => {
+            if (filterColumn === excludeColumn || !filterValue || filterValue.trim() === '') {
+                return;
+            }
+
+            filteredData = filteredData.filter(assignment => {
+                const cellValue = assignment[filterColumn];
+
+                if (filterColumn === 'days') {
+                    return assignment.days?.some(day =>
+                        day.toLowerCase().includes(filterValue.toLowerCase())
+                    );
+                }
+
+                if (typeof cellValue === 'string') {
+                    return cellValue.toLowerCase().includes(filterValue.toLowerCase());
+                }
+
+                if (typeof cellValue === 'number') {
+                    return cellValue.toString() === filterValue.toString();
+                }
+
+                return String(cellValue || '').toLowerCase().includes(filterValue.toLowerCase());
+            });
+        });
+
+        return getUniqueValues(filteredData, column);
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -724,6 +833,31 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     className="search-input"
                                 />
                             </div>
+
+                            {hasActiveFilters && (
+                                <div className="active-filters">
+                                    <span className="active-filters-label">Active Filters:</span>
+                                    {Object.entries(columnFilters).map(([column, value]) => (
+                                        <div key={column} className="filter-tag">
+                                            <span>{column}: {value}</span>
+                                            <button
+                                                onClick={() => handleClearColumnFilter(column)}
+                                                className="filter-tag-remove"
+                                                title={`Remove ${column} filter`}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={handleClearAllFilters}
+                                        className="clear-all-filters"
+                                        title="Clear all filters"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="filter-dropdown">
                                 <Filter size={18} />
@@ -830,7 +964,14 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     startResizing={startResizing}
                                     filters={filters}
                                     filteredAssignments={filteredAssignments}
-
+                                    sortConfig={sortConfig}
+                                    onSort={handleSort}
+                                    columnFilters={columnFilters}
+                                    onColumnFilter={handleColumnFilter}
+                                    getColumnValues={getColumnValues}
+                                    onClearColumnFilter={handleClearColumnFilter}
+                                    onClearAllFilters={handleClearAllFilters}
+                                    hasActiveFilters={hasActiveFilters}
                                 />
                             </div>
                         )}
@@ -854,6 +995,31 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                                 <option value="Upcoming">Upcoming</option>
                                             </select>
                                         </div>
+
+                                        {hasActiveFilters && (
+                                            <div className="active-filters">
+                                                <span className="active-filters-label">Active Filters:</span>
+                                                {Object.entries(columnFilters).map(([column, value]) => (
+                                                    <div key={column} className="filter-tag">
+                                                        <span>{column}: {value}</span>
+                                                        <button
+                                                            onClick={() => handleClearColumnFilter(column)}
+                                                            className="filter-tag-remove"
+                                                            title={`Remove ${column} filter`}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <button
+                                                    onClick={handleClearAllFilters}
+                                                    className="clear-all-filters"
+                                                    title="Clear all filters"
+                                                >
+                                                    Clear All
+                                                </button>
+                                            </div>
+                                        )}
 
                                         <button
                                             onClick={() => setIsFullScreen(false)}
@@ -895,6 +1061,14 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                         startResizing={startResizing}
                                         filters={filters}
                                         filteredAssignments={filteredAssignments}
+                                        sortConfig={sortConfig}
+                                        onSort={handleSort}
+                                        columnFilters={columnFilters}
+                                        onColumnFilter={handleColumnFilter}
+                                        getColumnValues={getColumnValues}
+                                        onClearColumnFilter={handleClearColumnFilter}
+                                        onClearAllFilters={handleClearAllFilters}
+                                        hasActiveFilters={hasActiveFilters}
                                     />
                                 </div>
                             </div>
