@@ -77,6 +77,10 @@ function App() {
     }
   };
 
+  const isEligibleToAccess = (user_email) => {
+    return ['imam.fachrudin@colearn.id', 'annisa.nugraha@colearn.id'].includes(user_email)
+  }
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -147,7 +151,7 @@ function App() {
           }
         />
 
-        <Route
+        {isEligibleToAccess(user?.email) && <Route
           path="/teacher-assignment"
           element={
             isLoggedIn ? (
@@ -156,7 +160,7 @@ function App() {
               <Navigate to="/login" replace />
             )
           }
-        />
+        />}
       </Routes>
     </Router>
   );

@@ -17,6 +17,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const [selectedTeachers, setSelectedTeachers] = useState([]);
     const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
 
+    const specialUser = 'annisa.nugraha@colearn.id';
     const userEmail = user?.email;
 
     const generateWeekDates = (date) => {
@@ -80,6 +81,11 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const checkUserRegistration = async () => {
         try {
+
+            if (userEmail === specialUser) {
+                setIsUserRegistered(true);
+                return true;
+            }
             const { data: userSchedules, error: checkError } = await supabase
                 .from('teacher_schedules')
                 .select('teacher_email, mentor_email')
@@ -123,13 +129,16 @@ const IndividualSchedule = ({ user, onLogout }) => {
                     schedule.teacher_email === userEmail || schedule.mentor_email === userEmail
                 ) || [];
 
+                if (userEmail === specialUser) {
+                    userSchedules = allSchedules || [];
+                }
+
                 const currentUserAsTeacher = userSchedules.find(s => s.teacher_email === userEmail);
                 const currentUserAsMentor = userSchedules.find(s => s.mentor_email === userEmail);
 
-                // Get user's name (prioritize teacher name, fallback to mentor name)
                 const currentUserName = currentUserAsTeacher?.teacher_name || currentUserAsMentor?.mentor_name;
 
-                if (currentUserName && selectedTeachers.length === 0) {
+                if (currentUserName && selectedTeachers.length === 0 && userEmail !== specialUser) {
                     setSelectedTeachers([currentUserName]);
                 }
             } else {
@@ -177,18 +186,18 @@ const IndividualSchedule = ({ user, onLogout }) => {
             let piket;
             let piketError;
 
-            if (isUserRegistered) {
+            if (userEmail === specialUser || !isUserRegistered) {
+                const { data, error } = await supabase
+                    .from('piket_schedule')
+                    .select('*');
+
+                piket = data;
+                piketError = error;
+            } else if (isUserRegistered) {
                 const { data, error } = await supabase
                     .from('piket_schedule')
                     .select('*')
                     .eq('email', userEmail);
-
-                piket = data;
-                piketError = error;
-            } else {
-                const { data, error } = await supabase
-                    .from('piket_schedule')
-                    .select('*');
 
                 piket = data;
                 piketError = error;
@@ -255,7 +264,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const getNickNameOfMentor = (name) => {
         if (!avatarData[name]) {
             let words = String(name).split(" ");
-            return words.filter(word => word.length <= 5)[0];
+            return words.filter(word => word.length <= 6)[0];
         }
 
         return name;
@@ -272,7 +281,24 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const filteredScheduleData = useMemo(() => {
         let filtered = [];
 
-        if (isUserRegistered) {
+        if (userEmail === specialUser) {
+            if (selectedTeachers.length === 0) {
+                filtered = allScheduleData.filter(schedule => {
+                    if (selectedRole === 'Teacher') {
+                        return schedule.teacher_email && schedule.teacher_email.trim() !== '';
+                    } else if (selectedRole === 'Mentor') {
+                        return schedule.mentor_email && schedule.mentor_email.trim() !== '';
+                    }
+                    return false;
+                });
+            } else {
+                filtered = allScheduleData.filter(schedule => {
+                    return selectedTeachers.some(teacherName =>
+                        schedule.teacher_name === teacherName || schedule.mentor_name === teacherName
+                    );
+                });
+            }
+        } else if (isUserRegistered) {
             if (selectedTeachers.length === 0) {
                 filtered = allScheduleData.filter(schedule => {
                     if (selectedRole === 'Teacher') {
@@ -300,7 +326,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                     return false;
                 });
             } else {
-                // Filter by selected teachers for non-registered users
                 filtered = allScheduleData.filter(schedule => {
                     return selectedTeachers.some(teacherName =>
                         schedule.teacher_name === teacherName || schedule.mentor_name === teacherName
@@ -340,7 +365,34 @@ const IndividualSchedule = ({ user, onLogout }) => {
         });
 
         let piketSchedules = [];
-        if (isUserRegistered) {
+
+        if (userEmail === specialUser) {
+            piketSchedules = piketData.filter(piket => {
+                return piket.day === dayName;
+            }).map(piket => ({
+                ...piket,
+                slot_name: 'Piket',
+                isPiket: true,
+                class_date: dateStr
+            }));
+
+            if (selectedTeachers.length > 0) {
+                piketSchedules = piketSchedules.filter(piket => {
+                    const matchingSchedule = allScheduleData.find(schedule =>
+                        schedule.teacher_email === piket.email || schedule.mentor_email === piket.email
+                    );
+
+                    if (matchingSchedule) {
+                        return selectedTeachers.includes(matchingSchedule.teacher_name) ||
+                            selectedTeachers.includes(matchingSchedule.mentor_name);
+                    }
+
+                    return selectedTeachers.some(teacherName =>
+                        piket.teacher_name === teacherName || piket.name === teacherName
+                    );
+                });
+            }
+        } else if (isUserRegistered) {
             piketSchedules = piketData.filter(piket => {
                 return piket.day === dayName && piket.email === userEmail;
             }).map(piket => ({
@@ -358,6 +410,23 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 isPiket: true,
                 class_date: dateStr
             }));
+
+            if (selectedTeachers.length > 0) {
+                piketSchedules = piketSchedules.filter(piket => {
+                    const matchingSchedule = allScheduleData.find(schedule =>
+                        schedule.teacher_email === piket.email || schedule.mentor_email === piket.email
+                    );
+
+                    if (matchingSchedule) {
+                        return selectedTeachers.includes(matchingSchedule.teacher_name) ||
+                            selectedTeachers.includes(matchingSchedule.mentor_name);
+                    }
+
+                    return selectedTeachers.some(teacherName =>
+                        piket.teacher_name === teacherName || piket.name === teacherName
+                    );
+                });
+            }
         }
 
         return [...daySchedules, ...piketSchedules];
@@ -458,7 +527,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     return (
         <div className="individual-schedule">
-            <Navbar userEmail={isUserRegistered ? userEmail : user} onLogoutClick={onLogout} />
+            <Navbar userEmail={user} onLogoutClick={onLogout} />
 
             <div className="schedule-container">
                 <h1 className="schedule-title">
@@ -581,9 +650,12 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                 .filter(schedule => {
                                                     if (schedule.isPiket) {
                                                         if (schedule.first_class_date && schedule.class_date) {
+                                                            if (userEmail === specialUser) {
+                                                                return new Date(schedule.class_date) >= new Date(schedule.first_class_date);
+                                                            }
                                                             return new Date(schedule.class_date) >= new Date(schedule.first_class_date) && isUserRegistered;
                                                         }
-                                                        return isUserRegistered;
+                                                        return userEmail === specialUser || isUserRegistered;
                                                     }
                                                     return true;
                                                 })
