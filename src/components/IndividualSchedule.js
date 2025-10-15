@@ -87,7 +87,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 return true;
             }
             const { data: userSchedules, error: checkError } = await supabase
-                .from('teacher_schedules')
+                .from('class_schedules')
                 .select('teacher_email, mentor_email')
                 .or(`teacher_email.eq.${userEmail},mentor_email.eq.${userEmail}`)
                 .limit(1);
@@ -114,7 +114,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
             const isRegistered = await checkUserRegistration();
 
             const { data: allSchedules, error: allScheduleError } = await supabase
-                .from('teacher_schedules')
+                .from('class_schedules')
                 .select('*')
                 .gte('period_week', weekRange.start)
                 .lte('period_week', weekRange.end);
@@ -251,7 +251,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
     };
 
     const handleTeacherToggle = (teacherName) => {
-        console.log(`cek checked name: ${teacherName}`)
         setSelectedTeachers(prev => {
             if (prev.includes(teacherName)) {
                 return prev.filter(name => name !== teacherName);
@@ -368,9 +367,10 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
         if (userEmail === specialUser) {
             piketSchedules = piketData.filter(piket => {
-                return piket.day === dayName;
+                return (piket.day || piket.class_day) === dayName;
             }).map(piket => ({
                 ...piket,
+                slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
                 class_date: dateStr
@@ -394,18 +394,20 @@ const IndividualSchedule = ({ user, onLogout }) => {
             }
         } else if (isUserRegistered) {
             piketSchedules = piketData.filter(piket => {
-                return piket.day === dayName && piket.email === userEmail;
+                return (piket.day || piket.class_day) === dayName && piket.email === userEmail;
             }).map(piket => ({
                 ...piket,
+                slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
                 class_date: dateStr
             }));
         } else {
             piketSchedules = piketData.filter(piket => {
-                return piket.day === dayName;
+                return (piket.day || piket.class_day) === dayName;
             }).map(piket => ({
                 ...piket,
+                slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
                 class_date: dateStr
@@ -644,7 +646,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                             daySchedules
                                                 .slice()
                                                 .sort((a, b) => {
-                                                    const getStart = (s) => s.time.split('-')[0];
+                                                    const getStart = (s) => (s.time || '').split('-')[0];
                                                     return getStart(a).localeCompare(getStart(b));
                                                 })
                                                 .filter(schedule => {
@@ -688,16 +690,16 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                             </div>
                                                             {
                                                                 <div className='avatars'>
-                                                                    {schedule.teacher_email && avatarData[schedule.teacher_email] && (
+                                                                    {schedule.teacher_email && (
                                                                         <div className="avatar-container">
                                                                             <img
-                                                                                src={avatarData[schedule.teacher_email].url || '/default-avatar.png'}
+                                                                                src={avatarData[schedule.teacher_email]?.url || 'https://media.sessions.colearn.id/assets/other/images/2025-07-04T13:46:28.685Z-partner asset-coco 3.png'}
                                                                                 alt={schedule.teacher_name}
                                                                                 className="avatar-image"
-                                                                                onError={e => { e.target.src = '/default-avatar.png'; }}
+                                                                                onError={e => { e.target.src = 'https://media.sessions.colearn.id/assets/other/images/2025-07-04T13:46:28.685Z-partner asset-coco 3.png'; }}
                                                                             />
                                                                             <div className="avatar-name">
-                                                                                {avatarData[schedule.teacher_email].last_name}
+                                                                                {avatarData[schedule.teacher_email]?.last_name || getNickNameOfMentor(schedule?.teacher_name)}
                                                                             </div>
                                                                         </div>
                                                                     )}
@@ -720,22 +722,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                                     )}
                                                                 </div>
                                                             }
-
-                                                            {schedule.email && avatarData[schedule.email] && (
-                                                                <div className="avatar-container">
-                                                                    <img
-                                                                        src={avatarData[schedule.email].url || '/default-avatar.png'}
-                                                                        alt={schedule.teacher_name}
-                                                                        className="avatar-image"
-                                                                        onError={(e) => {
-                                                                            e.target.src = '/default-avatar.png';
-                                                                        }}
-                                                                    />
-                                                                    <div className="avatar-name">
-                                                                        {avatarData[schedule.email].last_name}
-                                                                    </div>
-                                                                </div>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 ))
