@@ -86,7 +86,9 @@ const AssignmentModal = ({
   onSave,
   subjects,
   timeRanges,
-  isEditing = false
+  teachers = [],
+  isEditing = false,
+  onShowRecommendations
 }) => {
   const [formData, setFormData] = useState({
     grade: '',
@@ -102,7 +104,9 @@ const AssignmentModal = ({
     batch_start_date: '',
     slot_start_date: '',
     slot_end_date: '',
-    class_rule: ''
+    class_rule: '',
+    guru_juara_id: null,
+    mentor_id: null
   });
 
   useEffect(() => {
@@ -121,7 +125,9 @@ const AssignmentModal = ({
         batch_start_date: assignment?.batch_start_date || '',
         slot_start_date: assignment?.slot_start_date || '',
         slot_end_date: assignment?.slot_end_date || '',
-        class_rule: assignment?.class_rule || ''
+        class_rule: assignment?.class_rule || '',
+        guru_juara_id: assignment?.guru_juara_id || null,
+        mentor_id: assignment?.mentor_id || null
       })
     } else {
       setFormData({
@@ -138,7 +144,9 @@ const AssignmentModal = ({
         batch_start_date: '',
         slot_start_date: '',
         slot_end_date: '',
-        class_rule: ''
+        class_rule: '',
+        guru_juara_id: null,
+        mentor_id: null
       })
     }
   }, [assignment]);
@@ -304,6 +312,73 @@ const AssignmentModal = ({
               />
             </div>
 
+            {isEditing && (
+              <div className="replacement-section">
+                <h4>Teacher/Mentor Assignment</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                  <div className="form-group replacement-field">
+                    <label>Guru Juara Assignment</label>
+                    <div className="teacher-assignment-control">
+                      {formData.guru_juara_id ? (
+                        <div className="assigned-teacher-display">
+                          <span className="assigned-teacher-name">
+                            {teachers.find(t => t.id === formData.guru_juara_id)?.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, guru_juara_id: null })}
+                            className="remove-teacher-button"
+                            title="Remove teacher"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onShowRecommendations && onShowRecommendations(assignment, 'guru_juara', formData, setFormData)}
+                          className="recommendation-button guru-button"
+                        >
+                          <Users size={14} />
+                          Assign Guru Juara
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-group replacement-field">
+                    <label>Mentor Assignment</label>
+                    <div className="teacher-assignment-control">
+                      {formData.mentor_id ? (
+                        <div className="assigned-teacher-display">
+                          <span className="assigned-teacher-name">
+                            {teachers.find(t => t.id === formData.mentor_id)?.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, mentor_id: null })}
+                            className="remove-teacher-button"
+                            title="Remove mentor"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onShowRecommendations && onShowRecommendations(assignment, 'mentor', formData, setFormData)}
+                          className="recommendation-button mentor-button"
+                        >
+                          <User size={14} />
+                          Assign Mentor
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="form-group full-width">
               <label>Notes</label>
               <EditableCell
@@ -407,6 +482,8 @@ const TeacherAssignmentTable = ({
       slot_start_date: '',
       slot_end_date: '',
       class_rule: '',
+      guru_juara_id: null,
+      mentor_id: null,
       afterAssignmentId
     });
     setIsEditMode(false);
@@ -447,8 +524,71 @@ const TeacherAssignmentTable = ({
 
         .table-scroll-container {
           overflow-x: auto;
+          overflow-y: auto;
+          max-height: calc(100vh - 400px);
           border: 1px solid #e5e7eb;
           border-radius: 8px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 8px;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 8px;
+          border: 2px solid #f1f5f9;
+        }
+
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        .assignment-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        .assignment-table thead {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: #f8fafc;
+        }
+
+        .assignment-table thead th {
+          box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+          position: relative;
+          padding: 12px 8px;
+          text-align: left;
+          font-weight: 600;
+          color: #374151;
+          background: #f8fafc;
+          border-bottom: 2px solid #e2e8f0;
+          user-select: none;
+        }
+
+        .col-actions,
+        .col-notes,
+        .col-capacity,
+        .col-batch-start-date,
+        .col-slot-start-date,
+        .col-slot-end-date,
+        .col-class-rule {
+          position: relative;
+        }
+
+        .assignment-table tbody td {
+          padding: 12px 8px;
+          border-bottom: 1px solid #e5e7eb;
+          vertical-align: top;
         }
 
         .assignment-row:hover {
@@ -599,17 +739,37 @@ const TeacherAssignmentTable = ({
 
         .resize-handle {
           position: absolute;
-          right: 0;
+          right: -2px;
           top: 0;
           bottom: 0;
-          width: 4px;
+          width: 8px;
           cursor: col-resize;
-          background: #e9e9e9;
+          background: transparent;
+          transition: all 0.2s;
+          z-index: 5;
+        }
+
+        .resize-handle::before {
+          content: '';
+          position: absolute;
+          right: 3px;
+          top: 0;
+          bottom: 0;
+          width: 2px;
+          background: #cbd5e1;
           transition: background-color 0.2s;
         }
 
-        .resize-handle:hover {
+        .resize-handle:hover::before {
           background: #3b82f6;
+          width: 3px;
+          right: 2.5px;
+        }
+
+        .resize-handle:active::before {
+          background: #2563eb;
+          width: 4px;
+          right: 2px;
         }
 
         .modal-container {
@@ -718,6 +878,111 @@ const TeacherAssignmentTable = ({
         .save-button:hover {
           background: #2563eb;
         }
+
+        .form-group.replacement-field {
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 12px;
+          background: #f8fafc;
+        }
+
+        .form-group.replacement-field label {
+          color: #1f2937;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+
+        .form-group.replacement-field .editable-select {
+          background: white;
+          border: 1px solid #d1d5db;
+        }
+
+        .replacement-section {
+          grid-column: 1 / -1;
+          border-top: 1px solid #e5e7eb;
+          padding-top: 20px;
+          margin-top: 16px;
+        }
+
+        .replacement-section h4 {
+          margin: 0 0 16px 0;
+          color: #374151;
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        .teacher-assignment-control {
+          width: 100%;
+        }
+
+        .assigned-teacher-display {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          background: white;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+        }
+
+        .assigned-teacher-name {
+          font-weight: 500;
+          color: #374151;
+        }
+
+        .remove-teacher-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 4px;
+          background: #fee2e2;
+          color: #dc2626;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .remove-teacher-button:hover {
+          background: #fecaca;
+        }
+
+        .recommendation-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px 16px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .recommendation-button.guru-button {
+          background: #dbeafe;
+          color: #1e40af;
+          border-color: #93c5fd;
+        }
+
+        .recommendation-button.guru-button:hover {
+          background: #bfdbfe;
+          border-color: #60a5fa;
+        }
+
+        .recommendation-button.mentor-button {
+          background: #fef3c7;
+          color: #92400e;
+          border-color: #fcd34d;
+        }
+
+        .recommendation-button.mentor-button:hover {
+          background: #fde68a;
+          border-color: #fbbf24;
+        }
       `}</style>
 
       <div className="table-scroll-container">
@@ -741,7 +1006,7 @@ const TeacherAssignmentTable = ({
                 existingValues={getColumnValues("grade", "grade")}
               />
               <SortableFilterableHeader
-                column="Subject"
+                column="subject"
                 title="Subject"
                 sortConfig={sortConfig}
                 onSort={onSort}
@@ -997,7 +1262,9 @@ const TeacherAssignmentTable = ({
         onSave={handleModalSave}
         subjects={subjects}
         timeRanges={timeRanges}
+        teachers={teachers}
         isEditing={isEditMode}
+        onShowRecommendations={handleShowRecommendations}
       />
     </div>
   );

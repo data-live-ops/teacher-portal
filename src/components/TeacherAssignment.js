@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef, Fragment, useMemo } from 'react';
-import { Plus, X, Search, Users, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize } from 'lucide-react';
+import { Plus, X, Search, Users, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize, Settings, RefreshCw } from 'lucide-react';
 import Navbar from "./Navbar";
 import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import TeacherAssignmentTable from './TeacherAssignmentTable';
 import TeacherUtilization from './TeacherUtilization';
+import { useTeacherAssignmentValidation } from '../hooks/useTeacherAssignmentValidation';
+import SemesterManager from './SemesterManager';
+import ImportAssignmentModal from './ImportAssignmentModal';
+import { fetchGoogleSheetData, parseSheetDataToAssignments, validateAssignments } from '../utils/googleSheetsImporter';
 
 const TeacherAssignment = ({ user, onLogout }) => {
     const [assignments, setAssignments] = useState([]);
@@ -39,6 +43,26 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const [columnFilters, setColumnFilters] = useState({});
     const [hasActiveFilters, setHasActiveFilters] = useState(false);
 
+    // Semester states
+    const [semesters, setSemesters] = useState([]);
+    const [selectedSemester, setSelectedSemester] = useState(null);
+    const [showSemesterManager, setShowSemesterManager] = useState(false);
+
+    const [isResyncingData, setIsResyncingData] = useState(false);
+
+    const [showSlotNormalizationModal, setShowSlotNormalizationModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [slotNormalizationData, setSlotNormalizationData] = useState({
+        grade: '',
+        originalSlotName: '',
+        normalizedSlotName: '',
+        notes: ''
+    });
+    const [unmatchedSlots, setUnmatchedSlots] = useState([]);
+    const [normalizedSlots, setNormalizedSlots] = useState([]);
+    const { validateAssignment, validationState } = useTeacherAssignmentValidation();
+
     useEffect(() => {
         const activeFiltersCount = Object.values(columnFilters).filter(
             value => value && value.trim() !== ''
@@ -71,8 +95,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
         const initialWidths = saved
             ? JSON.parse(saved)
             : {
-                actions: 100, grade: 80, subject: 150, slot_name: 180,
-                rules: 120, days: 180, time: 120, status: 120,
+                actions: 100, grade: 120, subject: 150, slot_name: 180,
+                rules: 120, days: 120, time_range: 120, status: 120,
                 guru_juara: 200, mentor: 200, notes: 100, capacity: 100,
                 curriculum: 150, batch_start_date: 120,
                 slot_start_date: 120, slot_end_date: 120, class_rule: 120
@@ -237,39 +261,80 @@ const TeacherAssignment = ({ user, onLogout }) => {
     }, [isFullScreen]);
 
     useEffect(() => {
-        const loadData = async () => {
+        loadSemesters();
+    }, []);
+
+    useEffect(() => {
+        if (selectedSemester) {
+            loadData();
+        }
+    }, [selectedSemester]);
+
+    const loadSemesters = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('semesters')
+                .select('*')
+                .order('start_date', { ascending: false });
+
+            if (error) throw error;
+
+            setSemesters(data || []);
+
+            // Auto-select active semester or latest
+            const activeSemester = data?.find(s => s.is_active);
+            setSelectedSemester(activeSemester || data?.[0] || null);
+        } catch (error) {
+            console.error('Error loading semesters:', error);
+            alert('Failed to load semesters: ' + error.message);
+        }
+    };
+
+    const loadData = async () => {
+        if (!selectedSemester) return;
+
+        try {
             const { data: subjectData, error: subjectError } = await supabase
                 .from('subjects')
                 .select('id, name');
 
             if (subjectError) throw new Error(subjectError);
 
-            const { data: teacherData, error: teacherError } = await supabase
+            // First get all teachers with their grades
+            const { data: allTeachersData, error: allTeachersError } = await supabase
+                .from('teachers')
+                .select('*')
+                .eq('is_active', true);
+
+            if (allTeachersError) throw new Error(allTeachersError);
+
+            // Then get utilization data
+            const { data: utilizationData, error: utilizationError } = await supabase
                 .from('teacher_utilization')
-                .select(`
-          teacher_id,
-          teacher_name,
-          teacher_utilization_percentage,
-          mentor_utilization_percentage,
-          teachers!inner(
-            id,
-            teacher_leveling,
-            subject,
-            level,
-            grade
-          )
-        `);
-            if (teacherError) throw new Error(teacherError);
-            const teachers = teacherData?.map(item => ({
-                id: item.teachers.id,
-                name: item.teacher_name,
-                teacher_leveling: item.teachers.teacher_leveling,
-                subject: item.teachers.subject,
-                level: item.teachers.level,
-                grade: item.teachers.grade,
-                utilization: {
-                    teacher_utilization_percentage: parseFloat(item.teacher_utilization_percentage),
-                    mentor_utilization_percentage: parseFloat(item.mentor_utilization_percentage)
+                .select('teacher_id, teacher_name, teacher_utilization_percentage, mentor_utilization_percentage');
+
+            if (utilizationError) throw new Error(utilizationError);
+
+            // Create a map of utilization by teacher name
+            const utilizationMap = {};
+            utilizationData?.forEach(item => {
+                utilizationMap[item.teacher_name] = {
+                    teacher_utilization_percentage: parseFloat(item.teacher_utilization_percentage || 0),
+                    mentor_utilization_percentage: parseFloat(item.mentor_utilization_percentage || 0)
+                };
+            });
+
+            // Map all teacher records with utilization
+            const teachers = allTeachersData?.map(teacher => ({
+                id: teacher.id,
+                name: teacher.name,
+                teacher_leveling: teacher.teacher_leveling,
+                subject: teacher.subject,
+                level: teacher.level,
+                grade: teacher.grade,
+                utilization: utilizationMap[teacher.name] || {
+                    teacher_utilization_percentage: 0,
+                    mentor_utilization_percentage: 0
                 }
             })) || [];
 
@@ -279,7 +344,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
           *,
           guru_juara:teachers!guru_juara_id(name),
           mentor:teachers!mentor_id(name)
-        `);
+        `)
+                .eq('semester_id', selectedSemester.id); // Filter by selected semester
 
             if (slotError) {
                 console.error(slotError);
@@ -319,10 +385,11 @@ const TeacherAssignment = ({ user, onLogout }) => {
             setTimeRanges(uniqueTimeRanges);
             setAssignments(sortAssignments(assignments));
             setLoading(false);
-        };
-
-        loadData();
-    }, []);
+        } catch (error) {
+            console.error('Error loading data:', error);
+            setLoading(false);
+        }
+    };
 
     const saveAssignmentToDatabase = async (assignmentData) => {
         try {
@@ -346,6 +413,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                     slot_start_date: assignmentData.slot_start_date || null,
                     slot_end_date: assignmentData.slot_end_date || null,
                     class_rule: assignmentData.class_rule || null,
+                    semester_id: selectedSemester.id,
                     created_by: user?.email,
                     created_at: new Date().toISOString()
                 }])
@@ -361,6 +429,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
     const updateAssignmentInDatabase = async (id, updatedData) => {
         try {
+            console.log('updateAssignmentInDatabase called with id:', id, 'data:', updatedData);
+
             const { data, error } = await supabase
                 .from('teacher_assignment_slots')
                 .update({
@@ -370,6 +440,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 })
                 .eq('id', id)
                 .select();
+
+            console.log('Supabase update response - data:', data, 'error:', error);
 
             if (error) throw error;
             return data[0];
@@ -396,32 +468,68 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const filteredAssignments = useMemo(() => {
         let result = [...assignments];
 
-        // Apply column filters
         Object.entries(columnFilters).forEach(([column, filterValue]) => {
             if (filterValue && filterValue.trim() !== '') {
+                let filterValues = [];
+                try {
+                    const parsed = JSON.parse(filterValue);
+                    filterValues = Array.isArray(parsed) ? parsed : [filterValue];
+                } catch {
+                    filterValues = [filterValue];
+                }
+
                 result = result.filter(assignment => {
                     const cellValue = assignment[column];
 
-                    if (column === 'days') {
-                        return assignment.days?.some(day =>
-                            day.toLowerCase().includes(filterValue.toLowerCase())
+                    if (filterValues.length > 1 || (filterValues.length === 1 && filterValue.startsWith('['))) {
+                        if (column === 'days') {
+                            return assignment.days?.some(day =>
+                                filterValues.some(fv =>
+                                    String(day).toLowerCase().includes(String(fv).toLowerCase())
+                                )
+                            );
+                        }
+
+                        if (typeof cellValue === 'string') {
+                            return filterValues.some(fv =>
+                                cellValue.toLowerCase() === String(fv).toLowerCase()
+                            );
+                        }
+
+                        if (typeof cellValue === 'number') {
+                            return filterValues.some(fv =>
+                                cellValue.toString() === String(fv).toString() ||
+                                cellValue === Number(fv)
+                            );
+                        }
+
+                        return filterValues.some(fv =>
+                            String(cellValue || '').toLowerCase() === String(fv).toLowerCase()
                         );
-                    }
+                    } else {
+                        const singleFilterValue = filterValues[0];
 
-                    if (typeof cellValue === 'string') {
-                        return cellValue.toLowerCase().includes(filterValue.toLowerCase());
-                    }
+                        if (column === 'days') {
+                            return assignment.days?.some(day =>
+                                String(day).toLowerCase().includes(String(singleFilterValue).toLowerCase())
+                            );
+                        }
 
-                    if (typeof cellValue === 'number') {
-                        return cellValue.toString() === filterValue.toString();
-                    }
+                        if (typeof cellValue === 'string') {
+                            return cellValue.toLowerCase().includes(String(singleFilterValue).toLowerCase());
+                        }
 
-                    return String(cellValue || '').toLowerCase().includes(filterValue.toLowerCase());
+                        if (typeof cellValue === 'number') {
+                            return cellValue.toString() === String(singleFilterValue).toString() ||
+                                cellValue === Number(singleFilterValue);
+                        }
+
+                        return String(cellValue || '').toLowerCase().includes(String(singleFilterValue).toLowerCase());
+                    }
                 });
             }
         });
 
-        // Apply search term (existing logic)
         if (searchTerm) {
             result = result.filter(assignment =>
                 assignment.slot_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -430,46 +538,39 @@ const TeacherAssignment = ({ user, onLogout }) => {
             );
         }
 
-        // Apply existing filters
         result = result.filter(assignment => {
             const matchesFilters =
                 (!filters.status || assignment.status === filters.status) &&
                 (!filters.subject || assignment.subject === filters.subject) &&
-                (!filters.grade || assignment.grade.toString() === filters.grade);
+                (!filters.grade || (assignment.grade && assignment.grade.toString() === filters.grade));
             return matchesFilters;
         });
 
-        // Apply sorting
         if (sortConfig.key) {
             result.sort((a, b) => {
                 const aValue = a[sortConfig.key];
                 const bValue = b[sortConfig.key];
 
-                // Handle null/undefined values
                 if (aValue == null && bValue == null) return 0;
                 if (aValue == null) return sortConfig.direction === 'asc' ? 1 : -1;
                 if (bValue == null) return sortConfig.direction === 'asc' ? -1 : 1;
 
-                // Handle different data types
                 if (typeof aValue === 'number' && typeof bValue === 'number') {
                     return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
                 }
 
-                // Handle dates
                 if (sortConfig.key.includes('date')) {
                     const dateA = new Date(aValue);
                     const dateB = new Date(bValue);
                     return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
                 }
 
-                // Handle arrays (for days)
                 if (Array.isArray(aValue) && Array.isArray(bValue)) {
                     const strA = aValue.join(',');
                     const strB = bValue.join(',');
                     return sortConfig.direction === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
                 }
 
-                // Default string comparison
                 const strA = String(aValue).toLowerCase();
                 const strB = String(bValue).toLowerCase();
                 return sortConfig.direction === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
@@ -500,6 +601,21 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 duration: parseInt(dataFromModal.duration) || null,
                 class_capacity: parseInt(dataFromModal.class_capacity) || 20,
             };
+
+            // Validate for Mandatory classes
+            if (assignment.class_rule === 'Mandatory' && assignment.guru_juara_id) {
+                const validationResult = await validateAssignment(assignment);
+
+                if (!validationResult.success) {
+                    const errorMessage = validationResult.errors
+                        ? validationResult.errors.join('\n\n')
+                        : validationResult.message;
+
+                    alert(`⚠️ VALIDATION FAILED\n\n${errorMessage}`);
+                    setLoading(false);
+                    return;
+                }
+            }
 
             const savedAssignment = await saveAssignmentToDatabase(assignment);
 
@@ -544,9 +660,9 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 class_rule: 'Mandatory'
             });
 
-            alert('Assignment added successfully!');
+            alert('✅ Assignment added successfully!');
         } catch (error) {
-            alert('Failed to add assignment: ' + error.message);
+            alert('❌ Failed to add assignment: ' + error.message);
         } finally {
             setLoading(false);
         }
@@ -617,14 +733,77 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
     const handleUpdateAssignment = async (id, updatedData) => {
         try {
+            console.log('handleUpdateAssignment called with id:', id, 'updatedData:', updatedData);
+
+            // Get current assignment data
+            const currentAssignment = assignments.find(a => a.id === id);
+
+            if (!currentAssignment) {
+                throw new Error('Assignment not found');
+            }
+
+            // Check if teacher or status is being changed
+            const isTeacherChange = updatedData.hasOwnProperty('guru_juara_id');
+            const isStatusChange = updatedData.hasOwnProperty('status');
+
+            // Only validate if it's a Mandatory class AND (teacher or status changes)
+            if (currentAssignment.class_rule === 'Mandatory' && (isTeacherChange || isStatusChange)) {
+                // Prepare full assignment data for validation
+                const assignmentToValidate = {
+                    ...currentAssignment,
+                    ...updatedData
+                };
+
+                // Call validation function
+                const validationResult = await validateAssignment(assignmentToValidate);
+
+                if (!validationResult.success) {
+                    // Show errors
+                    const errorMessage = validationResult.errors
+                        ? validationResult.errors.join('\n\n')
+                        : validationResult.message;
+
+                    const shouldProceed = window.confirm(
+                        `⚠️ VALIDATION FAILED\n\n${errorMessage}\n\n` +
+                        `Would you like to:\n\n` +
+                        `• Click "OK" to Resync Data Ajar first\n` +
+                        `• Click "Cancel" to fix manually\n\n` +
+                        `Matched sessions: ${validationResult.matched_sessions || 0}`
+                    );
+
+                    if (shouldProceed) {
+                        // Trigger resync
+                        await handleResyncDataAjar();
+                        return; // Don't proceed with update
+                    } else {
+                        throw new Error('Validation failed. Please check the data.');
+                    }
+                }
+
+                // Show warnings if any
+                if (validationResult.warnings && validationResult.warnings.length > 0) {
+                    const warningMessage = validationResult.warnings.join('\n');
+                    const proceedWithWarnings = window.confirm(
+                        `⚡ WARNING\n\n${warningMessage}\n\nDo you want to proceed?`
+                    );
+
+                    if (!proceedWithWarnings) {
+                        return;
+                    }
+                }
+
+                console.log('✅ Validation passed:', validationResult);
+            }
+
+            // Proceed with update
             await updateAssignmentInDatabase(id, updatedData);
 
-            setAssignments(assignments.map(a =>
-                a.id === id
-                    ? {
+            const updatedAssignments = assignments.map(a => {
+                if (a.id === id) {
+                    const updated = {
                         ...a,
                         ...updatedData,
-                        updated_by: user,
+                        updated_by: user?.email,
                         updated_at: new Date().toISOString(),
                         guru_juara_name: updatedData.guru_juara_id
                             ? teachers.find(t => t.id === updatedData.guru_juara_id)?.name
@@ -632,23 +811,44 @@ const TeacherAssignment = ({ user, onLogout }) => {
                         mentor_name: updatedData.mentor_id
                             ? teachers.find(t => t.id === updatedData.mentor_id)?.name
                             : (updatedData.mentor_id === null ? null : a.mentor_name)
-                    }
-                    : a
-            ));
+                    };
+                    return updated;
+                }
+                return a;
+            });
+
+            setAssignments(updatedAssignments);
+
+            if (isTeacherChange) {
+                alert('✅ Teacher assignment updated successfully!');
+            }
         } catch (error) {
-            alert('Failed to update assignment: ' + error.message);
+            console.error('Update failed:', error);
+            alert('❌ Failed to update assignment: ' + error.message);
         }
     };
 
     const getTeacherRecommendations = (assignment) => {
         const { subject, grade, rules, class_rule } = assignment;
 
+        console.log('getTeacherRecommendations - assignment:', assignment);
+        console.log('Looking for - subject:', subject, 'grade:', grade, 'class_rule:', class_rule);
+        console.log('Available teachers:', teachers.length);
+
         if (class_rule === 'Mandatory') {
-            let eligibleTeachers = teachers.filter(teacher =>
-                teacher.subject === subject &&
-                teacher.grade === grade &&
-                teacher.teacher_leveling.includes('Guru Juara')
-            );
+            let eligibleTeachers = teachers.filter(teacher => {
+                const matches = teacher.subject === subject &&
+                    teacher.grade == grade &&
+                    teacher.teacher_leveling.includes('Guru Juara');
+
+                if (matches) {
+                    console.log('Matching teacher:', teacher.name, teacher.subject, teacher.grade, teacher.teacher_leveling);
+                }
+
+                return matches;
+            });
+
+            console.log('Eligible teachers found:', eligibleTeachers.length);
 
             const priorityOrder = ['Guru Juara I', 'Guru Juara II', 'Guru Juara III', 'Guru Juara IV'];
 
@@ -661,56 +861,401 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 return a.utilization.teacher_utilization_percentage - b.utilization.teacher_utilization_percentage;
             });
 
-            return eligibleTeachers.slice(0, 3);
+            // Remove duplicates based on teacher id, keeping first match
+            const uniqueTeachers = [];
+            const seenIds = new Set();
+            eligibleTeachers.forEach(teacher => {
+                if (!seenIds.has(teacher.id)) {
+                    uniqueTeachers.push(teacher);
+                    seenIds.add(teacher.id);
+                }
+            });
+
+            return uniqueTeachers.slice(0, 3);
         } else {
             let eligibleTeachers = teachers.filter(teacher => {
                 const subjectMatch = teacher.subject === subject;
-                const gradeMatch = teacher.grade === grade;
+                const gradeMatch = teacher.grade == grade;
                 const levelMatch = true;
 
-                return (subjectMatch && gradeMatch && levelMatch) ||
+                const matches = (subjectMatch && gradeMatch && levelMatch) ||
                     (subjectMatch && gradeMatch) ||
                     (subjectMatch || gradeMatch);
+
+                if (matches) {
+                    console.log('Non-mandatory match:', teacher.name, 'subject:', subjectMatch, 'grade:', gradeMatch);
+                }
+
+                return matches;
             });
 
-            return eligibleTeachers.slice(0, 5);
+            console.log('Eligible teachers for non-mandatory:', eligibleTeachers.length);
+
+            const uniqueTeachers = [];
+            const seenIds = new Set();
+            eligibleTeachers.forEach(teacher => {
+                if (!seenIds.has(teacher.id)) {
+                    uniqueTeachers.push(teacher);
+                    seenIds.add(teacher.id);
+                }
+            });
+
+            return uniqueTeachers.slice(0, 5);
         }
     };
 
     const getMentorRecommendations = (assignment) => {
         const { subject, grade } = assignment;
 
-        let eligibleMentors = teachers.filter(teacher =>
-            teacher.subject === subject &&
-            teacher.grade === grade &&
-            (teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time')
-        );
+        console.log('getMentorRecommendations - Looking for mentors with subject:', subject, 'grade:', grade);
+
+        let eligibleMentors = teachers.filter(teacher => {
+            const matches = teacher.subject === subject &&
+                teacher.grade == grade &&
+                (teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time');
+
+            if (teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time') {
+                console.log('Checking mentor:', teacher.name, 'subject:', teacher.subject, 'grade:', teacher.grade, 'matches:', matches);
+            }
+
+            return matches;
+        });
+
+        console.log('Eligible mentors found:', eligibleMentors.length);
 
         eligibleMentors.sort((a, b) =>
             a.utilization.mentor_utilization_percentage - b.utilization.mentor_utilization_percentage
         );
 
-        return eligibleMentors.slice(0, 3);
+        const uniqueMentors = [];
+        const seenIds = new Set();
+        eligibleMentors.forEach(mentor => {
+            if (!seenIds.has(mentor.id)) {
+                uniqueMentors.push(mentor);
+                seenIds.add(mentor.id);
+            }
+        });
+
+        return uniqueMentors.slice(0, 3);
     };
 
-    const handleShowRecommendations = (rowIndex, type) => {
-        const assignment = assignments[rowIndex];
-        setCurrentRowIndex(rowIndex);
-        setCurrentRecommendationType(type);
+    const handleShowRecommendations = (rowIndex, type, formData = null, setFormData = null) => {
+        // Check if this is from modal (formData will be passed)
+        if (formData && setFormData) {
+            // Modal mode: use formData for recommendations
+            const tempAssignment = {
+                ...formData,
+                grade: formData.grade,
+                subject: formData.subject,
+                class_rule: formData.class_rule
+            };
 
-        if (type === 'guru_juara') {
-            setRecommendations(getTeacherRecommendations(assignment));
+            setCurrentRecommendationType(type);
+
+            if (type === 'guru_juara') {
+                setRecommendations(getTeacherRecommendations(tempAssignment));
+            } else {
+                setRecommendations(getMentorRecommendations(tempAssignment));
+            }
+
+            setGradeForAllTeachers(formData.grade);
+
+            // Store modal callback for later use
+            window._modalSetFormData = setFormData;
+            window._modalFormData = formData;
+            window._isModalMode = true;
         } else {
-            setRecommendations(getMentorRecommendations(assignment));
+            // Table mode: use existing assignment
+            const assignment = filteredAssignments[rowIndex];
+            const actualIndex = assignments.findIndex(a => a.id === assignment.id);
+
+            console.log('handleShowRecommendations - rowIndex:', rowIndex, 'actualIndex:', actualIndex, 'assignment:', assignment);
+
+            setCurrentRowIndex(actualIndex);
+            setCurrentRecommendationType(type);
+
+            if (type === 'guru_juara') {
+                setRecommendations(getTeacherRecommendations(assignment));
+            } else {
+                setRecommendations(getMentorRecommendations(assignment));
+            }
+
+            setGradeForAllTeachers(assignment.grade);
+
+            window._isModalMode = false;
         }
 
-        setGradeForAllTeachers(assignment.grade);
         setShowRecommendationModal(true);
+        console.log('Recommendations modal opened');
+    };
+
+    const fetchUnmatchedSlots = async () => {
+        try {
+            const { data, error } = await supabase.rpc('monitor_teacher_assignment_coverage');
+            if (error) throw error;
+
+            console.log('Raw unmatched slots data:', data);
+
+            const unmatchedFiltered = (data || []).filter(item =>
+                item &&
+                !item.has_assignment &&
+                item.grade &&
+                item.slot_name &&
+                item.total_sessions_affected > 0
+            );
+
+            const uniqueUnmatched = [];
+            const seenCombinations = new Set();
+
+            unmatchedFiltered.forEach(item => {
+                const key = `${item.grade}_${item.slot_name}`;
+                if (!seenCombinations.has(key)) {
+                    seenCombinations.add(key);
+                    const totalSessions = unmatchedFiltered
+                        .filter(i => i.grade === item.grade && i.slot_name === item.slot_name)
+                        .reduce((sum, i) => sum + (i.total_sessions_affected || 0), 0);
+
+                    uniqueUnmatched.push({
+                        ...item,
+                        total_sessions_affected: totalSessions
+                    });
+                }
+            });
+
+            console.log('Processed unmatched slots (unique):', uniqueUnmatched);
+            setUnmatchedSlots(uniqueUnmatched);
+        } catch (error) {
+            console.error('Error fetching unmatched slots:', error);
+            setUnmatchedSlots([]);
+        }
+    };
+
+    const fetchNormalizedSlots = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('slot_normalized')
+                .select('*')
+                .eq('is_active', true)
+                .order('grade', { ascending: true })
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            console.log('Fetched normalized slots:', data);
+            setNormalizedSlots(data || []);
+        } catch (error) {
+            console.error('Error fetching normalized slots:', error);
+            setNormalizedSlots([]);
+        }
+    };
+
+    const handleShowSlotNormalization = () => {
+        console.log('Current assignments:', assignments);
+        console.log('Assignments with null/undefined grade:', assignments.filter(a => !a.grade));
+        fetchUnmatchedSlots();
+        fetchNormalizedSlots();
+        setShowSlotNormalizationModal(true);
+    };
+
+    const handleSlotNormalizationSubmit = async () => {
+        try {
+            const { error } = await supabase
+                .from('slot_normalized')
+                .insert({
+                    grade: slotNormalizationData.grade,
+                    original_slot_name: slotNormalizationData.originalSlotName,
+                    normalized_slot_name: slotNormalizationData.normalizedSlotName,
+                    created_by: user?.email,
+                    notes: slotNormalizationData.notes
+                });
+
+            if (error) throw error;
+
+            alert('Slot normalization saved successfully!');
+            setSlotNormalizationData({
+                grade: '',
+                originalSlotName: '',
+                normalizedSlotName: '',
+                notes: ''
+            });
+
+            // Refresh both unmatched and normalized slots
+            fetchUnmatchedSlots();
+            fetchNormalizedSlots();
+        } catch (error) {
+            alert('Failed to save slot normalization: ' + error.message);
+        }
+    };
+
+    const handleResyncDataAjar = async () => {
+        if (window.confirm('Are you sure you want to resync data from Ajar? This will refresh all session data.')) {
+            try {
+                setIsResyncingData(true);
+
+                // Call the Edge Function to resync data from Metabase
+                console.log('Calling Edge Function...');
+                const response = await supabase.functions.invoke('resync-metabase-data', {
+                    method: 'POST'
+                });
+
+                console.log('Edge Function response:', response);
+                console.log('Response data:', response.data);
+                console.log('Response error:', response.error);
+
+                if (response.error) {
+                    console.error('Supabase function error:', response.error);
+                    throw new Error(`Edge Function error: ${response.error.message || response.error}`);
+                }
+
+                const result = response.data;
+
+                if (result && result.success) {
+                    const rowsProcessed = result.rows_processed || 0;
+                    const totalRows = result.total_rows || rowsProcessed;
+                    const failedBatches = result.failed_batches || [];
+
+                    let message = `Data resync completed successfully! ${rowsProcessed} rows processed.`;
+
+                    if (totalRows > rowsProcessed) {
+                        message += ` (${totalRows - rowsProcessed} rows failed)`;
+                    }
+
+                    if (failedBatches.length > 0) {
+                        message += `\n\nWarning: ${failedBatches.length} batches had issues. Check logs for details.`;
+                    }
+
+                    alert(message);
+                } else {
+                    const errorMsg = result?.error || result?.message || 'Unknown error occurred';
+                    throw new Error(errorMsg);
+                }
+            } catch (error) {
+                console.error('Resync error:', error);
+                alert(`Failed to resync data: ${error.message || error}\n\nPlease check if:\n• Metabase connection is working\n• Edge Function is deployed\n• Network connection is stable`);
+            } finally {
+                setIsResyncingData(false);
+            }
+        }
+    };
+
+    const handleImportAssignments = async (spreadsheetId, sheetName) => {
+        if (!selectedSemester) {
+            alert('Please select a semester first');
+            return;
+        }
+
+        const confirmMessage = `⚠️ WARNING: This will DELETE all existing assignments for semester "${selectedSemester.name}" and import new data.\n\nAre you sure you want to continue?`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        try {
+            setIsImporting(true);
+
+            // Step 1: Fetch data from Google Spreadsheet
+            console.log('Fetching data from Google Spreadsheet...');
+            const rawData = await fetchGoogleSheetData(spreadsheetId, sheetName);
+
+            if (!rawData || !rawData.values || rawData.values.length === 0) {
+                throw new Error('No data found in spreadsheet');
+            }
+
+            // Step 2: Parse the data
+            console.log('Parsing spreadsheet data...');
+            const parsedAssignments = parseSheetDataToAssignments(rawData.values, teachers);
+
+            if (parsedAssignments.length === 0) {
+                throw new Error('No valid assignments found in spreadsheet');
+            }
+
+            // Step 3: Validate assignments
+            console.log('Validating assignments...');
+            const validation = validateAssignments(parsedAssignments);
+
+            if (!validation.valid) {
+                const errorMessage = `Validation failed:\n\n${validation.errors.join('\n')}`;
+                alert(errorMessage);
+                setIsImporting(false);
+                return;
+            }
+
+            // Step 4: Delete existing assignments for this semester
+            console.log(`Deleting existing assignments for semester ${selectedSemester.id}...`);
+            const { error: deleteError } = await supabase
+                .from('teacher_assignment_slots')
+                .delete()
+                .eq('semester_id', selectedSemester.id);
+
+            if (deleteError) {
+                throw new Error(`Failed to delete existing assignments: ${deleteError.message}`);
+            }
+
+            // Step 5: Insert new assignments
+            console.log(`Inserting ${parsedAssignments.length} new assignments...`);
+            const assignmentsToInsert = parsedAssignments.map(assignment => ({
+                ...assignment,
+                semester_id: selectedSemester.id,
+                created_by: user?.email,
+                created_at: new Date().toISOString()
+            }));
+
+            const { data: insertedData, error: insertError } = await supabase
+                .from('teacher_assignment_slots')
+                .insert(assignmentsToInsert)
+                .select();
+
+            if (insertError) {
+                throw new Error(`Failed to insert assignments: ${insertError.message}`);
+            }
+
+            // Step 6: Reload data
+            console.log('Import successful! Reloading data...');
+            await loadData();
+
+            alert(`✅ Import successful!\n\n${insertedData.length} assignments imported for semester "${selectedSemester.name}"`);
+            setShowImportModal(false);
+        } catch (error) {
+            console.error('Import error:', error);
+            alert(`❌ Import failed: ${error.message}\n\nPlease check:\n• Spreadsheet ID and Sheet Name are correct\n• Spreadsheet is accessible\n• Column headers match expected format\n• Teacher names exist in database`);
+        } finally {
+            setIsImporting(false);
+        }
     };
 
     const handleSelectRecommendation = (teacherId) => {
         const field = currentRecommendationType === 'guru_juara' ? 'guru_juara_id' : 'mentor_id';
-        handleUpdateAssignment(assignments[currentRowIndex].id, { [field]: teacherId });
+
+        // Check if we're in modal mode
+        if (window._isModalMode && window._modalSetFormData && window._modalFormData) {
+            // Update modal formData
+            window._modalSetFormData({
+                ...window._modalFormData,
+                [field]: teacherId
+            });
+
+            // Clear modal mode flags
+            window._modalSetFormData = null;
+            window._modalFormData = null;
+            window._isModalMode = false;
+
+            setShowRecommendationModal(false);
+            return;
+        }
+
+        // Table mode
+        if (currentRowIndex === null || currentRowIndex === undefined || !assignments[currentRowIndex]) {
+            console.error('Invalid currentRowIndex:', currentRowIndex);
+            alert('Error: Could not find assignment to update');
+            return;
+        }
+
+        const assignment = assignments[currentRowIndex];
+        const assignmentId = assignment.id;
+
+        console.log('Updating field:', field, 'with teacherId:', teacherId, 'for assignmentId:', assignmentId);
+
+        handleUpdateAssignment(assignmentId, { [field]: teacherId });
         setShowRecommendationModal(false);
     };
 
@@ -768,24 +1313,61 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 return;
             }
 
+            let filterValues = [];
+            try {
+                const parsed = JSON.parse(filterValue);
+                filterValues = Array.isArray(parsed) ? parsed : [filterValue];
+            } catch {
+                filterValues = [filterValue];
+            }
+
             filteredData = filteredData.filter(assignment => {
                 const cellValue = assignment[filterColumn];
 
-                if (filterColumn === 'days') {
-                    return assignment.days?.some(day =>
-                        day.toLowerCase().includes(filterValue.toLowerCase())
+                if (filterValues.length > 1 || (filterValues.length === 1 && filterValue.startsWith('['))) {
+                    if (filterColumn === 'days') {
+                        return assignment.days?.some(day =>
+                            filterValues.some(fv =>
+                                String(day).toLowerCase().includes(String(fv).toLowerCase())
+                            )
+                        );
+                    }
+
+                    if (typeof cellValue === 'string') {
+                        return filterValues.some(fv =>
+                            cellValue.toLowerCase() === String(fv).toLowerCase()
+                        );
+                    }
+
+                    if (typeof cellValue === 'number') {
+                        return filterValues.some(fv =>
+                            cellValue.toString() === String(fv).toString() ||
+                            cellValue === Number(fv)
+                        );
+                    }
+
+                    return filterValues.some(fv =>
+                        String(cellValue || '').toLowerCase() === String(fv).toLowerCase()
                     );
-                }
+                } else {
+                    const singleFilterValue = filterValues[0];
 
-                if (typeof cellValue === 'string') {
-                    return cellValue.toLowerCase().includes(filterValue.toLowerCase());
-                }
+                    if (filterColumn === 'days') {
+                        return assignment.days?.some(day =>
+                            String(day).toLowerCase().includes(String(singleFilterValue).toLowerCase())
+                        );
+                    }
 
-                if (typeof cellValue === 'number') {
-                    return cellValue.toString() === filterValue.toString();
-                }
+                    if (typeof cellValue === 'string') {
+                        return cellValue.toLowerCase().includes(String(singleFilterValue).toLowerCase());
+                    }
 
-                return String(cellValue || '').toLowerCase().includes(filterValue.toLowerCase());
+                    if (typeof cellValue === 'number') {
+                        return cellValue.toString() === String(singleFilterValue).toString();
+                    }
+
+                    return String(cellValue || '').toLowerCase().includes(String(singleFilterValue).toLowerCase());
+                }
             });
         });
 
@@ -809,6 +1391,60 @@ const TeacherAssignment = ({ user, onLogout }) => {
                     <div className="header-content">
                         <h1 className="title">{activeTabInformation[activeTab]?.title}</h1>
                         <p className="subtitle">{activeTabInformation[activeTab]?.description}</p>
+
+                        {/* Semester Selector */}
+                        {selectedSemester && (
+                            <div style={{ marginTop: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Calendar size={18} color="#3b82f6" />
+                                    <select
+                                        value={selectedSemester?.id || ''}
+                                        onChange={(e) => {
+                                            const semester = semesters.find(s => s.id === e.target.value);
+                                            setSelectedSemester(semester);
+                                        }}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            border: '2px solid #3b82f6',
+                                            fontSize: '14px',
+                                            fontWeight: '500',
+                                            cursor: 'pointer',
+                                            minWidth: '200px',
+                                            background: 'white'
+                                        }}
+                                    >
+                                        {semesters.map(sem => (
+                                            <option key={sem.id} value={sem.id}>
+                                                {sem.name} {sem.is_active ? '(Active)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={() => setShowSemesterManager(true)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 12px',
+                                        background: '#3b82f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = '#2563eb'}
+                                    onMouseLeave={(e) => e.target.style.background = '#3b82f6'}
+                                >
+                                    <Settings size={16} />
+                                    Manage Semesters
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {renderTabNavigation()}
@@ -822,6 +1458,32 @@ const TeacherAssignment = ({ user, onLogout }) => {
                             >
                                 <Maximize size={16} />
                                 Full Screen
+                            </button>
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className="import-button-header"
+                                title="Import Assignments from Google Spreadsheet"
+                                disabled={!selectedSemester}
+                            >
+                                <Upload size={16} />
+                                Import Data
+                            </button>
+                            <button
+                                onClick={handleResyncDataAjar}
+                                className="resync-button"
+                                title="Resync Data Ajar"
+                                disabled={isResyncingData}
+                            >
+                                <RefreshCw size={16} className={isResyncingData ? 'spinning' : ''} />
+                                {isResyncingData ? 'Resyncing...' : 'Resync Data Ajar'}
+                            </button>
+                            <button
+                                onClick={handleShowSlotNormalization}
+                                className="slot-normalization-button"
+                                title="Slot Normalization"
+                            >
+                                <Settings size={16} />
+                                Normalize Slots
                             </button>
                             <div className="search-bar">
                                 <Search className="search-icon" size={18} />
@@ -837,18 +1499,30 @@ const TeacherAssignment = ({ user, onLogout }) => {
                             {hasActiveFilters && (
                                 <div className="active-filters">
                                     <span className="active-filters-label">Active Filters:</span>
-                                    {Object.entries(columnFilters).map(([column, value]) => (
-                                        <div key={column} className="filter-tag">
-                                            <span>{column}: {value}</span>
-                                            <button
-                                                onClick={() => handleClearColumnFilter(column)}
-                                                className="filter-tag-remove"
-                                                title={`Remove ${column} filter`}
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    ))}
+                                    {Object.entries(columnFilters).map(([column, value]) => {
+                                        let displayValue = value;
+                                        try {
+                                            const parsed = JSON.parse(value);
+                                            if (Array.isArray(parsed)) {
+                                                displayValue = parsed.join(', ');
+                                            }
+                                        } catch {
+                                            // Keep original value if not JSON
+                                        }
+
+                                        return (
+                                            <div key={column} className="filter-tag">
+                                                <span>{column}: {displayValue}</span>
+                                                <button
+                                                    onClick={() => handleClearColumnFilter(column)}
+                                                    className="filter-tag-remove"
+                                                    title={`Remove ${column} filter`}
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                     <button
                                         onClick={handleClearAllFilters}
                                         className="clear-all-filters"
@@ -999,18 +1673,31 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                         {hasActiveFilters && (
                                             <div className="active-filters">
                                                 <span className="active-filters-label">Active Filters:</span>
-                                                {Object.entries(columnFilters).map(([column, value]) => (
-                                                    <div key={column} className="filter-tag">
-                                                        <span>{column}: {value}</span>
-                                                        <button
-                                                            onClick={() => handleClearColumnFilter(column)}
-                                                            className="filter-tag-remove"
-                                                            title={`Remove ${column} filter`}
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
+                                                {Object.entries(columnFilters).map(([column, value]) => {
+                                                    // Parse multiple values if they exist
+                                                    let displayValue = value;
+                                                    try {
+                                                        const parsed = JSON.parse(value);
+                                                        if (Array.isArray(parsed)) {
+                                                            displayValue = parsed.join(', ');
+                                                        }
+                                                    } catch {
+                                                        // Keep original value if not JSON
+                                                    }
+
+                                                    return (
+                                                        <div key={column} className="filter-tag">
+                                                            <span>{column}: {displayValue}</span>
+                                                            <button
+                                                                onClick={() => handleClearColumnFilter(column)}
+                                                                className="filter-tag-remove"
+                                                                title={`Remove ${column} filter`}
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
                                                 <button
                                                     onClick={handleClearAllFilters}
                                                     className="clear-all-filters"
@@ -1093,6 +1780,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                             </div>
 
                             <div className="recommendations-list">
+                                {console.log('Rendering recommendations modal, recommendations:', recommendations)}
                                 {recommendations.length > 0 ? (
                                     recommendations.map((teacher, index) => (
                                         <div key={teacher.id} className="recommendation-item">
@@ -1208,6 +1896,209 @@ const TeacherAssignment = ({ user, onLogout }) => {
                         </div>
                     </div>
                 )}
+
+                {showSlotNormalizationModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content large-modal">
+                            <div className="modal-header">
+                                <h3 className="modal-title">Slot Normalization</h3>
+                                <button
+                                    onClick={() => setShowSlotNormalizationModal(false)}
+                                    className="modal-close"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="normalization-content">
+                                <div className="section">
+                                    <h4>Unmatched Slots ({unmatchedSlots.length} found)</h4>
+                                    <div className="unmatched-slots-list">
+                                        {unmatchedSlots.length > 0 ? unmatchedSlots.map((slot, index) => (
+                                            <div
+                                                key={index}
+                                                className="unmatched-slot-item"
+                                                onClick={() => {
+                                                    if (slot && slot.grade && slot.slot_name) {
+                                                        setSlotNormalizationData({
+                                                            ...slotNormalizationData,
+                                                            grade: slot.grade.toString(),
+                                                            originalSlotName: slot.slot_name
+                                                        });
+                                                    }
+                                                }}
+                                            >
+                                                <span className="slot-grade">Grade {slot.grade || 'N/A'}</span>
+                                                <span className="slot-name">{slot.slot_name || 'N/A'}</span>
+                                                <span className="slot-sessions">{slot.total_sessions_affected || 0} sessions</span>
+                                            </div>
+                                        )) : (
+                                            <div className="no-unmatched-slots">
+                                                <p>No unmatched slots found or still loading...</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="section">
+                                    <h4>Already Normalized Slots ({normalizedSlots.length} found)</h4>
+                                    <div style={{ overflowX: 'auto', marginTop: '12px' }}>
+                                        {normalizedSlots.length > 0 ? (
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                                                <thead>
+                                                    <tr style={{ backgroundColor: '#f3f4f6', borderBottom: '2px solid #e5e7eb' }}>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Grade</th>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Original Slot (Ajar)</th>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Normalized Slot (Assignment)</th>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Created By</th>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Created At</th>
+                                                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Notes</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {normalizedSlots.map((slot, index) => (
+                                                        <tr key={slot.id || index} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                            <td style={{ padding: '12px' }}>
+                                                                <span style={{ fontWeight: '500' }}>Grade {slot.grade}</span>
+                                                            </td>
+                                                            <td style={{ padding: '12px' }}>
+                                                                <span style={{ color: '#059669', fontWeight: '500' }}>{slot.original_slot_name}</span>
+                                                            </td>
+                                                            <td style={{ padding: '12px' }}>
+                                                                <span style={{ color: '#3b82f6', fontWeight: '500' }}>{slot.normalized_slot_name}</span>
+                                                            </td>
+                                                            <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>
+                                                                {slot.created_by || 'N/A'}
+                                                            </td>
+                                                            <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>
+                                                                {slot.created_at ? new Date(slot.created_at).toLocaleDateString('en-US', {
+                                                                    year: 'numeric',
+                                                                    month: 'short',
+                                                                    day: 'numeric'
+                                                                }) : 'N/A'}
+                                                            </td>
+                                                            <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280', maxWidth: '200px' }}>
+                                                                {slot.notes || '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <div style={{
+                                                padding: '24px',
+                                                textAlign: 'center',
+                                                color: '#6b7280',
+                                                backgroundColor: '#f9fafb',
+                                                borderRadius: '6px'
+                                            }}>
+                                                <p>No normalized slots found. Start by creating normalization rules below.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="section">
+                                    <h4>Create Normalization Rule</h4>
+                                    <div className="normalization-form">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Grade</label>
+                                                <input
+                                                    type="text"
+                                                    value={slotNormalizationData.grade}
+                                                    onChange={(e) => setSlotNormalizationData({
+                                                        ...slotNormalizationData,
+                                                        grade: e.target.value
+                                                    })}
+                                                    placeholder="e.g., 5"
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Original Slot Name (from Ajar)</label>
+                                                <input
+                                                    type="text"
+                                                    value={slotNormalizationData.originalSlotName}
+                                                    onChange={(e) => setSlotNormalizationData({
+                                                        ...slotNormalizationData,
+                                                        originalSlotName: e.target.value
+                                                    })}
+                                                    placeholder="e.g., Math Regular"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Normalized Slot Name (from Teacher Assignments)</label>
+                                                <select
+                                                    value={slotNormalizationData.normalizedSlotName}
+                                                    onChange={(e) => setSlotNormalizationData({
+                                                        ...slotNormalizationData,
+                                                        normalizedSlotName: e.target.value
+                                                    })}
+                                                >
+                                                    <option value="">Select a slot from assignments</option>
+                                                    {[...new Set(assignments.filter(a => a.slot_name && a.grade).map(a => a.slot_name))]
+                                                        .filter(slotName =>
+                                                            assignments.some(a =>
+                                                                a.slot_name === slotName &&
+                                                                a.grade &&
+                                                                a.grade.toString() === slotNormalizationData.grade
+                                                            )
+                                                        )
+                                                        .map(slotName => (
+                                                            <option key={slotName} value={slotName}>
+                                                                {slotName}
+                                                            </option>
+                                                        ))
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Notes (Optional)</label>
+                                                <textarea
+                                                    value={slotNormalizationData.notes}
+                                                    onChange={(e) => setSlotNormalizationData({
+                                                        ...slotNormalizationData,
+                                                        notes: e.target.value
+                                                    })}
+                                                    placeholder="Additional notes about this normalization"
+                                                    rows={3}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="form-actions">
+                                            <button
+                                                onClick={handleSlotNormalizationSubmit}
+                                                className="primary-button"
+                                                disabled={!slotNormalizationData.grade || !slotNormalizationData.originalSlotName || !slotNormalizationData.normalizedSlotName}
+                                            >
+                                                <Save size={16} />
+                                                Save Normalization
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <SemesterManager
+                    isOpen={showSemesterManager}
+                    onClose={() => setShowSemesterManager(false)}
+                    onSemesterChange={loadSemesters}
+                    currentUser={user}
+                />
+
+                <ImportAssignmentModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    onImport={handleImportAssignments}
+                    isImporting={isImporting}
+                />
             </div>
         </>
     );
