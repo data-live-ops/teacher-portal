@@ -16,11 +16,11 @@ serve(async (req) => {
     // Check environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
+
     console.log('Environment check:');
     console.log('- SUPABASE_URL:', supabaseUrl ? 'SET' : 'MISSING');
     console.log('- SUPABASE_SERVICE_ROLE_KEY:', supabaseKey ? 'SET' : 'MISSING');
-    
+
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing required environment variables');
     }
@@ -33,12 +33,12 @@ serve(async (req) => {
     // Test 1: Clear existing data
     console.log('Step 1: Clearing data...')
     const { data: truncateResult, error: truncateError } = await supabase.rpc('truncate_raw_sessions')
-    
+
     if (truncateError) {
       console.error('Truncate error:', truncateError)
       throw new Error(`Failed to clear data: ${truncateError.message}`)
     }
-    
+
     console.log('Truncate result:', truncateResult)
 
     // Test 2: Simple insert without using .select()
@@ -67,12 +67,12 @@ serve(async (req) => {
     if (insertError) {
       console.error('Insert error:', insertError)
       console.error('Error details:', JSON.stringify(insertError, null, 2))
-      
+
       // Try alternative: direct SQL insert
       console.log('Trying alternative SQL insert...')
       const { data: sqlResult, error: sqlError } = await supabase
         .rpc('direct_insert_test')
-      
+
       if (sqlError) {
         console.error('SQL insert also failed:', sqlError)
         throw new Error(`Both insert methods failed. Insert error: ${insertError.message}, SQL error: ${sqlError.message}`)
@@ -98,7 +98,7 @@ serve(async (req) => {
     console.log('Final count:', countData)
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         rows_processed: 1,
         total_rows: 1,
@@ -108,28 +108,28 @@ serve(async (req) => {
         final_count: countData,
         message: 'Simple test completed successfully'
       }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     )
 
   } catch (error) {
     console.error('Error in simple test:', error)
-    
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
         error: error.message || 'Unknown error occurred',
         test_mode: true,
         message: `Simple test failed: ${error.message}`
       }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         },
         status: 400
       }

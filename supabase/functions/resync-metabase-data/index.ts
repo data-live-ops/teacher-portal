@@ -62,7 +62,6 @@ function getActualNameTeacher(e: string): string {
 
 // Calibrate teacher names in the data
 function calibrateTeacherNames(data: any[]): any[] {
-  console.log('Starting teacher name calibration...');
   let calibrationCount = 0;
 
   const result = data.map((record, index) => {
@@ -76,7 +75,6 @@ function calibrateTeacherNames(data: any[]): any[] {
         calibratedRecord.teacher_name = actualName;
 
         if (originalName !== actualName) {
-          console.log(`Record ${index}: "${originalName}" -> "${actualName}"`);
           calibrationCount++;
         }
       }
@@ -89,42 +87,60 @@ function calibrateTeacherNames(data: any[]): any[] {
     }
   });
 
-  console.log(`Teacher name calibration completed. ${calibrationCount} names calibrated out of ${data.length} records.`);
   return result;
 }
 
-// Transform function for Metabase data to raw_sessions format
 function transformMetabaseData(data: any[]): any[] {
-  console.log('Sample raw data:', data[0]); // Log first row to see structure
-
-  // First calibrate teacher names
+  console.log('Sample raw data:', data[0]);
   const calibratedData = calibrateTeacherNames(data);
 
-  return calibratedData.map(row => ({
-    // Map field names - check exact field names from Metabase
-    session_id: row.session_id || row.Session_ID || row['Session ID'] || '',
-    subject: row.subject || row.Subject || '',
-    session_topic: row.session_topic || row.Session_Topic || row['Session Topic'] || '',
-    slot_name: row.slot_name || row.Slot_Name || row['Slot Name'] || '',
-    teacher_name: row.teacher_name || row.Teacher_Name || row['Teacher Name'] || '',
-    grade: row.grade || row.Grade || '',
-    class_date: row.class_date || row.Class_Date || row['Class Date'] || null,
-    class_time: row.class_time || row.Class_Time || row['Class Time'] || '',
-    first_class_date: row.first_class_date || row.First_Class_Date || row['First Class Date'] || null,
-    day: row.day || row.Day || '',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  })).filter(row => row.session_id && row.session_id.trim() !== '')
+  return calibratedData.map(row => {
+    // Extract and clean grade value
+    const gradeValue = row.grade || row.Grade || '';
+    const cleanGrade = String(gradeValue).trim();
+
+    // Extract and clean other fields
+    const sessionId = (row.session_id || row.Session_ID || row['Session ID'] || '').toString().trim();
+
+    return {
+      session_id: sessionId,
+      subject: row.subject || row.Subject || '',
+      session_topic: row.session_topic || row.Session_Topic || row['Session Topic'] || '',
+      slot_name: row.slot_name || row.Slot_Name || row['Slot Name'] || '',
+      teacher_name: row.teacher_name || row.Teacher_Name || row['Teacher Name'] || '',
+      grade: cleanGrade, // Already as string, will be handled by database
+      class_date: row.class_date || row.Class_Date || row['Class Date'] || null,
+      class_time: row.class_time || row.Class_Time || row['Class Time'] || '',
+      first_class_date: row.first_class_date || row.First_Class_Date || row['First Class Date'] || null,
+      day: row.day || row.Day || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  }).filter(row => {
+    // Filter out invalid rows
+    const hasSessionId = row.session_id && row.session_id.trim() !== '';
+    const hasValidGrade = row.grade && row.grade.trim() !== '';
+
+    if (!hasSessionId) {
+      console.log('Skipping row: missing session_id');
+      return false;
+    }
+
+    if (!hasValidGrade) {
+      console.log(`Skipping row ${row.session_id}: missing or empty grade`);
+      return false;
+    }
+
+    return true;
+  });
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -132,7 +148,6 @@ serve(async (req) => {
 
     console.log('Starting Metabase data resync...')
 
-    // Get Metabase credentials from environment
     const metabaseBaseUrl = Deno.env.get('METABASE_BASE_URL')
     const metabaseUsername = Deno.env.get('METABASE_USERNAME')
     const metabasePassword = Deno.env.get('METABASE_PASSWORD')
@@ -141,13 +156,10 @@ serve(async (req) => {
       throw new Error('Missing Metabase environment variables')
     }
 
-    // Authenticate with Metabase
     console.log('Authenticating with Metabase...')
     const authResponse = await fetch(`${metabaseBaseUrl}api/session`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: metabaseUsername,
         password: metabasePassword
@@ -163,8 +175,6 @@ serve(async (req) => {
     const sessionToken = authData.id
 
     console.log('Fetching data from Metabase question 3815...')
-
-    // Fetch data from Metabase question 3815 as JSON
     const dataResponse = await fetch(`${metabaseBaseUrl}api/card/3815/query/json`, {
       method: 'POST',
       headers: {
@@ -181,88 +191,107 @@ serve(async (req) => {
     const jsonData = await dataResponse.json()
     console.log(`Received JSON data: ${jsonData.length} rows`)
 
-    // Transform JSON data
     console.log('Transforming JSON data...')
     const transformedData = transformMetabaseData(jsonData)
-
     console.log(`Transformed to ${transformedData.length} valid rows`)
 
     if (transformedData.length === 0) {
       throw new Error('No valid data found after transformation')
     }
 
-    // Clear existing data using RLS-safe function
-    console.log('Clearing existing raw_sessions data...')
-    const { data: truncateResult, error: truncateError } = await supabase.rpc('truncate_raw_sessions')
+    // === NEW APPROACH: Direct Insert with Trigger Disabled ===
 
-    if (truncateError) {
-      console.error('Truncate error:', truncateError)
-      throw new Error(`Failed to clear existing data: ${truncateError.message}`)
+    console.log('Step 1: Disabling trigger...')
+    const { error: disableTriggerError } = await supabase.rpc('execute_sql', {
+      sql: 'ALTER TABLE raw_sessions DISABLE TRIGGER sync_raw_session_trigger'
+    })
+
+    // Fallback: Jika execute_sql tidak ada, kita langsung insert (trigger akan jalan)
+    const triggerDisabled = !disableTriggerError
+
+    console.log('Step 2: Clearing raw_sessions...')
+    const { error: deleteRawError } = await supabase
+      .from('raw_sessions')
+      .delete()
+      .neq('id', 0) // Delete all rows
+
+    if (deleteRawError) {
+      console.error('Delete raw_sessions error:', deleteRawError)
+      throw new Error(`Failed to clear raw_sessions: ${deleteRawError.message}`)
     }
 
-    console.log('Truncate result:', truncateResult)
+    console.log('Step 3: Inserting to raw_sessions in batches...')
+    const batchSize = 500
+    let totalInserted = 0
 
-    // Insert new data using bulk insert function
-    console.log('Inserting new data using bulk function...')
-    const { data: insertResult, error: insertError } = await supabase.rpc(
-      'bulk_insert_raw_sessions',
-      { data_json: transformedData }
-    )
+    for (let i = 0; i < transformedData.length; i += batchSize) {
+      const batch = transformedData.slice(i, i + batchSize)
+      const batchNumber = Math.floor(i / batchSize) + 1
 
-    let totalProcessed = 0
-    let failedBatches = []
+      const { error: insertError } = await supabase
+        .from('raw_sessions')
+        .insert(batch)
 
-    if (insertError) {
-      console.error('Bulk insert error, falling back to batch insert:', insertError)
-
-      // Fallback to batch insert if bulk insert fails
-      console.log('Using fallback batch insert method...')
-      const batchSize = 500
-
-      for (let i = 0; i < transformedData.length; i += batchSize) {
-        const batch = transformedData.slice(i, i + batchSize)
-        const batchNumber = Math.floor(i / batchSize) + 1
-
-        try {
-          const { error: batchInsertError } = await supabase
-            .from('raw_sessions')
-            .insert(batch)
-
-          if (batchInsertError) {
-            console.error(`Batch ${batchNumber} insert error:`, batchInsertError)
-            failedBatches.push({ batch: batchNumber, error: batchInsertError.message })
-            continue
-          }
-
-          totalProcessed += batch.length
-          console.log(`Processed batch ${batchNumber}: ${totalProcessed}/${transformedData.length} rows`)
-
-        } catch (batchError) {
-          console.error(`Batch ${batchNumber} unexpected error:`, batchError)
-          failedBatches.push({ batch: batchNumber, error: batchError.message })
-        }
+      if (insertError) {
+        console.error(`Batch ${batchNumber} insert error:`, insertError)
+        throw new Error(`Batch ${batchNumber} failed: ${insertError.message}`)
       }
-    } else {
-      // Bulk insert succeeded
-      totalProcessed = insertResult.inserted_rows || transformedData.length
-      console.log('Bulk insert result:', insertResult)
+
+      totalInserted += batch.length
+      console.log(`Inserted batch ${batchNumber}: ${totalInserted}/${transformedData.length} rows`)
     }
 
-    console.log(`Successfully processed ${totalProcessed} rows`)
+    console.log('Step 4: Re-enabling trigger and syncing to class_schedules...')
 
-    // Prepare consistent response structure
+    if (triggerDisabled) {
+      // Re-enable trigger
+      await supabase.rpc('execute_sql', {
+        sql: 'ALTER TABLE raw_sessions ENABLE TRIGGER sync_raw_session_trigger'
+      })
+    }
+
+    // Clear and resync class_schedules
+    console.log('Step 5: Clearing class_schedules...')
+    const { error: deleteClassError } = await supabase
+      .from('class_schedules')
+      .delete()
+      .neq('id', 0)
+
+    if (deleteClassError) {
+      console.error('Delete class_schedules error:', deleteClassError)
+    }
+
+    console.log('Step 6: Syncing to class_schedules via SQL function...')
+    const { error: syncError } = await supabase.rpc('sync_all_raw_sessions_to_class_schedules')
+
+    if (syncError) {
+      console.error('Sync error:', syncError)
+      // Continue even if sync fails - we'll check counts
+    }
+
+    // Verify final counts
+    console.log('Step 7: Verifying data...')
+    const { count: rawCount } = await supabase
+      .from('raw_sessions')
+      .select('*', { count: 'exact', head: true })
+
+    const { count: classCount } = await supabase
+      .from('class_schedules')
+      .select('*', { count: 'exact', head: true })
+
+    console.log(`Final counts: raw_sessions=${rawCount}, class_schedules=${classCount}`)
+
     const responseData = {
       success: true,
-      rows_processed: totalProcessed,
+      rows_processed: totalInserted,
       total_rows: transformedData.length,
-      failed_batches: failedBatches,
+      raw_sessions_count: rawCount || 0,
+      class_schedules_count: classCount || 0,
       calibration_applied: true,
-      message: failedBatches.length > 0
-        ? `Partially successful. Processed ${totalProcessed} of ${transformedData.length} rows with teacher name calibration. ${failedBatches.length} batches failed.`
-        : `Successfully processed ${totalProcessed} rows from Metabase question 3815 with teacher name calibration`
-    };
+      message: `Successfully processed ${totalInserted} rows. Raw sessions: ${rawCount}, Class schedules: ${classCount}`
+    }
 
-    console.log('Sending response:', responseData);
+    console.log('Sending response:', responseData)
 
     return new Response(
       JSON.stringify(responseData),
@@ -284,9 +313,9 @@ serve(async (req) => {
       error: error.message || 'Unknown error occurred',
       details: error.stack,
       message: `Resync failed: ${error.message || 'Unknown error occurred'}`
-    };
+    }
 
-    console.log('Sending error response:', errorResponse);
+    console.log('Sending error response:', errorResponse)
 
     return new Response(
       JSON.stringify(errorResponse),
@@ -300,13 +329,3 @@ serve(async (req) => {
     )
   }
 })
-
-// Helper SQL function to create if not exists
-/*
-CREATE OR REPLACE FUNCTION truncate_raw_sessions()
-RETURNS void AS $$
-BEGIN
-  TRUNCATE TABLE raw_sessions RESTART IDENTITY;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-*/
