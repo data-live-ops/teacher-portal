@@ -23,3 +23,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .vercel
+
+# SQL files in root directory
+/*.sql
+
+# All files in resync-metabase-data except index.ts
+/supabase/functions/resync-metabase-data/*
+!/supabase/functions/resync-metabase-data/index.ts
+/supabase/functions/supabase/.temp/*
+
+supabase/migrations/*
+
