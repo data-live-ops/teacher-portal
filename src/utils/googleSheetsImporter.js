@@ -82,11 +82,22 @@ export const parseSheetDataToAssignments = (rawData, teachers) => {
     throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
   }
 
+  // Build teacher name to ID lookup map
+  // Use Set to track unique teacher IDs (teachers array may have duplicates per subject)
   const teacherNameToId = {};
+  const seenIds = new Set();
+
   teachers.forEach(teacher => {
-    const normalizedName = teacher.name.toLowerCase().trim();
+    // Skip if we've already processed this teacher ID
+    if (seenIds.has(teacher.id)) return;
+    seenIds.add(teacher.id);
+
+    // Normalize name: lowercase, trim, and remove extra spaces
+    const normalizedName = teacher.name.toLowerCase().trim().replace(/\s+/g, ' ');
     teacherNameToId[normalizedName] = teacher.id;
   });
+
+  console.log(`Teacher lookup map created with ${Object.keys(teacherNameToId).length} unique teachers`);
 
   const assignments = dataRows
     .filter(row => {
@@ -123,32 +134,48 @@ export const parseSheetDataToAssignments = (rawData, teachers) => {
         assignment.days = [];
       }
 
-      assignment.time_range = columnMap.time_range !== -1 && row[columnMap.time_range]
-        ? row[columnMap.time_range].toString().trim()
-        : null;
+      // Normalize time_range: remove spaces around "-" (e.g., "14:30 - 15:30" -> "14:30-15:30")
+      if (columnMap.time_range !== -1 && row[columnMap.time_range]) {
+        assignment.time_range = row[columnMap.time_range]
+          .toString()
+          .trim()
+          .replace(/\s*-\s*/g, '-'); // Remove spaces around dash
+      } else {
+        assignment.time_range = null;
+      }
 
       const durationValue = columnMap.duration !== -1 ? row[columnMap.duration] : null;
       assignment.duration = durationValue ? parseInt(durationValue) : null;
 
-      assignment.status = columnMap.status !== -1 && row[columnMap.status]
-        ? row[columnMap.status].toString().trim()
-        : 'Pending';
+      // IMPORTANT: Always set status to 'Pending' for imported data
+      // regardless of what's in the spreadsheet (Open, Upcoming, etc.)
+      assignment.status = 'Pending';
 
+      // Helper function to normalize teacher name for lookup
+      const normalizeTeacherName = (name) => {
+        if (!name) return '';
+        return name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
+      };
+
+      // Lookup Guru Juara by name -> ID from teachers_new table
       if (columnMap.guru_juara_name !== -1 && row[columnMap.guru_juara_name]) {
-        const guruName = row[columnMap.guru_juara_name].toString().toLowerCase().trim();
-        assignment.guru_juara_id = teacherNameToId[guruName] || null;
-        if (!assignment.guru_juara_id && guruName) {
-          console.warn(`Row ${index + 2}: Guru Juara "${row[columnMap.guru_juara_name]}" not found in teachers table`);
+        const rawGuruName = row[columnMap.guru_juara_name].toString().trim();
+        const normalizedGuruName = normalizeTeacherName(rawGuruName);
+        assignment.guru_juara_id = teacherNameToId[normalizedGuruName] || null;
+        if (!assignment.guru_juara_id && rawGuruName) {
+          console.warn(`Row ${index + 2}: Guru Juara "${rawGuruName}" not found in teachers_new table`);
         }
       } else {
         assignment.guru_juara_id = null;
       }
 
+      // Lookup Mentor by name -> ID from teachers_new table
       if (columnMap.mentor_name !== -1 && row[columnMap.mentor_name]) {
-        const mentorName = row[columnMap.mentor_name].toString().toLowerCase().trim();
-        assignment.mentor_id = teacherNameToId[mentorName] || null;
-        if (!assignment.mentor_id && mentorName) {
-          console.warn(`Row ${index + 2}: Mentor "${row[columnMap.mentor_name]}" not found in teachers table`);
+        const rawMentorName = row[columnMap.mentor_name].toString().trim();
+        const normalizedMentorName = normalizeTeacherName(rawMentorName);
+        assignment.mentor_id = teacherNameToId[normalizedMentorName] || null;
+        if (!assignment.mentor_id && rawMentorName) {
+          console.warn(`Row ${index + 2}: Mentor "${rawMentorName}" not found in teachers_new table`);
         }
       } else {
         assignment.mentor_id = null;
