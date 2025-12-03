@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Fragment, useMemo } from 'react';
-import { Plus, X, Search, Users, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize, Settings, RefreshCw } from 'lucide-react';
+import { Plus, X, Search, Users, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize, Settings, RefreshCw, FlaskConical } from 'lucide-react';
 import Navbar from "./Navbar";
 import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -8,9 +8,16 @@ import TeacherUtilization from './TeacherUtilization';
 import { useTeacherAssignmentValidation } from '../hooks/useTeacherAssignmentValidation';
 import SemesterManager from './SemesterManager';
 import ImportAssignmentModal from './ImportAssignmentModal';
+import ExportAssignmentModal from './ExportAssignmentModal';
+import TestDataInjectionModal from './TestDataInjectionModal';
 import { fetchGoogleSheetData, parseSheetDataToAssignments, validateAssignments } from '../utils/googleSheetsImporter';
+import { formatAssignmentsForExport, exportToGoogleSheet } from '../utils/googleSheetsExporter';
+import { usePermissions } from '../contexts/PermissionContext';
+import { sanitizeAssignmentData } from '../utils/sanitizeAssignmentData';
 
 const TeacherAssignment = ({ user, onLogout }) => {
+    const { canEdit } = usePermissions();
+    const hasEditPermission = canEdit('teacher_assignment');
     const [assignments, setAssignments] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [teachers, setTeachers] = useState([]);
@@ -53,6 +60,10 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const [showSlotNormalizationModal, setShowSlotNormalizationModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [showDataActionsDropdown, setShowDataActionsDropdown] = useState(false);
+    const [showTestDataModal, setShowTestDataModal] = useState(false);
     const [slotNormalizationData, setSlotNormalizationData] = useState({
         grade: '',
         originalSlotName: '',
@@ -95,7 +106,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
         const initialWidths = saved
             ? JSON.parse(saved)
             : {
-                actions: 100, grade: 120, subject: 150, slot_name: 180,
+                actions: 200, grade: 120, subject: 150, slot_name: 180,
                 rules: 120, days: 120, time_range: 120, status: 120,
                 guru_juara: 200, mentor: 200, notes: 100, capacity: 100,
                 curriculum: 150, batch_start_date: 120,
@@ -300,18 +311,26 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
             if (subjectError) throw new Error(subjectError);
 
-            // First get all teachers with their grades
             const { data: allTeachersData, error: allTeachersError } = await supabase
-                .from('teachers')
+                .from('teachers_new')
                 .select('*')
                 .eq('is_active', true);
 
             if (allTeachersError) throw new Error(allTeachersError);
 
-            // Then get utilization data
+            // Load teacher subjects (capabilities)
+            const { data: teacherSubjectsData, error: teacherSubjectsError } = await supabase
+                .from('teacher_subjects')
+                .select('*')
+                .eq('is_active', true);
+
+            if (teacherSubjectsError) throw new Error(teacherSubjectsError);
+
+            // Then get utilization data - filter by selected semester
             const { data: utilizationData, error: utilizationError } = await supabase
                 .from('teacher_utilization')
-                .select('teacher_id, teacher_name, teacher_utilization_percentage, mentor_utilization_percentage');
+                .select('teacher_id, teacher_name, teacher_utilization_percentage, mentor_utilization_percentage')
+                .eq('semester_id', selectedSemester.id);
 
             if (utilizationError) throw new Error(utilizationError);
 
@@ -324,26 +343,51 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 };
             });
 
-            // Map all teacher records with utilization
-            const teachers = allTeachersData?.map(teacher => ({
-                id: teacher.id,
-                name: teacher.name,
-                teacher_leveling: teacher.teacher_leveling,
-                subject: teacher.subject,
-                level: teacher.level,
-                grade: teacher.grade,
-                utilization: utilizationMap[teacher.name] || {
-                    teacher_utilization_percentage: 0,
-                    mentor_utilization_percentage: 0
+            // Create teacher records WITH subject capabilities
+            // Each teacher-subject combination becomes a separate record for recommendations
+            const teachers = [];
+            allTeachersData?.forEach(teacher => {
+                const teacherCapabilities = teacherSubjectsData?.filter(ts => ts.teacher_id === teacher.id) || [];
+
+                if (teacherCapabilities.length > 0) {
+                    // Create one record per subject capability
+                    teacherCapabilities.forEach(capability => {
+                        teachers.push({
+                            id: teacher.id,
+                            name: teacher.name,
+                            teacher_leveling: teacher.teacher_leveling,
+                            subject: capability.subject,
+                            level: capability.level,
+                            grade: capability.grade,
+                            utilization: utilizationMap[teacher.name] || {
+                                teacher_utilization_percentage: 0,
+                                mentor_utilization_percentage: 0
+                            }
+                        });
+                    });
+                } else {
+                    // Teacher without subjects (for backward compatibility)
+                    teachers.push({
+                        id: teacher.id,
+                        name: teacher.name,
+                        teacher_leveling: teacher.teacher_leveling,
+                        subject: null,
+                        level: null,
+                        grade: null,
+                        utilization: utilizationMap[teacher.name] || {
+                            teacher_utilization_percentage: 0,
+                            mentor_utilization_percentage: 0
+                        }
+                    });
                 }
-            })) || [];
+            });
 
             const { data: slotData, error: slotError } = await supabase
                 .from('teacher_assignment_slots')
                 .select(`
           *,
-          guru_juara:teachers!guru_juara_id(name),
-          mentor:teachers!mentor_id(name)
+          guru_juara:teachers_new!guru_juara_id(name),
+          mentor:teachers_new!mentor_id(name)
         `)
                 .eq('semester_id', selectedSemester.id); // Filter by selected semester
 
@@ -393,26 +437,29 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
     const saveAssignmentToDatabase = async (assignmentData) => {
         try {
+            // FIX: Sanitize data to convert empty strings to null for date fields
+            const sanitizedData = sanitizeAssignmentData(assignmentData);
+
             const { data, error } = await supabase
                 .from('teacher_assignment_slots')
                 .insert([{
-                    grade: assignmentData.grade,
-                    subject: assignmentData.subject,
-                    slot_name: assignmentData.slot_name,
-                    rules: assignmentData.rules,
-                    days: assignmentData.days,
-                    time_range: assignmentData.time_range,
-                    duration: assignmentData.duration,
-                    status: assignmentData.status,
-                    guru_juara_id: assignmentData.guru_juara_id,
-                    mentor_id: assignmentData.mentor_id,
-                    notes: assignmentData.notes,
-                    class_capacity: assignmentData.class_capacity,
-                    curriculum: assignmentData.curriculum,
-                    batch_start_date: assignmentData.batch_start_date || null,
-                    slot_start_date: assignmentData.slot_start_date || null,
-                    slot_end_date: assignmentData.slot_end_date || null,
-                    class_rule: assignmentData.class_rule || null,
+                    grade: sanitizedData.grade,
+                    subject: sanitizedData.subject,
+                    slot_name: sanitizedData.slot_name,
+                    rules: sanitizedData.rules,
+                    days: sanitizedData.days,
+                    time_range: sanitizedData.time_range,
+                    duration: sanitizedData.duration,
+                    status: sanitizedData.status,
+                    guru_juara_id: sanitizedData.guru_juara_id,
+                    mentor_id: sanitizedData.mentor_id,
+                    notes: sanitizedData.notes,
+                    class_capacity: sanitizedData.class_capacity,
+                    curriculum: sanitizedData.curriculum,
+                    batch_start_date: sanitizedData.batch_start_date,
+                    slot_start_date: sanitizedData.slot_start_date,
+                    slot_end_date: sanitizedData.slot_end_date,
+                    class_rule: sanitizedData.class_rule || null,
                     semester_id: selectedSemester.id,
                     created_by: user?.email,
                     created_at: new Date().toISOString()
@@ -431,10 +478,14 @@ const TeacherAssignment = ({ user, onLogout }) => {
         try {
             console.log('updateAssignmentInDatabase called with id:', id, 'data:', updatedData);
 
+            // FIX: Sanitize data to convert empty strings to null for date fields
+            const sanitizedData = sanitizeAssignmentData(updatedData);
+            console.log('Sanitized data:', sanitizedData);
+
             const { data, error } = await supabase
                 .from('teacher_assignment_slots')
                 .update({
-                    ...updatedData,
+                    ...sanitizedData,
                     updated_by: user?.email,
                     updated_at: new Date().toISOString()
                 })
@@ -581,10 +632,63 @@ const TeacherAssignment = ({ user, onLogout }) => {
     }, [assignments, columnFilters, sortConfig, searchTerm, filters]);
 
 
-    const filteredTeachers = teachers.filter(teacher => {
-        const matchSearch = (String(teacher?.name).toLocaleLowerCase().includes(modalSearchTerm.toLowerCase()) && Number(teacher?.grade) === Number(gradeForAllTeachers)) || (String(teacher?.name).toLocaleLowerCase().includes(modalSearchTerm.toLowerCase()) && String(teacher?.teacher_leveling).includes('Part Time'));
-        return matchSearch;
-    })
+    // FIX: Deduplicate teachers and fix search
+    const filteredTeachers = useMemo(() => {
+        // First, deduplicate teachers by ID
+        const uniqueTeachersMap = new Map();
+
+        teachers.forEach(teacher => {
+            if (!uniqueTeachersMap.has(teacher.id)) {
+                // First occurrence - store it
+                uniqueTeachersMap.set(teacher.id, {
+                    ...teacher,
+                    // Aggregate subjects for display
+                    allSubjects: [teacher.subject],
+                    allGrades: [teacher.grade],
+                    allLevels: [teacher.level]
+                });
+            } else {
+                // Duplicate - merge subjects/grades/levels
+                const existing = uniqueTeachersMap.get(teacher.id);
+                if (teacher.subject && !existing.allSubjects.includes(teacher.subject)) {
+                    existing.allSubjects.push(teacher.subject);
+                }
+                if (teacher.grade && !existing.allGrades.includes(teacher.grade)) {
+                    existing.allGrades.push(teacher.grade);
+                }
+                if (teacher.level && !existing.allLevels.includes(teacher.level)) {
+                    existing.allLevels.push(teacher.level);
+                }
+            }
+        });
+
+        // Convert map to array
+        const uniqueTeachers = Array.from(uniqueTeachersMap.values());
+
+        // Apply search filter
+        if (!modalSearchTerm.trim()) {
+            // No search term - show all unique teachers
+            return uniqueTeachers;
+        }
+
+        const searchLower = modalSearchTerm.toLowerCase().trim();
+
+        return uniqueTeachers.filter(teacher => {
+            // Search in name
+            const nameMatch = teacher.name?.toLowerCase().includes(searchLower);
+
+            // Search in teacher leveling
+            const levelingMatch = teacher.teacher_leveling?.toLowerCase().includes(searchLower);
+
+            // Search in subjects
+            const subjectMatch = teacher.allSubjects?.some(s =>
+                s?.toLowerCase().includes(searchLower)
+            );
+
+            // Match if ANY field matches
+            return nameMatch || levelingMatch || subjectMatch;
+        });
+    }, [teachers, modalSearchTerm]);
 
     const handleAddAssignment = async (insertAfterId = null, dataFromModal) => {
         if (!dataFromModal.subject || !dataFromModal.grade || !dataFromModal.slot_name) {
@@ -728,6 +832,134 @@ const TeacherAssignment = ({ user, onLogout }) => {
             } finally {
                 setLoading(false);
             }
+        }
+    };
+
+    const handleBulkDeleteAssignments = async (ids) => {
+        if (!ids || ids.length === 0) return;
+
+        try {
+            setLoading(true);
+
+            // Delete all selected assignments from database
+            const { error } = await supabase
+                .from('teacher_assignment_slots')
+                .delete()
+                .in('id', ids);
+
+            if (error) throw error;
+
+            // Update local state
+            setAssignments(prev => prev.filter(a => !ids.includes(a.id)));
+
+            alert(`Successfully deleted ${ids.length} assignment(s)!`);
+        } catch (error) {
+            console.error('Bulk delete error:', error);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Bulk update status with validation
+    const handleBulkUpdateStatus = async (ids, newStatus) => {
+        if (!ids || ids.length === 0) return;
+
+        try {
+            setLoading(true);
+
+            // Get assignments to update
+            const assignmentsToUpdate = assignments.filter(a => ids.includes(a.id));
+
+            // For status change to Open/Upcoming, validate Mandatory classes against raw_sessions
+            if (newStatus === 'Open' || newStatus === 'Upcoming') {
+                const mandatoryAssignments = assignmentsToUpdate.filter(a => a.class_rule === 'Mandatory');
+
+                if (mandatoryAssignments.length > 0) {
+                    const validationResults = [];
+                    const failedValidations = [];
+
+                    // Validate each mandatory assignment
+                    for (const assignment of mandatoryAssignments) {
+                        const result = await validateAssignment({
+                            ...assignment,
+                            status: newStatus
+                        });
+
+                        validationResults.push({
+                            assignment,
+                            result
+                        });
+
+                        if (!result.success) {
+                            failedValidations.push({
+                                slot_name: assignment.slot_name,
+                                grade: assignment.grade,
+                                errors: result.errors || ['Validation failed'],
+                                matched_sessions: result.matched_sessions || 0
+                            });
+                        }
+                    }
+
+                    // If any validation failed, show errors and ask user
+                    if (failedValidations.length > 0) {
+                        const failedList = failedValidations
+                            .map(f => `• Grade ${f.grade} - ${f.slot_name}: ${f.errors[0]} (${f.matched_sessions} sessions)`)
+                            .join('\n');
+
+                        const passedCount = mandatoryAssignments.length - failedValidations.length;
+                        const nonMandatoryCount = assignmentsToUpdate.length - mandatoryAssignments.length;
+
+                        const message = `⚠️ VALIDATION FAILED\n\n` +
+                            `${failedValidations.length} Mandatory assignment(s) failed validation:\n\n` +
+                            `${failedList}\n\n` +
+                            `These slots don't exist in Ajar/raw_sessions data.\n\n` +
+                            `Options:\n` +
+                            `• Click "OK" to update only VALID assignments (${passedCount} Mandatory + ${nonMandatoryCount} Non-Mandatory = ${passedCount + nonMandatoryCount} total)\n` +
+                            `• Click "Cancel" to abort and Resync Data Ajar first`;
+
+                        if (!window.confirm(message)) {
+                            setLoading(false);
+                            return;
+                        }
+
+                        // Remove failed assignments from update list
+                        const failedIds = failedValidations.map(f =>
+                            mandatoryAssignments.find(a =>
+                                a.slot_name === f.slot_name && a.grade === f.grade
+                            )?.id
+                        ).filter(Boolean);
+
+                        ids = ids.filter(id => !failedIds.includes(id));
+
+                        if (ids.length === 0) {
+                            alert('No valid assignments to update.');
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Update status in database
+            const { error } = await supabase
+                .from('teacher_assignment_slots')
+                .update({ status: newStatus })
+                .in('id', ids);
+
+            if (error) throw error;
+
+            // Update local state
+            setAssignments(prev =>
+                prev.map(a => ids.includes(a.id) ? { ...a, status: newStatus } : a)
+            );
+
+            alert(`Successfully updated ${ids.length} assignment(s) to "${newStatus}"!`);
+        } catch (error) {
+            console.error('Bulk status update error:', error);
+            throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -907,26 +1139,29 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const getMentorRecommendations = (assignment) => {
         const { subject, grade } = assignment;
 
-        console.log('getMentorRecommendations - Looking for mentors with subject:', subject, 'grade:', grade);
+        console.log('getMentorRecommendations - Looking for mentors (All Grade & All Subject)');
 
+        // Mentors have "All Grade & All Subject" - only filter by Mentor level
         let eligibleMentors = teachers.filter(teacher => {
-            const matches = teacher.subject === subject &&
-                teacher.grade == grade &&
-                (teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time');
+            const isMentor = teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time';
 
-            if (teacher.teacher_leveling === 'Mentor' || teacher.teacher_leveling === 'Mentor Part Time') {
-                console.log('Checking mentor:', teacher.name, 'subject:', teacher.subject, 'grade:', teacher.grade, 'matches:', matches);
+            if (isMentor) {
+                console.log('Found mentor:', teacher.name, 'utilization:', teacher.utilization?.mentor_utilization_percentage);
             }
 
-            return matches;
+            return isMentor;
         });
 
         console.log('Eligible mentors found:', eligibleMentors.length);
 
-        eligibleMentors.sort((a, b) =>
-            a.utilization.mentor_utilization_percentage - b.utilization.mentor_utilization_percentage
-        );
+        // Sort by utilization (lowest first) - mentors don't need subject/grade match
+        eligibleMentors.sort((a, b) => {
+            const aUtil = a.utilization?.mentor_utilization_percentage || 0;
+            const bUtil = b.utilization?.mentor_utilization_percentage || 0;
+            return aUtil - bUtil;
+        });
 
+        // Remove duplicates by teacher ID
         const uniqueMentors = [];
         const seenIds = new Set();
         eligibleMentors.forEach(mentor => {
@@ -936,7 +1171,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
             }
         });
 
-        return uniqueMentors.slice(0, 3);
+        return uniqueMentors.slice(0, 5);  // Return top 5 mentors with lowest utilization
     };
 
     const handleShowRecommendations = (rowIndex, type, formData = null, setFormData = null) => {
@@ -1223,6 +1458,40 @@ const TeacherAssignment = ({ user, onLogout }) => {
         }
     };
 
+    const handleExportAssignments = async (webAppUrl, sheetName, clearExisting) => {
+        if (!selectedSemester) {
+            alert('Please select a semester first');
+            return;
+        }
+
+        if (assignments.length === 0) {
+            alert('No assignments to export');
+            return;
+        }
+
+        try {
+            setIsExporting(true);
+
+            // Step 1: Format assignments for export
+            console.log('Formatting assignments for export...');
+            const formattedData = formatAssignmentsForExport(assignments, teachers);
+
+            // Step 2: Export to Google Sheets via Apps Script
+            console.log(`Exporting ${assignments.length} assignments to spreadsheet...`);
+            const result = await exportToGoogleSheet(webAppUrl, sheetName, formattedData, clearExisting);
+
+            if (result.success) {
+                alert(`✅ Export successful!\n\n${assignments.length} assignments have been sent to your spreadsheet.\n\nSheet: "${sheetName}"\n\nPlease check your Google Spreadsheet to verify the data.`);
+                setShowExportModal(false);
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            alert(`❌ Export failed: ${error.message}\n\nPlease check:\n• Web App URL is correct and valid\n• Apps Script is deployed correctly\n• You have edit access to the spreadsheet\n• Network connection is stable\n\nSee the setup guide in the export modal for help.`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     const handleSelectRecommendation = (teacherId) => {
         const field = currentRecommendationType === 'guru_juara' ? 'guru_juara_id' : 'mentor_id';
 
@@ -1459,24 +1728,74 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                 <Maximize size={16} />
                                 Full Screen
                             </button>
-                            <button
-                                onClick={() => setShowImportModal(true)}
-                                className="import-button-header"
-                                title="Import Assignments from Google Spreadsheet"
-                                disabled={!selectedSemester}
+
+                            {/* Data Actions Dropdown */}
+                            <div
+                                className="dropdown-container"
+                                onMouseLeave={() => setShowDataActionsDropdown(false)}
                             >
-                                <Upload size={16} />
-                                Import Data
-                            </button>
-                            <button
-                                onClick={handleResyncDataAjar}
-                                className="resync-button"
-                                title="Resync Data Ajar"
-                                disabled={isResyncingData}
-                            >
-                                <RefreshCw size={16} className={isResyncingData ? 'spinning' : ''} />
-                                {isResyncingData ? 'Resyncing...' : 'Resync Data Ajar'}
-                            </button>
+                                <button
+                                    onClick={() => setShowDataActionsDropdown(!showDataActionsDropdown)}
+                                    className="dropdown-button"
+                                    title="Data Actions"
+                                    disabled={!selectedSemester}
+                                >
+                                    <Download size={16} />
+                                    Data Actions
+                                    <ChevronDown size={14} />
+                                </button>
+
+                                {showDataActionsDropdown && (
+                                    <div className="dropdown-menu">
+                                        <button
+                                            onClick={() => {
+                                                setShowImportModal(true);
+                                                setShowDataActionsDropdown(false);
+                                            }}
+                                            className="dropdown-item"
+                                            disabled={!selectedSemester}
+                                        >
+                                            <Upload size={14} />
+                                            <span>Import Data</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowExportModal(true);
+                                                setShowDataActionsDropdown(false);
+                                            }}
+                                            className="dropdown-item"
+                                            disabled={!selectedSemester || assignments.length === 0}
+                                        >
+                                            <Download size={14} />
+                                            <span>Export Data</span>
+                                        </button>
+                                        <div className="dropdown-divider"></div>
+                                        <button
+                                            onClick={() => {
+                                                handleResyncDataAjar();
+                                                setShowDataActionsDropdown(false);
+                                            }}
+                                            className="dropdown-item"
+                                            disabled={isResyncingData}
+                                        >
+                                            <RefreshCw size={14} className={isResyncingData ? 'spinning' : ''} />
+                                            <span>{isResyncingData ? 'Resyncing...' : 'Resync Data Ajar'}</span>
+                                        </button>
+                                        <div className="dropdown-divider"></div>
+                                        <button
+                                            onClick={() => {
+                                                setShowTestDataModal(true);
+                                                setShowDataActionsDropdown(false);
+                                            }}
+                                            className="dropdown-item test-data-item"
+                                        >
+                                            <FlaskConical size={14} />
+                                            <span>Inject Test Data</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             <button
                                 onClick={handleShowSlotNormalization}
                                 className="slot-normalization-button"
@@ -1628,6 +1947,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     showAddRowId={showAddRowId}
                                     handleShowAddRow={handleShowAddRow}
                                     handleDeleteAssignment={handleDeleteAssignment}
+                                    handleBulkDeleteAssignments={handleBulkDeleteAssignments}
+                                    handleBulkUpdateStatus={handleBulkUpdateStatus}
                                     handleUpdateAssignment={handleUpdateAssignment}
                                     handleAddAssignment={handleAddAssignment}
                                     handleCancelAdd={handleCancelAdd}
@@ -1646,6 +1967,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     onClearColumnFilter={handleClearColumnFilter}
                                     onClearAllFilters={handleClearAllFilters}
                                     hasActiveFilters={hasActiveFilters}
+                                    canEdit={hasEditPermission}
                                 />
                             </div>
                         )}
@@ -1738,6 +2060,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                         showAddRowId={showAddRowId}
                                         handleShowAddRow={handleShowAddRow}
                                         handleDeleteAssignment={handleDeleteAssignment}
+                                        handleBulkDeleteAssignments={handleBulkDeleteAssignments}
+                                        handleBulkUpdateStatus={handleBulkUpdateStatus}
                                         handleUpdateAssignment={handleUpdateAssignment}
                                         handleAddAssignment={handleAddAssignment}
                                         handleCancelAdd={handleCancelAdd}
@@ -1756,12 +2080,13 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                         onClearColumnFilter={handleClearColumnFilter}
                                         onClearAllFilters={handleClearAllFilters}
                                         hasActiveFilters={hasActiveFilters}
+                                        canEdit={hasEditPermission}
                                     />
                                 </div>
                             </div>
                         )}
                     </>) : (
-                    <TeacherUtilization />
+                    <TeacherUtilization selectedSemester={selectedSemester} />
                 )}
 
                 {showRecommendationModal && (
@@ -1839,7 +2164,10 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                 <div className="modal-header">
                                     <h3 className="modal-title">All Available Teachers</h3>
                                     <button
-                                        onClick={() => setShowOthersModal(false)}
+                                        onClick={() => {
+                                            setShowOthersModal(false);
+                                            setModalSearchTerm(''); // Reset search when closing
+                                        }}
                                         className="modal-close"
                                     >
                                         <X size={20} />
@@ -1850,9 +2178,19 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     <input
                                         type="text"
                                         placeholder="Search teachers..."
+                                        value={modalSearchTerm}
                                         onChange={e => setModalSearchTerm(e.target.value)}
                                         className="search-input"
                                     />
+                                    {modalSearchTerm && (
+                                        <button
+                                            onClick={() => setModalSearchTerm('')}
+                                            className="search-clear-button"
+                                            title="Clear search"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1868,7 +2206,11 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                                     </span>
                                                 </div>
                                                 <div className="teacher-details">
-                                                    <p><strong>Subject:</strong> {teacher.subject} | <strong>Grade:</strong> {teacher.grade} | <strong>Level:</strong> {teacher.level}</p>
+                                                    <p>
+                                                        <strong>Subjects:</strong> {teacher.allSubjects?.filter(s => s).join(', ') || 'N/A'} |&nbsp;
+                                                        <strong>Grades:</strong> {teacher.allGrades?.filter(g => g).join(', ') || 'N/A'} |&nbsp;
+                                                        <strong>Levels:</strong> {teacher.allLevels?.filter(l => l).join(', ') || 'N/A'}
+                                                    </p>
                                                     <p>
                                                         <strong>Teacher Utilization:</strong> {teacher.utilization.teacher_utilization_percentage}% |
                                                         <strong> Mentor Utilization:</strong> {teacher.utilization.mentor_utilization_percentage}%
@@ -1889,7 +2231,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                     ))
                                 ) : (
                                     <div className="no-teachers">
-                                        <p>No teachers available.</p>
+                                        <p>No teachers found matching "{modalSearchTerm}"</p>
                                     </div>
                                 )}
                             </div>
@@ -2098,6 +2440,22 @@ const TeacherAssignment = ({ user, onLogout }) => {
                     onClose={() => setShowImportModal(false)}
                     onImport={handleImportAssignments}
                     isImporting={isImporting}
+                />
+
+                <ExportAssignmentModal
+                    isOpen={showExportModal}
+                    onClose={() => setShowExportModal(false)}
+                    onExport={handleExportAssignments}
+                    isExporting={isExporting}
+                    assignmentCount={assignments.length}
+                />
+
+                <TestDataInjectionModal
+                    isOpen={showTestDataModal}
+                    onClose={() => setShowTestDataModal(false)}
+                    assignments={assignments}
+                    teachers={teachers}
+                    currentUser={user}
                 />
             </div>
         </>

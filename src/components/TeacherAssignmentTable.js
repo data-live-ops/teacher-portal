@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, X, Check, Edit3, Trash2, Users, User } from 'lucide-react';
+import { Plus, X, Check, Edit3, Trash2, Users, User, Info, Loader, Calendar, Clock, BookOpen, CheckSquare, ChevronDown, RefreshCw } from 'lucide-react';
 import DateInput from './DateInput';
 import SortableFilterableHeader from './SortableFilterableHeader';
+import { supabase } from '../lib/supabaseClient.mjs';
+
+// Grade options (4-12)
+const GRADE_OPTIONS = ['4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
 const DaysSelector = ({ selectedDays, onChange, disabled = false }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -88,7 +92,8 @@ const AssignmentModal = ({
   timeRanges,
   teachers = [],
   isEditing = false,
-  onShowRecommendations
+  onShowRecommendations,
+  existingSlotNames = []
 }) => {
   const [formData, setFormData] = useState({
     grade: '',
@@ -109,10 +114,14 @@ const AssignmentModal = ({
     mentor_id: null
   });
 
+  // Raw sessions info state
+  const [rawSessionsInfo, setRawSessionsInfo] = useState(null);
+  const [isLoadingRawSessions, setIsLoadingRawSessions] = useState(false);
+
   useEffect(() => {
     if (assignment) {
       setFormData({
-        grade: assignment?.grade || '',
+        grade: assignment?.grade?.toString() || '',
         subject: assignment?.subject || '',
         slot_name: assignment?.slot_name || '',
         rules: assignment?.rules || '',
@@ -151,6 +160,60 @@ const AssignmentModal = ({
     }
   }, [assignment]);
 
+  // Fetch raw_sessions info when grade or slot_name changes
+  useEffect(() => {
+    const fetchRawSessionsInfo = async () => {
+      if (!formData.grade || !formData.slot_name) {
+        setRawSessionsInfo(null);
+        return;
+      }
+
+      setIsLoadingRawSessions(true);
+      try {
+        // Use exact match for slot_name to avoid matching "Matematika Merdeka 4" with "Matematika Merdeka 40", etc.
+        const { data, error } = await supabase
+          .from('raw_sessions')
+          .select('*')
+          .eq('grade', formData.grade)
+          .eq('slot_name', formData.slot_name)
+          .order('class_date', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          // Aggregate info
+          const uniqueTeachers = [...new Set(data.map(d => d.teacher_name).filter(Boolean))];
+          const uniqueDays = [...new Set(data.map(d => d.day).filter(Boolean))];
+          const uniqueTimes = [...new Set(data.map(d => d.class_time).filter(Boolean))];
+          const uniqueSubjects = [...new Set(data.map(d => d.subject).filter(Boolean))];
+          const classDates = data.map(d => d.class_date).filter(Boolean).sort();
+
+          setRawSessionsInfo({
+            totalSessions: data.length,
+            teachers: uniqueTeachers,
+            days: uniqueDays,
+            times: uniqueTimes,
+            subjects: uniqueSubjects,
+            latestClassDate: classDates[0],
+            earliestClassDate: classDates[classDates.length - 1],
+            sampleData: data.slice(0, 3)
+          });
+        } else {
+          setRawSessionsInfo({ noData: true });
+        }
+      } catch (error) {
+        console.error('Error fetching raw_sessions info:', error);
+        setRawSessionsInfo({ error: error.message });
+      } finally {
+        setIsLoadingRawSessions(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchRawSessionsInfo, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [formData.grade, formData.slot_name]);
+
   const handleDayToggle = (day) => {
     const currentDays = formData.days || [];
     if (currentDays.includes(day)) {
@@ -173,6 +236,81 @@ const AssignmentModal = ({
 
   if (!isOpen) return null;
 
+  // Render raw sessions info panel
+  const renderRawSessionsInfo = () => {
+    if (!formData.grade && !formData.slot_name) {
+      return (
+        <div className="raw-sessions-info empty">
+          <Info size={16} />
+          <span>Pilih Grade dan Slot Name untuk melihat data dari Ajar/raw_sessions</span>
+        </div>
+      );
+    }
+
+    if (isLoadingRawSessions) {
+      return (
+        <div className="raw-sessions-info loading">
+          <Loader size={16} className="spinning" />
+          <span>Memuat data dari raw_sessions...</span>
+        </div>
+      );
+    }
+
+    if (rawSessionsInfo?.error) {
+      return (
+        <div className="raw-sessions-info error">
+          <Info size={16} />
+          <span>Error: {rawSessionsInfo.error}</span>
+        </div>
+      );
+    }
+
+    if (rawSessionsInfo?.noData) {
+      return (
+        <div className="raw-sessions-info no-data">
+          <Info size={16} />
+          <span>Tidak ada data di raw_sessions untuk Grade {formData.grade} & Slot "{formData.slot_name}"</span>
+        </div>
+      );
+    }
+
+    if (rawSessionsInfo) {
+      return (
+        <div className="raw-sessions-info has-data">
+          <div className="info-header">
+            <BookOpen size={16} />
+            <strong>Data dari Ajar (raw_sessions)</strong>
+            <span className="session-count">{rawSessionsInfo.totalSessions} sessions found</span>
+          </div>
+          <div className="info-grid">
+            <div className="info-item">
+              <label><User size={12} /> Teacher(s):</label>
+              <span>{rawSessionsInfo.teachers.length > 0 ? rawSessionsInfo.teachers.join(', ') : '-'}</span>
+            </div>
+            <div className="info-item">
+              <label><BookOpen size={12} /> Subject(s):</label>
+              <span>{rawSessionsInfo.subjects.length > 0 ? rawSessionsInfo.subjects.join(', ') : '-'}</span>
+            </div>
+            <div className="info-item">
+              <label><Calendar size={12} /> Day(s):</label>
+              <span>{rawSessionsInfo.days.length > 0 ? rawSessionsInfo.days.join(', ') : '-'}</span>
+            </div>
+            <div className="info-item">
+              <label><Clock size={12} /> Time(s):</label>
+              <span>{rawSessionsInfo.times.length > 0 ? rawSessionsInfo.times.join(', ') : '-'}</span>
+            </div>
+            <div className="info-item">
+              <label><Calendar size={12} /> Date Range:</label>
+              <span>{rawSessionsInfo.earliestClassDate || '-'} to {rawSessionsInfo.latestClassDate || '-'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-container">
@@ -184,16 +322,22 @@ const AssignmentModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
+          {/* Raw Sessions Info Panel */}
+          {renderRawSessionsInfo()}
+
           <div className="form-grid">
             <div className="form-group">
               <label>Grade *</label>
-              <EditableCell
-                type="number"
+              <select
                 value={formData.grade}
-                onChange={(value) => setFormData({ ...formData, grade: value })}
-                placeholder="Grade 4 - 12"
-                required
-              />
+                onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                className={`editable-select ${!formData.grade ? 'required' : ''}`}
+              >
+                <option value="">Select Grade...</option>
+                {GRADE_OPTIONS.map(grade => (
+                  <option key={grade} value={grade}>Grade {grade}</option>
+                ))}
+              </select>
             </div>
 
             <div className="form-group">
@@ -209,12 +353,19 @@ const AssignmentModal = ({
 
             <div className="form-group">
               <label>Slot Name *</label>
-              <EditableCell
+              <input
+                type="text"
                 value={formData.slot_name}
-                onChange={(value) => setFormData({ ...formData, slot_name: value })}
-                placeholder="Slot name"
-                required
+                onChange={(e) => setFormData({ ...formData, slot_name: e.target.value })}
+                placeholder="Type or select slot name..."
+                className={`editable-input ${!formData.slot_name ? 'required' : ''}`}
+                list="slot-name-options"
               />
+              <datalist id="slot-name-options">
+                {existingSlotNames.map(slot => (
+                  <option key={slot} value={slot} />
+                ))}
+              </datalist>
             </div>
 
             <div className="form-group">
@@ -416,6 +567,8 @@ const TeacherAssignmentTable = ({
   showAddRowId,
   handleShowAddRow,
   handleDeleteAssignment,
+  handleBulkDeleteAssignments,
+  handleBulkUpdateStatus,
   handleUpdateAssignment,
   handleAddAssignment,
   handleCancelAdd,
@@ -431,15 +584,116 @@ const TeacherAssignmentTable = ({
   columnFilters,
   onColumnFilter,
   getColumnValues,
-  handleClearColumnFilter
+  handleClearColumnFilter,
+  canEdit = true
 }) => {
   const tableRef = useRef(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  // Check if all visible rows are selected
+  const allSelected = filteredAssignments.length > 0 &&
+    filteredAssignments.every(a => selectedIds.has(a.id));
+
+  // Check if some (but not all) are selected
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  // Handle select all toggle
+  const handleSelectAll = () => {
+    if (allSelected) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all visible
+      const allIds = new Set(filteredAssignments.map(a => a.id));
+      setSelectedIds(allIds);
+    }
+  };
+
+  // Handle individual row selection
+  const handleSelectRow = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const count = selectedIds.size;
+    if (!window.confirm(`Are you sure you want to delete ${count} selected assignment(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      if (handleBulkDeleteAssignments) {
+        await handleBulkDeleteAssignments(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      }
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      alert('Failed to delete some assignments: ' + error.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle bulk status change
+  const handleBulkStatusChange = async (newStatus) => {
+    if (selectedIds.size === 0) return;
+
+    const count = selectedIds.size;
+    if (!window.confirm(`Change status of ${count} selected assignment(s) to "${newStatus}"?`)) {
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    setShowStatusDropdown(false);
+    try {
+      if (handleBulkUpdateStatus) {
+        await handleBulkUpdateStatus(Array.from(selectedIds), newStatus);
+        setSelectedIds(new Set());
+      }
+    } catch (error) {
+      console.error('Bulk status update error:', error);
+      alert('Failed to update status: ' + error.message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Clear selection when filtered assignments change
+  useEffect(() => {
+    // Remove selected IDs that are no longer in filtered view
+    setSelectedIds(prev => {
+      const filteredIds = new Set(filteredAssignments.map(a => a.id));
+      const newSet = new Set();
+      prev.forEach(id => {
+        if (filteredIds.has(id)) {
+          newSet.add(id);
+        }
+      });
+      return newSet;
+    });
+  }, [filteredAssignments]);
+
   const defaultColumnWidths = {
-    actions: 120,
+    actions: 100,
     grade: 80,
     subject: 150,
     slot_name: 150,
@@ -522,10 +776,109 @@ const TeacherAssignmentTable = ({
           position: relative;
         }
 
+        /* Raw Sessions Info Panel Styles */
+        .raw-sessions-info {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          font-size: 14px;
+        }
+
+        .raw-sessions-info.empty {
+          background: #f8fafc;
+          border: 1px dashed #cbd5e1;
+          color: #64748b;
+        }
+
+        .raw-sessions-info.loading {
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
+          color: #1e40af;
+        }
+
+        .raw-sessions-info.error {
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+        }
+
+        .raw-sessions-info.no-data {
+          background: #fefce8;
+          border: 1px solid #fde047;
+          color: #a16207;
+        }
+
+        .raw-sessions-info.has-data {
+          background: #f0fdf4;
+          border: 1px solid #86efac;
+          color: #166534;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .raw-sessions-info .info-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .raw-sessions-info .info-header strong {
+          flex: 1;
+        }
+
+        .raw-sessions-info .session-count {
+          background: #166534;
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .raw-sessions-info .info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 8px;
+          width: 100%;
+        }
+
+        .raw-sessions-info .info-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .raw-sessions-info .info-item label {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          color: #166534;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+
+        .raw-sessions-info .info-item span {
+          font-size: 13px;
+          color: #374151;
+        }
+
+        .raw-sessions-info .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
         .table-scroll-container {
           overflow-x: auto;
           overflow-y: auto;
-          max-height: calc(100vh - 400px);
           border: 1px solid #e5e7eb;
           border-radius: 8px;
         }
@@ -602,6 +955,8 @@ const TeacherAssignmentTable = ({
         .action-buttons {
           display: flex;
           gap: 4px;
+          align-items: center;
+          flex-wrap: nowrap;
         }
 
         .action-button {
@@ -610,6 +965,7 @@ const TeacherAssignmentTable = ({
           justify-content: center;
           width: 28px;
           height: 28px;
+          min-width: 28px;
           border: none;
           border-radius: 4px;
           cursor: pointer;
@@ -983,12 +1339,294 @@ const TeacherAssignmentTable = ({
           background: #fde68a;
           border-color: #fbbf24;
         }
+
+        /* Checkbox styles */
+        .checkbox-cell {
+          width: 40px;
+          text-align: center;
+          vertical-align: middle;
+        }
+
+        .row-checkbox {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: #3b82f6;
+        }
+
+        .select-all-checkbox {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: #3b82f6;
+        }
+
+        /* Bulk action bar */
+        .bulk-action-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          border-radius: 8px;
+          margin-bottom: 12px;
+          color: white;
+          animation: slideDown 0.2s ease;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .bulk-action-bar .selection-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-weight: 500;
+        }
+
+        .bulk-action-bar .selection-count {
+          background: rgba(255, 255, 255, 0.2);
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 14px;
+        }
+
+        .bulk-action-bar .bulk-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .bulk-action-bar .bulk-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .bulk-action-bar .bulk-delete-btn {
+          background: #dc2626;
+          color: white;
+        }
+
+        .bulk-action-bar .bulk-delete-btn:hover:not(:disabled) {
+          background: #b91c1c;
+        }
+
+        .bulk-action-bar .bulk-delete-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .bulk-action-bar .bulk-cancel-btn {
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .bulk-action-bar .bulk-cancel-btn:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+
+        .bulk-action-bar .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        /* Status dropdown in bulk action bar */
+        .bulk-status-dropdown {
+          position: relative;
+        }
+
+        .bulk-status-btn {
+          background: #10b981;
+          color: white;
+        }
+
+        .bulk-status-btn:hover:not(:disabled) {
+          background: #059669;
+        }
+
+        .bulk-status-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .status-dropdown-menu {
+          position: absolute;
+          top: calc(100% + 4px);
+          right: 0;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+          min-width: 160px;
+          z-index: 100;
+          overflow: hidden;
+          animation: fadeIn 0.15s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-dropdown-menu button {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px 16px;
+          border: none;
+          background: none;
+          color: #374151;
+          font-size: 14px;
+          cursor: pointer;
+          transition: background 0.15s;
+          text-align: left;
+        }
+
+        .status-dropdown-menu button:hover {
+          background: #f3f4f6;
+        }
+
+        .status-dropdown-menu .status-open {
+          color: #059669;
+        }
+
+        .status-dropdown-menu .status-pending {
+          color: #d97706;
+        }
+
+        .status-dropdown-menu .status-upcoming {
+          color: #6366f1;
+        }
+
+        /* Selected row highlight */
+        .assignment-row.selected {
+          background: #eff6ff !important;
+        }
+
+        .assignment-row.selected:hover {
+          background: #dbeafe !important;
+        }
       `}</style>
+
+      {/* Bulk Action Bar - shown when items are selected */}
+      {selectedIds.size > 0 && canEdit && (
+        <div className="bulk-action-bar">
+          <div className="selection-info">
+            <CheckSquare size={20} />
+            <span className="selection-count">{selectedIds.size} selected</span>
+            <span>of {filteredAssignments.length} assignments</span>
+          </div>
+          <div className="bulk-actions">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="bulk-btn bulk-cancel-btn"
+            >
+              <X size={16} />
+              Clear
+            </button>
+
+            {/* Status Change Dropdown */}
+            <div className="bulk-status-dropdown">
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="bulk-btn bulk-status-btn"
+                disabled={isUpdatingStatus}
+              >
+                {isUpdatingStatus ? (
+                  <>
+                    <Loader size={16} className="spinning" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={16} />
+                    Change Status
+                    <ChevronDown size={14} />
+                  </>
+                )}
+              </button>
+              {showStatusDropdown && (
+                <div className="status-dropdown-menu">
+                  <button
+                    className="status-open"
+                    onClick={() => handleBulkStatusChange('Open')}
+                  >
+                    <Check size={14} />
+                    Open
+                  </button>
+                  <button
+                    className="status-pending"
+                    onClick={() => handleBulkStatusChange('Pending')}
+                  >
+                    <Clock size={14} />
+                    Pending
+                  </button>
+                  <button
+                    className="status-upcoming"
+                    onClick={() => handleBulkStatusChange('Upcoming')}
+                  >
+                    <Calendar size={14} />
+                    Upcoming
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleBulkDelete}
+              className="bulk-btn bulk-delete-btn"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader size={16} className="spinning" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={16} />
+                  Delete
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="table-scroll-container">
         <table className="assignment-table" ref={tableRef}>
           <thead>
             <tr>
+              {/* Checkbox column for select all */}
+              {canEdit && (
+                <th className="checkbox-cell">
+                  <input
+                    type="checkbox"
+                    className="select-all-checkbox"
+                    checked={allSelected}
+                    ref={el => {
+                      if (el) el.indeterminate = someSelected;
+                    }}
+                    onChange={handleSelectAll}
+                    title={allSelected ? "Deselect all" : "Select all"}
+                  />
+                </th>
+              )}
               <th className="col-actions" style={{ width: `${mergedColumnWidths.actions}px` }}>
                 Actions
                 {startResizing && <div className="resize-handle" onMouseDown={(e) => startResizing('actions', e)}></div>}
@@ -1146,36 +1784,48 @@ const TeacherAssignmentTable = ({
             {filteredAssignments.map((assignment, index) => (
               <tr
                 key={assignment.id}
-                className="assignment-row"
+                className={`assignment-row ${selectedIds.has(assignment.id) ? 'selected' : ''}`}
                 onMouseEnter={() => setHoveredRowIndex && setHoveredRowIndex(index)}
                 onMouseLeave={() => setHoveredRowIndex && setHoveredRowIndex(null)}
               >
+                {/* Row checkbox */}
+                {canEdit && (
+                  <td className="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      className="row-checkbox"
+                      checked={selectedIds.has(assignment.id)}
+                      onChange={() => handleSelectRow(assignment.id)}
+                    />
+                  </td>
+                )}
                 <td className="actions-cell">
-                  <div className="action-buttons">
-                    <button
-                      onClick={() => handleEditClick(assignment, index)}
-                      className="action-button edit-button"
-                      title="Edit"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAssignment && handleDeleteAssignment(assignment.id)}
-                      className="action-button delete-button"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-
-                  {hoveredRowIndex === index && (
-                    <button
-                      onClick={() => handleAddClick(assignment.id)}
-                      className="floating-add-button"
-                      title="Add new record after this row"
-                    >
-                      <Plus size={14} />
-                    </button>
+                  {canEdit && (
+                    <div className="action-buttons">
+                      <button
+                        onClick={() => handleEditClick(assignment, index)}
+                        className="action-button edit-button"
+                        title="Edit"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAssignment && handleDeleteAssignment(assignment.id)}
+                        className="action-button delete-button"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      {hoveredRowIndex === index && (
+                        <button
+                          onClick={() => handleAddClick(assignment.id)}
+                          className="floating-add-button"
+                          title="Add new record after this row"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
 
@@ -1265,6 +1915,7 @@ const TeacherAssignmentTable = ({
         teachers={teachers}
         isEditing={isEditMode}
         onShowRecommendations={handleShowRecommendations}
+        existingSlotNames={[...new Set(assignments.map(a => a.slot_name).filter(Boolean))]}
       />
     </div>
   );
