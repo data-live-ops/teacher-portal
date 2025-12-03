@@ -957,67 +957,45 @@
     border-top: 1px solid #f1f5f9;
 }
 
-/* Floating Add Button Styles - Tambahkan ke TeacherAssignment.css */
+/* Floating Add Button Styles */
 
 /* Actions cell positioning */
 .actions-cell {
     position: relative;
 }
 
-/* Floating add button */
+/* Action buttons container */
+.action-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+/* Floating add button - inline with action buttons */
 .floating-add-button {
-    position: absolute;
-    left: -45px;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin-left: 4px;
     background-color: #3b82f6;
     color: #ffffff;
     border: none;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-    z-index: 10;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-}
-
-/* Show floating button on row hover with extended hover area */
-.assignment-row:hover .floating-add-button,
-.floating-add-button:hover {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-/* Extended hover area for button */
-.floating-add-button::before {
-    content: '';
-    position: absolute;
-    top: -10px;
-    left: -10px;
-    right: -10px;
-    bottom: -10px;
-    background: transparent;
+    transition: all 0.2s ease;
 }
 
 .floating-add-button:hover {
     background-color: #2563eb;
-    transform: translateY(-50%) scale(1.05);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
 }
 
 /* End add button (different positioning) */
 .floating-add-button.end-add {
-    position: static;
-    transform: none;
-    opacity: 1;
     margin: 8px auto;
     display: flex;
 }
@@ -1085,10 +1063,6 @@
 .cancel-button:hover {
     background-color: #e2e8f0 !important;
     color: #475569 !important;
-}
-
-.table-scroll-container {
-    padding-left: 60px;
 }
 
 .spreadsheet-container {

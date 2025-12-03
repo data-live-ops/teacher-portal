@@ -245,6 +245,18 @@
     padding-right: 0.25rem;
 }
 
+.time-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 88px;
+}
+
+.time-slot-placeholder {
+    min-height: 88px;
+    height: 88px;
+}
+
 /* Custom scrollbar for schedule cards */
 .schedule-cards::-webkit-scrollbar {
     width: 4px;
