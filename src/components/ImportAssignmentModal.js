@@ -68,9 +68,10 @@ const ImportAssignmentModal = ({
             <div>
               <p><strong>Before importing:</strong></p>
               <ul>
-                <li>All existing assignments for the current semester will be deleted</li>
-                <li>Make sure your spreadsheet has the correct column headers</li>
-                <li>Teacher names in the spreadsheet must match names in the database</li>
+                <li>All existing assignments for the current semester will be <strong>deleted</strong></li>
+                <li>All imported data will have status set to <strong>"Pending"</strong> (regardless of spreadsheet value)</li>
+                <li>Teacher names (Guru Juara & Mentor) must <strong>exactly match</strong> names in database</li>
+                <li>Unmatched teacher names will be imported with empty assignment</li>
               </ul>
             </div>
           </div>
