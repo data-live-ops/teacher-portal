@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase-config";
+import { PermissionProvider } from "./contexts/PermissionContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Navigation from "./components/Navigation";
 import Links from "./components/Links";
 import Homepage from "./components/Homepage";
@@ -10,6 +12,8 @@ import LoadingSpinner from "./components/Loading";
 import IndividualSchedule from "./components/IndividualSchedule";
 import PiketSchedule from "./components/PiketSchedule";
 import TeacherAssignment from "./components/TeacherAssignment";
+import DataManagement from "./components/DataManagement";
+import TeacherUtilization from "./components/TeacherUtilization";
 
 function App() {
   const [activePage, setActivePage] = useState("homepage");
@@ -86,8 +90,9 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
+    <PermissionProvider userEmail={user?.email}>
+      <Router>
+        <Routes>
         <Route
           path="/login"
           element={
@@ -132,37 +137,50 @@ function App() {
         <Route
           path="/individual-schedule"
           element={
-            isLoggedIn ? (
+            <ProtectedRoute feature="individual_schedule" isLoggedIn={isLoggedIn}>
               <IndividualSchedule user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/piket-schedule"
           element={
-            isLoggedIn ? (
+            <ProtectedRoute feature="piket_schedule" isLoggedIn={isLoggedIn}>
               <PiketSchedule user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </ProtectedRoute>
           }
         />
 
-        {isEligibleToAccess(user?.email) && <Route
+        <Route
           path="/teacher-assignment"
           element={
-            isLoggedIn ? (
+            <ProtectedRoute feature="teacher_assignment" isLoggedIn={isLoggedIn}>
               <TeacherAssignment user={user} onLogout={handleLogout} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </ProtectedRoute>
           }
-        />}
+        />
+
+        <Route
+          path="/data-management"
+          element={
+            <ProtectedRoute feature="data_management" isLoggedIn={isLoggedIn}>
+              <DataManagement user={user} onLogout={handleLogout} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/teacher-utilization"
+          element={
+            <ProtectedRoute feature="teacher_utilization" isLoggedIn={isLoggedIn}>
+              <TeacherUtilization user={user} onLogout={handleLogout} />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Router>
+    </PermissionProvider>
   );
 }
 
