@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Navbar from "./Navbar";
 import { supabase } from "../lib/supabaseClient.mjs";
+import { usePermissions } from '../contexts/PermissionContext';
 
 const styles = {
     container: {
@@ -604,7 +605,6 @@ const PiketSchedule = ({ user, onLogout }) => {
     const [teachers, setTeachers] = useState([]);
     const [showDropdown, setShowDropdown] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [hasEditPermission, setHasEditPermission] = useState(false);
     const [showAddTeacher, setShowAddTeacher] = useState(null);
     const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
     const [hoveredActionsContainer, setHoveredActionsContainer] = useState(null);
@@ -613,37 +613,8 @@ const PiketSchedule = ({ user, onLogout }) => {
     const dropdownRef = useRef({});
 
     const userEmail = user?.email;
-
-    const checkEditPermission = async (email) => {
-        try {
-            const { data, error } = await supabase
-                .from('piket_editors')
-                .select('email')
-                .eq('email', email)
-                .single();
-
-            if (error && error.code !== 'PGRST116') {
-                console.error("Error checking edit permission:", error);
-                return false;
-            }
-
-            return !!data;
-        } catch (error) {
-            console.error("Error checking edit permission:", error);
-            return false;
-        }
-    };
-
-    useEffect(() => {
-        const initializePermissions = async () => {
-            if (userEmail) {
-                const hasPermission = await checkEditPermission(userEmail);
-                setHasEditPermission(hasPermission);
-            }
-        };
-
-        initializePermissions();
-    }, [userEmail]);
+    const { canEdit } = usePermissions();
+    const hasEditPermission = canEdit('piket_schedule');
 
     const fetchTeachers = async () => {
         try {
@@ -767,6 +738,9 @@ const PiketSchedule = ({ user, onLogout }) => {
 
     useEffect(() => {
         fetchPiketData();
+    }, []);
+
+    useEffect(() => {
         if (hasEditPermission) {
             fetchTeachers();
         }
