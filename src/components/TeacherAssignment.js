@@ -225,25 +225,39 @@ const TeacherAssignment = ({ user, onLogout }) => {
             const slotB = b.slot_name || '';
 
             const parseSlotName = (slotName) => {
-                const match = slotName.match(/^(.+?)\s+(\d+)$/);
-                if (match) {
+                const matchWithSuffix = slotName.match(/^(.+?)\s+(\d+)\s*\((\d+)x\)$/i);
+                const matchWithoutSuffix = slotName.match(/^(.+?)\s+(\d+)$/);
+
+                if (matchWithSuffix) {
                     return {
-                        name: match[1].trim(),
-                        index: parseInt(match[2])
+                        baseName: matchWithSuffix[1].trim(),
+                        index: parseInt(matchWithSuffix[2]),
+                        frequency: parseInt(matchWithSuffix[3])
+                    };
+                } else if (matchWithoutSuffix) {
+                    return {
+                        baseName: matchWithoutSuffix[1].trim(),
+                        index: parseInt(matchWithoutSuffix[2]),
+                        frequency: 0
                     };
                 }
                 return {
-                    name: slotName,
-                    index: 0
+                    baseName: slotName,
+                    index: 0,
+                    frequency: 0
                 };
             };
 
             const parsedA = parseSlotName(slotA);
             const parsedB = parseSlotName(slotB);
 
-            const nameComparison = parsedA.name.localeCompare(parsedB.name);
-            if (nameComparison !== 0) {
-                return nameComparison;
+            const baseNameComparison = parsedA.baseName.localeCompare(parsedB.baseName);
+            if (baseNameComparison !== 0) {
+                return baseNameComparison;
+            }
+
+            if (parsedA.frequency !== parsedB.frequency) {
+                return parsedA.frequency - parsedB.frequency;
             }
 
             return parsedA.index - parsedB.index;
