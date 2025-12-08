@@ -174,7 +174,6 @@ const NotificationBell = ({ userEmail }) => {
     });
   };
 
-  // Format sender name (extract email from string or show short form)
   const formatSender = (createdBy) => {
     if (!createdBy) return null;
     // If it's an email, show only the part before @
@@ -184,7 +183,6 @@ const NotificationBell = ({ userEmail }) => {
     return createdBy;
   };
 
-  // Get icon based on notification type
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'new_slot_assignment':
@@ -196,7 +194,6 @@ const NotificationBell = ({ userEmail }) => {
     }
   };
 
-  // Get type label
   const getTypeLabel = (type, metadata) => {
     switch (type) {
       case 'new_slot_assignment':
@@ -208,7 +205,6 @@ const NotificationBell = ({ userEmail }) => {
     }
   };
 
-  // Handle notification click - open detail modal
   const handleNotifClick = (notif) => {
     if (!notif.is_read) {
       markAsRead(notif.id);
@@ -365,7 +361,7 @@ const NotificationBell = ({ userEmail }) => {
                     <div className="notif-detail-item">
                       <div className="notif-detail-label">
                         <Users size={14} />
-                        <span>Peran Anda</span>
+                        <span>Peran</span>
                       </div>
                       <div className="notif-detail-value role-badge">
                         {getRoleLabel(selectedNotif.metadata.role)}
@@ -385,7 +381,7 @@ const NotificationBell = ({ userEmail }) => {
                     <div className="notif-detail-item">
                       <div className="notif-detail-label">
                         <MapPin size={14} />
-                        <span>Grade</span>
+                        <span>Jenjang</span>
                       </div>
                       <div className="notif-detail-value">
                         Grade {selectedNotif.metadata.grade || '-'}
@@ -396,7 +392,7 @@ const NotificationBell = ({ userEmail }) => {
                       <div className="notif-detail-item">
                         <div className="notif-detail-label">
                           <BookOpen size={14} />
-                          <span>Mata Pelajaran</span>
+                          <span>Subjek</span>
                         </div>
                         <div className="notif-detail-value">
                           {selectedNotif.metadata.subject}
