@@ -93,93 +93,93 @@ function App() {
     <PermissionProvider userEmail={user?.email}>
       <Router>
         <Routes>
-        <Route
-          path="/login"
-          element={
-            !isLoggedIn ? (
-              <Login onLoginSuccess={handleLoginSuccess} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
-        />
+          <Route
+            path="/login"
+            element={
+              !isLoggedIn ? (
+                <Login onLoginSuccess={handleLoginSuccess} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? (
-              <>
-                {isMobile ? (
-                  <>
-                    {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
-                    {activePage === "links" && (
-                      <Links category={category} onBack={handleBack} />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
-                    {activePage === "homepage" && (
-                      <Navigation onClick={handleNavigationClick} />
-                    )}
-                    {activePage === "links" && (
-                      <Links category={category} onBack={handleBack} />
-                    )}
-                  </>
-                )}
-              </>
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
+          <Route
+            path="/"
+            element={
+              isLoggedIn ? (
+                <>
+                  {isMobile ? (
+                    <>
+                      {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
+                      {activePage === "links" && (
+                        <Links category={category} onBack={handleBack} />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {activePage === "homepage" && <Homepage user={user} onLogout={handleLogout} />}
+                      {activePage === "homepage" && (
+                        <Navigation onClick={handleNavigationClick} />
+                      )}
+                      {activePage === "links" && (
+                        <Links category={category} onBack={handleBack} />
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
 
-        <Route
-          path="/individual-schedule"
-          element={
-            <ProtectedRoute feature="individual_schedule" isLoggedIn={isLoggedIn}>
-              <IndividualSchedule user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/individual-schedule"
+            element={
+              <ProtectedRoute feature="individual_schedule" isLoggedIn={isLoggedIn}>
+                <IndividualSchedule user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/piket-schedule"
-          element={
-            <ProtectedRoute feature="piket_schedule" isLoggedIn={isLoggedIn}>
-              <PiketSchedule user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/piket-schedule"
+            element={
+              <ProtectedRoute feature="piket_schedule" isLoggedIn={isLoggedIn}>
+                <PiketSchedule user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/teacher-assignment"
-          element={
-            <ProtectedRoute feature="teacher_assignment" isLoggedIn={isLoggedIn}>
-              <TeacherAssignment user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/teacher-assignment"
+            element={
+              <ProtectedRoute feature="teacher_assignment" isLoggedIn={isLoggedIn}>
+                <TeacherAssignment user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/data-management"
-          element={
-            <ProtectedRoute feature="data_management" isLoggedIn={isLoggedIn}>
-              <DataManagement user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/data-management"
+            element={
+              <ProtectedRoute feature="data_management" isLoggedIn={isLoggedIn}>
+                <DataManagement user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/teacher-utilization"
-          element={
-            <ProtectedRoute feature="teacher_utilization" isLoggedIn={isLoggedIn}>
-              <TeacherUtilization user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </Router>
+          <Route
+            path="/teacher-utilization"
+            element={
+              <ProtectedRoute feature="teacher_utilization" isLoggedIn={isLoggedIn}>
+                <TeacherUtilization user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Router>
     </PermissionProvider>
   );
 }
