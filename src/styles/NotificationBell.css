@@ -51,9 +51,12 @@
 }
 
 @keyframes badge-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.1);
   }
@@ -79,6 +82,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -176,11 +180,11 @@
 }
 
 .notif-icon.slot {
-  color: #8b5cf6;
+  color: #1E5AF6;
 }
 
 .notification-item .notification-icon-wrapper:has(.notif-icon.slot) {
-  background: #f3e8ff;
+  background: #d3e0ff;
 }
 
 .notif-icon.admin {
@@ -367,8 +371,13 @@
 }
 
 @keyframes overlay-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .notif-detail-modal {
@@ -387,6 +396,7 @@
     opacity: 0;
     transform: scale(0.95) translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -398,7 +408,7 @@
   align-items: flex-start;
   gap: 14px;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #123590 0%, #1E5AF6 100%);
   color: white;
 }
 
@@ -535,14 +545,14 @@
 }
 
 .notif-detail-value.highlight {
-  color: #7c3aed;
-  background: #f3e8ff;
+  color: #123590;
+  background: #afc6ff;
   padding: 4px 10px;
   border-radius: 6px;
 }
 
 .notif-detail-value.role-badge {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #123590 0%, #1E5AF6 100%);
   color: white;
   padding: 4px 12px;
   border-radius: 12px;
