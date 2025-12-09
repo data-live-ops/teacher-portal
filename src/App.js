@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebase-config";
 import { PermissionProvider } from "./contexts/PermissionContext";
@@ -14,6 +14,34 @@ import PiketSchedule from "./components/PiketSchedule";
 import TeacherAssignment from "./components/TeacherAssignment";
 import DataManagement from "./components/DataManagement";
 import TeacherUtilization from "./components/TeacherUtilization";
+import PopupCampaignDisplay from "./components/PopupCampaignDisplay";
+
+// Wrapper component to handle popup campaign based on current route
+const PopupCampaignWrapper = ({ isLoggedIn }) => {
+  const location = useLocation();
+
+  // Map routes to page identifiers for popup targeting
+  const getPageFromRoute = (pathname) => {
+    const routeMap = {
+      '/': 'home',
+      '/individual-schedule': 'individual_schedule',
+      '/piket-schedule': 'piket_schedule',
+      '/teacher-assignment': 'teacher_assignment',
+      '/teacher-utilization': 'teacher_utilization',
+      '/data-management': 'data_management'
+    };
+    return routeMap[pathname] || null;
+  };
+
+  const currentPage = getPageFromRoute(location.pathname);
+
+  // Only show popup for logged-in users and valid pages
+  if (!isLoggedIn || !currentPage) {
+    return null;
+  }
+
+  return <PopupCampaignDisplay currentPage={currentPage} />;
+};
 
 function App() {
   const [activePage, setActivePage] = useState("homepage");
@@ -92,6 +120,9 @@ function App() {
   return (
     <PermissionProvider userEmail={user?.email}>
       <Router>
+        {/* Popup Campaign Display - renders based on current route */}
+        <PopupCampaignWrapper isLoggedIn={isLoggedIn} />
+
         <Routes>
           <Route
             path="/login"
