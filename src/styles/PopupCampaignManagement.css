@@ -90,6 +90,38 @@
     color: #975a16;
 }
 
+/* Schedule Type Badge */
+.schedule-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.schedule-type-badge.one_time {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+.schedule-type-badge.daily {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.schedule-type-badge.weekly {
+    background: #fed7e2;
+    color: #97266d;
+}
+
+/* Recurring Days Display */
+.recurring-days-display {
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.85rem;
+}
+
 /* Target Pages Cell */
 .target-pages-cell {
     display: flex;
@@ -422,6 +454,154 @@
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Schedule Type Options */
+.schedule-type-options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.schedule-type-option {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.schedule-type-option:hover {
+    border-color: #cbd5e0;
+    background: #f7fafc;
+}
+
+.schedule-type-option.selected {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.schedule-type-option input[type="radio"] {
+    margin-top: 3px;
+}
+
+.schedule-type-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.schedule-type-content strong {
+    color: #2d3748;
+    font-size: 0.9rem;
+}
+
+.schedule-type-content span {
+    color: #718096;
+    font-size: 0.75rem;
+}
+
+/* Recurring Days Section */
+.recurring-days-section {
+    margin-bottom: 20px;
+}
+
+.recurring-days-section > label {
+    display: block;
+    font-weight: 500;
+    color: #4a5568;
+    margin-bottom: 10px;
+}
+
+.days-of-week-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.day-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 70px;
+    height: 60px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.day-option:hover {
+    border-color: #cbd5e0;
+    background: #f7fafc;
+}
+
+.day-option.selected {
+    border-color: #667eea;
+    background: #667eea;
+}
+
+.day-option.selected .day-short,
+.day-option.selected .day-full {
+    color: white;
+}
+
+.day-option input[type="checkbox"] {
+    display: none;
+}
+
+.day-short {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #2d3748;
+}
+
+.day-full {
+    font-size: 0.7rem;
+    color: #718096;
+}
+
+/* Recurring Time Section */
+.recurring-time-section {
+    margin-top: 15px;
+}
+
+.recurring-time-section > label {
+    display: block;
+    font-weight: 500;
+    color: #4a5568;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.time-window-inputs {
+    display: flex;
+    align-items: flex-end;
+    gap: 15px;
+}
+
+.time-window-inputs .dm-form-group {
+    flex: 1;
+    max-width: 150px;
+}
+
+.time-window-inputs .dm-form-group label {
+    font-size: 0.8rem;
+    color: #718096;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.time-separator {
+    font-size: 1.2rem;
+    color: #718096;
+    padding-bottom: 10px;
 }
 
 /* Bubble Icon Section */
