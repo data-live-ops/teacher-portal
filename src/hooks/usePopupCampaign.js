@@ -2,6 +2,48 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient.mjs';
 
 /**
+ * Check if current time is within the recurring schedule
+ * @param {Object} campaign - Campaign data with schedule fields
+ * @returns {boolean} - Whether the campaign should be shown now
+ */
+const isWithinRecurringSchedule = (campaign) => {
+    // Get current time in Asia/Jakarta
+    const now = new Date();
+    const jakartaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+
+    const currentDay = jakartaTime.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentTime = jakartaTime.toTimeString().slice(0, 5); // "HH:MM"
+
+    // Check schedule type
+    if (campaign.schedule_type === 'one_time') {
+        // For one_time, the database query already handles start/end datetime
+        return true;
+    }
+
+    if (campaign.schedule_type === 'daily') {
+        // Check if current time is within the time window
+        const startTime = campaign.recurring_start_time?.slice(0, 5) || '00:00';
+        const endTime = campaign.recurring_end_time?.slice(0, 5) || '23:59';
+        return currentTime >= startTime && currentTime <= endTime;
+    }
+
+    if (campaign.schedule_type === 'weekly') {
+        // Check if today is one of the selected days
+        const recurringDays = campaign.recurring_days || [];
+        if (!recurringDays.includes(currentDay)) {
+            return false;
+        }
+
+        // Check if current time is within the time window
+        const startTime = campaign.recurring_start_time?.slice(0, 5) || '00:00';
+        const endTime = campaign.recurring_end_time?.slice(0, 5) || '23:59';
+        return currentTime >= startTime && currentTime <= endTime;
+    }
+
+    return true;
+};
+
+/**
  * Custom hook for managing popup campaign display logic
  * @param {string} currentPage - The current page identifier (e.g., 'home', 'individual_schedule')
  * @returns {Object} - Campaign data and control functions
@@ -63,6 +105,15 @@ export const usePopupCampaign = (currentPage) => {
                 throw fetchError;
             } else if (campaignData) {
                 console.log('Found active campaign:', campaignData.name);
+                console.log('Schedule type:', campaignData.schedule_type);
+
+                // Check if within recurring schedule
+                if (!isWithinRecurringSchedule(campaignData)) {
+                    console.log('Campaign not within recurring schedule window');
+                    setCampaign(null);
+                    return;
+                }
+
                 setCampaign(campaignData);
 
                 // Determine initial state based on display type and session storage

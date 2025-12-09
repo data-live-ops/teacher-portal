@@ -43,6 +43,34 @@ const DISPLAY_TYPES = [
     }
 ];
 
+const SCHEDULE_TYPES = [
+    {
+        id: 'one_time',
+        label: 'One Time',
+        description: 'Show between specific start and end date/time'
+    },
+    {
+        id: 'daily',
+        label: 'Daily',
+        description: 'Show every day during specified time window'
+    },
+    {
+        id: 'weekly',
+        label: 'Weekly',
+        description: 'Show on specific days of the week'
+    }
+];
+
+const DAYS_OF_WEEK = [
+    { id: 0, label: 'Minggu', short: 'Min' },
+    { id: 1, label: 'Senin', short: 'Sen' },
+    { id: 2, label: 'Selasa', short: 'Sel' },
+    { id: 3, label: 'Rabu', short: 'Rab' },
+    { id: 4, label: 'Kamis', short: 'Kam' },
+    { id: 5, label: 'Jumat', short: 'Jum' },
+    { id: 6, label: 'Sabtu', short: 'Sab' }
+];
+
 const PopupCampaignManagement = ({ currentUserEmail }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -56,10 +84,16 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
         click_url: '',
         display_type: 'dismissible',
         target_pages: ['home'],
+        // Schedule fields
+        schedule_type: 'one_time',
         start_date: '',
         start_time: '00:00',
         end_date: '',
         end_time: '23:59',
+        // Recurring fields
+        recurring_days: [],
+        recurring_start_time: '08:00',
+        recurring_end_time: '17:00',
         is_active: true,
         priority: 0
     });
@@ -129,10 +163,14 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
             click_url: '',
             display_type: 'dismissible',
             target_pages: ['home'],
+            schedule_type: 'one_time',
             start_date: '',
             start_time: '00:00',
             end_date: '',
             end_time: '23:59',
+            recurring_days: [],
+            recurring_start_time: '08:00',
+            recurring_end_time: '17:00',
             is_active: true,
             priority: 0
         });
@@ -173,10 +211,14 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
             click_url: campaign.click_url || '',
             display_type: campaign.display_type,
             target_pages: campaign.target_pages || ['home'],
+            schedule_type: campaign.schedule_type || 'one_time',
             start_date: formatDateInput(startDate),
             start_time: formatTimeInput(startDate),
             end_date: formatDateInput(endDate),
             end_time: formatTimeInput(endDate),
+            recurring_days: campaign.recurring_days || [],
+            recurring_start_time: campaign.recurring_start_time || '08:00',
+            recurring_end_time: campaign.recurring_end_time || '17:00',
             is_active: campaign.is_active,
             priority: campaign.priority || 0
         });
@@ -363,6 +405,22 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
         }
     };
 
+    // Handle recurring days toggle
+    const handleRecurringDayToggle = (dayId) => {
+        const currentDays = formData.recurring_days || [];
+        if (currentDays.includes(dayId)) {
+            setFormData({
+                ...formData,
+                recurring_days: currentDays.filter(d => d !== dayId)
+            });
+        } else {
+            setFormData({
+                ...formData,
+                recurring_days: [...currentDays, dayId].sort((a, b) => a - b)
+            });
+        }
+    };
+
     // Validate form
     const validateForm = () => {
         const newErrors = {};
@@ -375,25 +433,36 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
             newErrors.image_url = 'Campaign image is required';
         }
 
-        if (!formData.start_date) {
-            newErrors.start_date = 'Start date is required';
-        }
-
-        if (!formData.end_date) {
-            newErrors.end_date = 'End date is required';
-        }
-
         if (formData.target_pages.length === 0) {
             newErrors.target_pages = 'At least one target page is required';
         }
 
-        // Validate date range
-        if (formData.start_date && formData.end_date) {
-            const startDateTime = new Date(`${formData.start_date}T${formData.start_time}:00`);
-            const endDateTime = new Date(`${formData.end_date}T${formData.end_time}:00`);
+        // Validate based on schedule type
+        if (formData.schedule_type === 'one_time') {
+            if (!formData.start_date) {
+                newErrors.start_date = 'Start date is required';
+            }
+            if (!formData.end_date) {
+                newErrors.end_date = 'End date is required';
+            }
+            // Validate date range
+            if (formData.start_date && formData.end_date) {
+                const startDateTime = new Date(`${formData.start_date}T${formData.start_time}:00`);
+                const endDateTime = new Date(`${formData.end_date}T${formData.end_time}:00`);
+                if (endDateTime <= startDateTime) {
+                    newErrors.end_date = 'End date/time must be after start date/time';
+                }
+            }
+        } else if (formData.schedule_type === 'weekly') {
+            if (!formData.recurring_days || formData.recurring_days.length === 0) {
+                newErrors.recurring_days = 'Please select at least one day';
+            }
+        }
 
-            if (endDateTime <= startDateTime) {
-                newErrors.end_date = 'End date/time must be after start date/time';
+        // Validate recurring time window
+        if (formData.schedule_type !== 'one_time') {
+            if (formData.recurring_start_time >= formData.recurring_end_time) {
+                newErrors.recurring_end_time = 'End time must be after start time';
             }
         }
 
@@ -416,8 +485,18 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
 
         setSaving(true);
         try {
-            const startDateTimeStr = `${formData.start_date}T${formData.start_time}:00+07:00`;
-            const endDateTimeStr = `${formData.end_date}T${formData.end_time}:00+07:00`;
+            // For one_time, use the date range; for recurring, set a far future end date
+            let startDateTimeStr, endDateTimeStr;
+
+            if (formData.schedule_type === 'one_time') {
+                startDateTimeStr = `${formData.start_date}T${formData.start_time}:00+07:00`;
+                endDateTimeStr = `${formData.end_date}T${formData.end_time}:00+07:00`;
+            } else {
+                // For recurring schedules, set start to now and end to far future
+                const now = new Date();
+                startDateTimeStr = now.toISOString();
+                endDateTimeStr = '2099-12-31T23:59:59+07:00';
+            }
 
             const campaignData = {
                 name: formData.name.trim(),
@@ -427,8 +506,12 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                 click_url: formData.click_url.trim() || null,
                 display_type: formData.display_type,
                 target_pages: formData.target_pages,
+                schedule_type: formData.schedule_type,
                 start_datetime: startDateTimeStr,
                 end_datetime: endDateTimeStr,
+                recurring_days: formData.schedule_type === 'weekly' ? formData.recurring_days : null,
+                recurring_start_time: formData.schedule_type !== 'one_time' ? formData.recurring_start_time : null,
+                recurring_end_time: formData.schedule_type !== 'one_time' ? formData.recurring_end_time : null,
                 is_active: formData.is_active,
                 priority: parseInt(formData.priority) || 0
             };
@@ -483,10 +566,14 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
             click_url: campaign.click_url || '',
             display_type: campaign.display_type,
             target_pages: campaign.target_pages || ['home'],
+            schedule_type: campaign.schedule_type || 'one_time',
             start_date: now.toISOString().split('T')[0],
             start_time: '00:00',
             end_date: tomorrow.toISOString().split('T')[0],
             end_time: '23:59',
+            recurring_days: campaign.recurring_days || [],
+            recurring_start_time: campaign.recurring_start_time || '08:00',
+            recurring_end_time: campaign.recurring_end_time || '17:00',
             is_active: false,
             priority: campaign.priority || 0
         });
@@ -544,6 +631,7 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                                 <th>Preview</th>
                                 <th>Campaign Name</th>
                                 <th>Display Type</th>
+                                <th>Schedule Type</th>
                                 <th>Target Pages</th>
                                 <th>Schedule</th>
                                 <th>Status</th>
@@ -590,6 +678,12 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                                             </span>
                                         </td>
                                         <td>
+                                            <span className={`schedule-type-badge ${campaign.schedule_type || 'one_time'}`}>
+                                                {campaign.schedule_type === 'daily' ? 'Daily' :
+                                                    campaign.schedule_type === 'weekly' ? 'Weekly' : 'One Time'}
+                                            </span>
+                                        </td>
+                                        <td>
                                             <div className="target-pages-cell">
                                                 {campaign.target_pages?.map(page => (
                                                     <span key={page} className="page-badge">
@@ -600,17 +694,44 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                                         </td>
                                         <td>
                                             <div className="schedule-cell">
-                                                <div className="schedule-row">
-                                                    <Calendar size={12} />
-                                                    {formatDateTime(campaign.start_datetime)}
-                                                </div>
-                                                <div className="schedule-row">
-                                                    <span className="schedule-to">to</span>
-                                                </div>
-                                                <div className="schedule-row">
-                                                    <Calendar size={12} />
-                                                    {formatDateTime(campaign.end_datetime)}
-                                                </div>
+                                                {(campaign.schedule_type === 'one_time' || !campaign.schedule_type) ? (
+                                                    <>
+                                                        <div className="schedule-row">
+                                                            <Calendar size={12} />
+                                                            {formatDateTime(campaign.start_datetime)}
+                                                        </div>
+                                                        <div className="schedule-row">
+                                                            <span className="schedule-to">to</span>
+                                                        </div>
+                                                        <div className="schedule-row">
+                                                            <Calendar size={12} />
+                                                            {formatDateTime(campaign.end_datetime)}
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {campaign.schedule_type === 'weekly' && campaign.recurring_days && (
+                                                            <div className="schedule-row">
+                                                                <span className="recurring-days-display">
+                                                                    {campaign.recurring_days
+                                                                        .map(d => DAYS_OF_WEEK.find(day => day.id === d)?.label)
+                                                                        .join(', ')}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        {campaign.schedule_type === 'daily' && (
+                                                            <div className="schedule-row">
+                                                                <span className="recurring-days-display">Every day</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="schedule-row">
+                                                            <Clock size={12} />
+                                                            <span>
+                                                                {campaign.recurring_start_time?.slice(0, 5) || '00:00'} - {campaign.recurring_end_time?.slice(0, 5) || '23:59'}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                         <td>
@@ -891,51 +1012,129 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                             {/* Schedule Section */}
                             <div className="form-section">
                                 <h4>Schedule (Asia/Jakarta Time)</h4>
-                                <div className="schedule-inputs">
-                                    <div className="schedule-group">
-                                        <label>Start Date & Time *</label>
-                                        <div className="datetime-inputs">
-                                            <div className="dm-form-group">
-                                                <input
-                                                    type="date"
-                                                    value={formData.start_date}
-                                                    onChange={(e) => handleInputChange('start_date', e.target.value)}
-                                                    className={errors.start_date ? 'error' : ''}
-                                                />
-                                            </div>
-                                            <div className="dm-form-group">
-                                                <input
-                                                    type="time"
-                                                    value={formData.start_time}
-                                                    onChange={(e) => handleInputChange('start_time', e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        {errors.start_date && <span className="error-message">{errors.start_date}</span>}
-                                    </div>
 
-                                    <div className="schedule-group">
-                                        <label>End Date & Time *</label>
-                                        <div className="datetime-inputs">
-                                            <div className="dm-form-group">
-                                                <input
-                                                    type="date"
-                                                    value={formData.end_date}
-                                                    onChange={(e) => handleInputChange('end_date', e.target.value)}
-                                                    className={errors.end_date ? 'error' : ''}
-                                                />
+                                {/* Schedule Type Selection */}
+                                <div className="schedule-type-options">
+                                    {SCHEDULE_TYPES.map(type => (
+                                        <label
+                                            key={type.id}
+                                            className={`schedule-type-option ${formData.schedule_type === type.id ? 'selected' : ''}`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="schedule_type"
+                                                value={type.id}
+                                                checked={formData.schedule_type === type.id}
+                                                onChange={(e) => handleInputChange('schedule_type', e.target.value)}
+                                            />
+                                            <div className="schedule-type-content">
+                                                <strong>{type.label}</strong>
+                                                <span>{type.description}</span>
                                             </div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {/* One Time Schedule */}
+                                {formData.schedule_type === 'one_time' && (
+                                    <div className="schedule-inputs">
+                                        <div className="schedule-group">
+                                            <label>Start Date & Time *</label>
+                                            <div className="datetime-inputs">
+                                                <div className="dm-form-group">
+                                                    <input
+                                                        type="date"
+                                                        value={formData.start_date}
+                                                        onChange={(e) => handleInputChange('start_date', e.target.value)}
+                                                        className={errors.start_date ? 'error' : ''}
+                                                    />
+                                                </div>
+                                                <div className="dm-form-group">
+                                                    <input
+                                                        type="time"
+                                                        value={formData.start_time}
+                                                        onChange={(e) => handleInputChange('start_time', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            {errors.start_date && <span className="error-message">{errors.start_date}</span>}
+                                        </div>
+
+                                        <div className="schedule-group">
+                                            <label>End Date & Time *</label>
+                                            <div className="datetime-inputs">
+                                                <div className="dm-form-group">
+                                                    <input
+                                                        type="date"
+                                                        value={formData.end_date}
+                                                        onChange={(e) => handleInputChange('end_date', e.target.value)}
+                                                        className={errors.end_date ? 'error' : ''}
+                                                    />
+                                                </div>
+                                                <div className="dm-form-group">
+                                                    <input
+                                                        type="time"
+                                                        value={formData.end_time}
+                                                        onChange={(e) => handleInputChange('end_time', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            {errors.end_date && <span className="error-message">{errors.end_date}</span>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Weekly Schedule - Day Selection */}
+                                {formData.schedule_type === 'weekly' && (
+                                    <div className="recurring-days-section">
+                                        <label>Select Days *</label>
+                                        {errors.recurring_days && <span className="error-message">{errors.recurring_days}</span>}
+                                        <div className="days-of-week-grid">
+                                            {DAYS_OF_WEEK.map(day => (
+                                                <label
+                                                    key={day.id}
+                                                    className={`day-option ${(formData.recurring_days || []).includes(day.id) ? 'selected' : ''}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={(formData.recurring_days || []).includes(day.id)}
+                                                        onChange={() => handleRecurringDayToggle(day.id)}
+                                                    />
+                                                    <span className="day-short">{day.short}</span>
+                                                    <span className="day-full">{day.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Time Window for Daily/Weekly */}
+                                {formData.schedule_type !== 'one_time' && (
+                                    <div className="recurring-time-section">
+                                        <label>Time Window (popup will show during these hours)</label>
+                                        <div className="time-window-inputs">
                                             <div className="dm-form-group">
+                                                <label>From</label>
                                                 <input
                                                     type="time"
-                                                    value={formData.end_time}
-                                                    onChange={(e) => handleInputChange('end_time', e.target.value)}
+                                                    value={formData.recurring_start_time}
+                                                    onChange={(e) => handleInputChange('recurring_start_time', e.target.value)}
+                                                />
+                                            </div>
+                                            <span className="time-separator">-</span>
+                                            <div className="dm-form-group">
+                                                <label>Until</label>
+                                                <input
+                                                    type="time"
+                                                    value={formData.recurring_end_time}
+                                                    onChange={(e) => handleInputChange('recurring_end_time', e.target.value)}
+                                                    className={errors.recurring_end_time ? 'error' : ''}
                                                 />
                                             </div>
                                         </div>
-                                        {errors.end_date && <span className="error-message">{errors.end_date}</span>}
+                                        {errors.recurring_end_time && <span className="error-message">{errors.recurring_end_time}</span>}
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* Status & Priority Section */}
