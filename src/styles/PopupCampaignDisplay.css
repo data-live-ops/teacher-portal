@@ -1,0 +1,334 @@
+/* ======================================
+   Popup Campaign Display Styles
+   ====================================== */
+
+/* Overlay */
+.popup-campaign-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Modal Container */
+.popup-campaign-modal {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Header with action buttons */
+.popup-campaign-header {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    z-index: 10;
+}
+
+/* Close Button (Dismissible) */
+.popup-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    color: #4a5568;
+    transition: all 0.2s ease;
+}
+
+.popup-close-btn:hover {
+    background: #f7fafc;
+    transform: scale(1.1);
+    color: #2d3748;
+}
+
+.popup-close-btn:active {
+    transform: scale(0.95);
+}
+
+/* Minimize Button (Minimizable) */
+.popup-minimize-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    color: #4a5568;
+    transition: all 0.2s ease;
+}
+
+.popup-minimize-btn:hover {
+    background: #f7fafc;
+    transform: scale(1.1);
+    color: #2d3748;
+}
+
+.popup-campaign-content {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.popup-campaign-content.clickable {
+    cursor: pointer;
+}
+
+.popup-campaign-content.clickable:hover .popup-click-indicator {
+    opacity: 1;
+}
+
+.popup-campaign-content.clickable:hover .popup-campaign-image {
+    transform: scale(1.02);
+}
+
+.popup-campaign-image {
+    display: block;
+    max-width: 100%;
+    max-height: calc(90vh - 60px);
+    width: auto;
+    height: auto;
+    transition: transform 0.3s ease;
+}
+
+.popup-click-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.popup-campaign-bubble {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: auto;
+    height: auto;
+    max-width: 120px;
+    max-height: 120px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+    z-index: 9998;
+    padding: 0;
+    transition: all 0.3s ease;
+    animation: bubbleIn 0.4s ease-out;
+}
+
+@keyframes bubbleIn {
+    from {
+        opacity: 0;
+        transform: scale(0) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.popup-campaign-bubble:hover {
+    transform: scale(1.1);
+}
+
+.popup-campaign-bubble:active {
+    transform: scale(0.95);
+}
+
+.bubble-image {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+/* Pulse Animation - hidden by default, shown only for circular icons */
+.bubble-pulse {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(102, 126, 234, 0.4);
+    animation: pulse 2s ease-out infinite;
+    pointer-events: none;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+
+    70% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* ======================================
+   Responsive Styles
+   ====================================== */
+
+@media (max-width: 768px) {
+    .popup-campaign-overlay {
+        padding: 15px;
+    }
+
+    .popup-campaign-modal {
+        max-width: 95vw;
+    }
+
+    .popup-campaign-header {
+        top: -10px;
+        right: -10px;
+    }
+
+    .popup-close-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .popup-close-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .popup-minimize-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .popup-campaign-image {
+        max-height: calc(85vh - 50px);
+    }
+
+    .popup-click-indicator {
+        font-size: 0.8rem;
+        padding: 10px 15px;
+    }
+
+    .popup-campaign-bubble {
+        max-width: 100px;
+        max-height: 100px;
+        bottom: 15px;
+        right: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .popup-campaign-overlay {
+        padding: 10px;
+    }
+
+    .popup-campaign-modal {
+        max-width: 100%;
+    }
+
+    .popup-campaign-bubble {
+        max-width: 80px;
+        max-height: 80px;
+        bottom: 10px;
+        right: 10px;
+    }
+}
+
+/* ======================================
+   Accessibility & Focus States
+   ====================================== */
+
+.popup-close-btn:focus,
+.popup-minimize-btn:focus,
+.popup-campaign-bubble:focus {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
+}
+
+.popup-campaign-content.clickable:focus {
+    outline: 3px solid #667eea;
+    outline-offset: 3px;
+    border-radius: 12px;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+
+    .popup-campaign-overlay,
+    .popup-campaign-modal,
+    .popup-campaign-bubble,
+    .bubble-pulse {
+        animation: none;
+    }
+
+    .popup-campaign-content.clickable:hover .popup-campaign-image {
+        transform: none;
+    }
+
+    .popup-campaign-bubble:hover {
+        transform: none;
+    }
+}
