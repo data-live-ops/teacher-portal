@@ -19,7 +19,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
 
     const specialUser = 'annisa.nugraha@colearn.id';
-    const userEmail = user?.email;
+    const userEmail = user?.email; //add dynamic user email
 
     const generateWeekDates = (date) => {
         const week = [];
