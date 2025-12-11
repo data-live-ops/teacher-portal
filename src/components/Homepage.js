@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "../App.css";
 import Navbar from "./Navbar";
+import { supabase } from "../lib/supabaseClient.mjs";
 
 function Homepage({ user, onLogout }) {
     const [keywords, setKeywords] = useState([]);
@@ -12,18 +13,14 @@ function Homepage({ user, onLogout }) {
     useEffect(() => {
         const fetchKeywords = async () => {
             try {
-                const response = await fetch(process.env.REACT_APP_KEYWORDS);
-                const data = await response.json();
+                const { data, error } = await supabase
+                    .from('keywords')
+                    .select('keyword, file_link')
+                    .order('keyword');
 
-                const uniqueKeywords = Array.from(
-                    new Set(data.map((item) => JSON.stringify(item)))
-                ).map((item) => JSON.parse(item));
+                if (error) throw error;
 
-                const sortedKeywords = uniqueKeywords.sort((a, b) =>
-                    a.keyword.localeCompare(b.keyword)
-                );
-
-                setKeywords(sortedKeywords);
+                setKeywords(data || []);
             } catch (error) {
                 console.error("Error fetching keywords:", error);
             }
@@ -118,9 +115,9 @@ function Homepage({ user, onLogout }) {
                     <img src="https://media.sessions.colearn.id/assets/other/images/2025-06-26T08:53:34.114Z-Search.png" className="search-icon-on-homepage" />
                     {suggestions.length > 0 && (
                         <ul className="dropdown">
-                            {suggestions.map((item) => (
+                            {suggestions.map((item, index) => (
                                 <li
-                                    key={item.id}
+                                    key={`${item.keyword}-${index}`}
                                     className="dropdown-item"
                                     onClick={() => handleSuggestionClick(item.file_link)}
                                 >
