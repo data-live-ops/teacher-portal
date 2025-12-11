@@ -1,0 +1,451 @@
+.non-mandatory-button {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(90deg, #123590 0%, #1E5AF6 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.non-mandatory-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.non-mandatory-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.nm-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: white;
+    color: #667eea;
+    border-radius: 11px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.nm-new-indicator {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: #f6ad55;
+    border-radius: 50%;
+    animation: pulse-glow 2s infinite;
+}
+
+.nm-new-indicator svg {
+    color: white;
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(246, 173, 85, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(246, 173, 85, 0);
+    }
+}
+
+/* Modal Overlay */
+.nm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Modal */
+.nm-modal {
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modal Header */
+.nm-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.nm-modal-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.2rem;
+    color: #2d3748;
+}
+
+.nm-modal-header h3 svg {
+    color: #667eea;
+}
+
+.nm-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: #f7fafc;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nm-close-btn:hover {
+    background: #edf2f7;
+}
+
+.nm-close-btn svg {
+    color: #718096;
+}
+
+/* Modal Body */
+.nm-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+.nm-loading {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+}
+
+.nm-empty {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+}
+
+.nm-empty p {
+    margin: 0;
+}
+
+/* Assignments List */
+.nm-assignments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Assignment Card */
+.nm-assignment-card {
+    position: relative;
+    padding: 20px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+
+.nm-assignment-card:hover {
+    border-color: #cbd5e0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.nm-assignment-card.is-new {
+    background: linear-gradient(135deg, #fffaf0 0%, #fff5eb 100%);
+    border-color: #f6ad55;
+}
+
+/* New Badge */
+.nm-new-badge {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: linear-gradient(135deg, #f6ad55 0%, #ed8936 100%);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(246, 173, 85, 0.4);
+}
+
+.nm-new-badge svg {
+    animation: sparkle 1.5s ease infinite;
+}
+
+@keyframes sparkle {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+    }
+}
+
+/* Card Header */
+.nm-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.nm-grade {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    background: #1E5AF6;
+    color: white;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.nm-subject {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    background: #e2e8f0;
+    color: #4a5568;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.nm-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.nm-status.open {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.nm-status.upcoming {
+    background: #bee3f8;
+    color: #2b6cb0;
+}
+
+.nm-status.closed {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+/* Slot Name */
+.nm-slot-name {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+/* Rules */
+.nm-rules {
+    padding: 8px 12px;
+    background: #edf2f7;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #4a5568;
+    margin-bottom: 12px;
+}
+
+/* Card Details */
+.nm-card-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.nm-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #4a5568;
+}
+
+.nm-detail-row svg {
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.nm-detail-row strong {
+    color: #2d3748;
+}
+
+/* Period */
+.nm-period {
+    padding: 8px 12px;
+    background: #f0f4ff;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #1E5AF6;
+    margin-bottom: 12px;
+}
+
+/* Notes */
+.nm-notes {
+    padding: 10px 12px;
+    background: #fffaf0;
+    border: 1px solid #fbd38d;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #744210;
+    margin-bottom: 12px;
+}
+
+.nm-notes strong {
+    color: #975a16;
+}
+
+/* Card Footer */
+.nm-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+    color: #718096;
+}
+
+.nm-card-footer span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Modal Footer */
+.nm-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: #f7fafc;
+    border-radius: 0 0 16px 16px;
+}
+
+.nm-semester-info {
+    font-size: 0.85rem;
+    color: #718096;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .non-mandatory-button {
+        bottom: 16px;
+        right: 16px;
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+
+    .non-mandatory-button span:not(.nm-badge):not(.nm-new-indicator) {
+        display: none;
+    }
+
+    .nm-modal {
+        max-height: 90vh;
+        margin: 10px;
+    }
+
+    .nm-modal-header {
+        padding: 16px;
+    }
+
+    .nm-modal-header h3 {
+        font-size: 1rem;
+    }
+
+    .nm-modal-body {
+        padding: 16px;
+    }
+
+    .nm-assignment-card {
+        padding: 16px;
+    }
+
+    .nm-card-details {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .nm-card-footer {
+        flex-direction: column;
+        gap: 6px;
+    }
+}
