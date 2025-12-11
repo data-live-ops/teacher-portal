@@ -46,9 +46,10 @@ const isWithinRecurringSchedule = (campaign) => {
 /**
  * Custom hook for managing popup campaign display logic
  * @param {string} currentPage - The current page identifier (e.g., 'home', 'individual_schedule')
+ * @param {string} userEmail - The current user's email for tracking clicks
  * @returns {Object} - Campaign data and control functions
  */
-export const usePopupCampaign = (currentPage) => {
+export const usePopupCampaign = (currentPage, userEmail = null) => {
     const [campaign, setCampaign] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -175,12 +176,37 @@ export const usePopupCampaign = (currentPage) => {
         }
     }, [campaign]);
 
+    // Track click in database
+    const trackClick = useCallback(async () => {
+        if (!campaign?.id || !userEmail) return;
+
+        try {
+            const { error } = await supabase
+                .from('popup_campaign_clicks')
+                .insert({
+                    campaign_id: campaign.id,
+                    user_email: userEmail,
+                    page: currentPage,
+                    clicked_at: new Date().toISOString()
+                });
+
+            if (error) {
+                console.error('Error tracking popup click:', error);
+            }
+        } catch (err) {
+            console.error('Error tracking popup click:', err);
+        }
+    }, [campaign, userEmail, currentPage]);
+
     // Handle click on campaign image/content
-    const handleCampaignClick = useCallback(() => {
+    const handleCampaignClick = useCallback(async () => {
         if (campaign?.click_url) {
+            // Track the click
+            await trackClick();
+            // Open the URL
             window.open(campaign.click_url, '_blank', 'noopener,noreferrer');
         }
-    }, [campaign]);
+    }, [campaign, trackClick]);
 
     return {
         campaign,

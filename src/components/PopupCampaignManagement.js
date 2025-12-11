@@ -16,7 +16,11 @@ import {
     CheckCircle,
     Loader,
     Copy,
-    Monitor
+    Monitor,
+    BarChart3,
+    Users,
+    MousePointerClick,
+    TrendingUp
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient.mjs';
 import '../styles/PopupCampaignManagement.css';
@@ -75,6 +79,10 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+    const [analyticsData, setAnalyticsData] = useState(null);
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+    const [selectedCampaignForAnalytics, setSelectedCampaignForAnalytics] = useState(null);
     const [editingCampaign, setEditingCampaign] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
@@ -552,6 +560,92 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
         }
     };
 
+    // Fetch click analytics for a campaign
+    const fetchAnalytics = async (campaign) => {
+        setSelectedCampaignForAnalytics(campaign);
+        setShowAnalyticsModal(true);
+        setAnalyticsLoading(true);
+
+        try {
+            // Fetch all clicks for this campaign
+            const { data: clicks, error } = await supabase
+                .from('popup_campaign_clicks')
+                .select('*')
+                .eq('campaign_id', campaign.id)
+                .order('clicked_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Process analytics data
+            const totalClicks = clicks?.length || 0;
+            const uniqueUsers = [...new Set(clicks?.map(c => c.user_email) || [])];
+
+            // Group clicks by user
+            const clicksByUser = clicks?.reduce((acc, click) => {
+                if (!acc[click.user_email]) {
+                    acc[click.user_email] = {
+                        email: click.user_email,
+                        clicks: [],
+                        totalClicks: 0
+                    };
+                }
+                acc[click.user_email].clicks.push(click);
+                acc[click.user_email].totalClicks++;
+                return acc;
+            }, {}) || {};
+
+            // Convert to array and sort by total clicks
+            const userStats = Object.values(clicksByUser).sort((a, b) => b.totalClicks - a.totalClicks);
+
+            // Group clicks by date for chart
+            const clicksByDate = clicks?.reduce((acc, click) => {
+                const date = new Date(click.clicked_at).toLocaleDateString('id-ID');
+                acc[date] = (acc[date] || 0) + 1;
+                return acc;
+            }, {}) || {};
+
+            // Group clicks by page
+            const clicksByPage = clicks?.reduce((acc, click) => {
+                const page = click.page || 'unknown';
+                acc[page] = (acc[page] || 0) + 1;
+                return acc;
+            }, {}) || {};
+
+            setAnalyticsData({
+                totalClicks,
+                uniqueUsersCount: uniqueUsers.length,
+                userStats,
+                clicksByDate,
+                clicksByPage,
+                recentClicks: clicks?.slice(0, 20) || []
+            });
+        } catch (err) {
+            console.error('Error fetching analytics:', err);
+            alert('Failed to load analytics data');
+        } finally {
+            setAnalyticsLoading(false);
+        }
+    };
+
+    // Close analytics modal
+    const closeAnalyticsModal = () => {
+        setShowAnalyticsModal(false);
+        setSelectedCampaignForAnalytics(null);
+        setAnalyticsData(null);
+    };
+
+    // Format click time
+    const formatClickTime = (isoString) => {
+        return new Date(isoString).toLocaleString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     // Duplicate campaign
     const handleDuplicate = (campaign) => {
         const now = new Date();
@@ -744,6 +838,13 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                                         </td>
                                         <td>
                                             <div className="dm-action-buttons">
+                                                <button
+                                                    className="dm-btn-icon dm-btn-analytics"
+                                                    onClick={() => fetchAnalytics(campaign)}
+                                                    title="View Analytics"
+                                                >
+                                                    <BarChart3 size={16} />
+                                                </button>
                                                 <button
                                                     className="dm-btn-icon dm-btn-edit"
                                                     onClick={() => handleToggleActive(campaign)}
@@ -1195,6 +1296,178 @@ const PopupCampaignManagement = ({ currentUserEmail }) => {
                                         {editingCampaign ? 'Update Campaign' : 'Create Campaign'}
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Analytics Modal */}
+            {showAnalyticsModal && (
+                <div className="data-mgmt-modal-overlay">
+                    <div className="data-mgmt-modal-content data-mgmt-modal-large analytics-modal">
+                        <div className="data-mgmt-modal-header">
+                            <h3>
+                                <BarChart3 size={20} />
+                                Click Analytics
+                            </h3>
+                            <button className="dm-btn-icon" onClick={closeAnalyticsModal}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="analytics-modal-body">
+                            {analyticsLoading ? (
+                                <div className="analytics-loading">
+                                    <Loader size={32} className="spinning" />
+                                    <p>Loading analytics...</p>
+                                </div>
+                            ) : analyticsData ? (
+                                <>
+                                    {/* Campaign Info */}
+                                    <div className="analytics-campaign-info">
+                                        <img
+                                            src={selectedCampaignForAnalytics?.image_url}
+                                            alt={selectedCampaignForAnalytics?.name}
+                                            className="analytics-campaign-thumbnail"
+                                        />
+                                        <div className="analytics-campaign-details">
+                                            <h4>{selectedCampaignForAnalytics?.name}</h4>
+                                            {selectedCampaignForAnalytics?.click_url && (
+                                                <a
+                                                    href={selectedCampaignForAnalytics.click_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="analytics-click-url"
+                                                >
+                                                    <ExternalLink size={14} />
+                                                    {selectedCampaignForAnalytics.click_url}
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Stats Cards */}
+                                    <div className="analytics-stats-grid">
+                                        <div className="analytics-stat-card">
+                                            <div className="stat-icon total-clicks">
+                                                <MousePointerClick size={24} />
+                                            </div>
+                                            <div className="stat-content">
+                                                <span className="stat-value">{analyticsData.totalClicks}</span>
+                                                <span className="stat-label">Total Clicks</span>
+                                            </div>
+                                        </div>
+                                        <div className="analytics-stat-card">
+                                            <div className="stat-icon unique-users">
+                                                <Users size={24} />
+                                            </div>
+                                            <div className="stat-content">
+                                                <span className="stat-value">{analyticsData.uniqueUsersCount}</span>
+                                                <span className="stat-label">Unique Users</span>
+                                            </div>
+                                        </div>
+                                        <div className="analytics-stat-card">
+                                            <div className="stat-icon avg-clicks">
+                                                <TrendingUp size={24} />
+                                            </div>
+                                            <div className="stat-content">
+                                                <span className="stat-value">
+                                                    {analyticsData.uniqueUsersCount > 0
+                                                        ? (analyticsData.totalClicks / analyticsData.uniqueUsersCount).toFixed(1)
+                                                        : '0'}
+                                                </span>
+                                                <span className="stat-label">Avg Clicks/User</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Clicks by Page */}
+                                    {Object.keys(analyticsData.clicksByPage).length > 0 && (
+                                        <div className="analytics-section">
+                                            <h5>Clicks by Page</h5>
+                                            <div className="clicks-by-page">
+                                                {Object.entries(analyticsData.clicksByPage).map(([page, count]) => (
+                                                    <div key={page} className="page-stat">
+                                                        <span className="page-name">
+                                                            {TARGET_PAGES.find(p => p.id === page)?.label || page}
+                                                        </span>
+                                                        <span className="page-count">{count}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* User Click Details */}
+                                    <div className="analytics-section">
+                                        <h5>User Click Details</h5>
+                                        {analyticsData.userStats.length === 0 ? (
+                                            <div className="analytics-empty">
+                                                <p>No clicks recorded yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="user-clicks-table-wrapper">
+                                                <table className="user-clicks-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>User Email</th>
+                                                            <th>Total Clicks</th>
+                                                            <th>Last Click</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {analyticsData.userStats.map((user) => (
+                                                            <tr key={user.email}>
+                                                                <td className="user-email-cell">{user.email}</td>
+                                                                <td className="clicks-count-cell">
+                                                                    <span className="clicks-badge">{user.totalClicks}</span>
+                                                                </td>
+                                                                <td className="last-click-cell">
+                                                                    {formatClickTime(user.clicks[0]?.clicked_at)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Recent Clicks Timeline */}
+                                    {analyticsData.recentClicks.length > 0 && (
+                                        <div className="analytics-section">
+                                            <h5>Recent Clicks (Last 20)</h5>
+                                            <div className="recent-clicks-list">
+                                                {analyticsData.recentClicks.map((click, index) => (
+                                                    <div key={click.id || index} className="recent-click-item">
+                                                        <div className="click-time">
+                                                            {formatClickTime(click.clicked_at)}
+                                                        </div>
+                                                        <div className="click-details">
+                                                            <span className="click-user">{click.user_email}</span>
+                                                            {click.page && (
+                                                                <span className="click-page">
+                                                                    on {TARGET_PAGES.find(p => p.id === click.page)?.label || click.page}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="analytics-empty">
+                                    <p>No analytics data available</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="data-mgmt-modal-actions">
+                            <button className="dm-btn-secondary" onClick={closeAnalyticsModal}>
+                                Close
                             </button>
                         </div>
                     </div>

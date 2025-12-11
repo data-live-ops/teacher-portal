@@ -8,8 +8,9 @@ import '../styles/PopupCampaignDisplay.css';
  * Renders the popup modal and/or floating bubble for active campaigns
  *
  * @param {string} currentPage - The current page identifier for targeting
+ * @param {string} userEmail - The current user's email for tracking clicks
  */
-const PopupCampaignDisplay = ({ currentPage }) => {
+const PopupCampaignDisplay = ({ currentPage, userEmail }) => {
     const {
         campaign,
         isModalOpen,
@@ -19,7 +20,7 @@ const PopupCampaignDisplay = ({ currentPage }) => {
         minimizeModal,
         expandFromBubble,
         handleCampaignClick
-    } = usePopupCampaign(currentPage);
+    } = usePopupCampaign(currentPage, userEmail);
 
     // Don't render anything if no campaign or loading
     if (loading || !campaign) {
