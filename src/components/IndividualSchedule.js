@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, use } from 'react';
 import Navbar from './Navbar';
 import { supabase } from '../lib/supabaseClient.mjs';
 import '../styles/IndividualSchedule.css';
+import NonMandatoryScheduleButton from './NonMandatoryScheduleButton';
 
 const IndividualSchedule = ({ user, onLogout }) => {
     const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -737,6 +738,8 @@ const IndividualSchedule = ({ user, onLogout }) => {
                     </div>
                 </div>
             </div>
+
+            <NonMandatoryScheduleButton userEmail={userEmail} />
         </div>
     );
 };
