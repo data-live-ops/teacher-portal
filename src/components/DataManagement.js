@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Navbar from './Navbar';
-import { Database, Users, Settings, Shield, RefreshCw, Bell, FileText, Megaphone } from 'lucide-react';
+import { Database, Users, Settings, Shield, RefreshCw, Bell, FileText, Megaphone, Link2, Tag } from 'lucide-react';
 import TeacherLevelingManagement from './TeacherLevelingManagement';
 import TeachersManagement from './TeachersManagement';
 import UserAccessManagement from './UserAccessManagement';
@@ -8,6 +8,8 @@ import SyncSchedulerManagement from './SyncSchedulerManagement';
 import NotificationManagement from './NotificationManagement';
 import AssignmentLogsManagement from './AssignmentLogsManagement';
 import PopupCampaignManagement from './PopupCampaignManagement';
+import LinksManagement from './LinksManagement';
+import KeywordsManagement from './KeywordsManagement';
 import '../styles/DataManagement.css';
 
 const DataManagement = ({ user, onLogout }) => {
@@ -19,6 +21,8 @@ const DataManagement = ({ user, onLogout }) => {
         { id: 'access', label: 'User Access', icon: Shield },
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'campaigns', label: 'Popup Campaigns', icon: Megaphone },
+        { id: 'links', label: 'File Links', icon: Link2 },
+        { id: 'keywords', label: 'Keywords', icon: Tag },
         { id: 'sync', label: 'Sync Scheduler', icon: RefreshCw },
         { id: 'logs', label: 'Assignment Logs', icon: FileText }
     ];
@@ -61,6 +65,8 @@ const DataManagement = ({ user, onLogout }) => {
                     {activeTab === 'access' && <UserAccessManagement currentUserEmail={user?.email} />}
                     {activeTab === 'notifications' && <NotificationManagement currentUserEmail={user} />}
                     {activeTab === 'campaigns' && <PopupCampaignManagement currentUserEmail={user?.email} />}
+                    {activeTab === 'links' && <LinksManagement />}
+                    {activeTab === 'keywords' && <KeywordsManagement />}
                     {activeTab === 'sync' && <SyncSchedulerManagement />}
                     {activeTab === 'logs' && <AssignmentLogsManagement />}
                 </div>
