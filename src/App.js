@@ -17,7 +17,7 @@ import TeacherUtilization from "./components/TeacherUtilization";
 import PopupCampaignDisplay from "./components/PopupCampaignDisplay";
 
 // Wrapper component to handle popup campaign based on current route
-const PopupCampaignWrapper = ({ isLoggedIn }) => {
+const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
   const location = useLocation();
 
   // Map routes to page identifiers for popup targeting
@@ -40,7 +40,7 @@ const PopupCampaignWrapper = ({ isLoggedIn }) => {
     return null;
   }
 
-  return <PopupCampaignDisplay currentPage={currentPage} />;
+  return <PopupCampaignDisplay currentPage={currentPage} userEmail={userEmail} />;
 };
 
 function App() {
@@ -121,7 +121,7 @@ function App() {
     <PermissionProvider userEmail={user?.email}>
       <Router>
         {/* Popup Campaign Display - renders based on current route */}
-        <PopupCampaignWrapper isLoggedIn={isLoggedIn} />
+        <PopupCampaignWrapper isLoggedIn={isLoggedIn} userEmail={user?.email} />
 
         <Routes>
           <Route
