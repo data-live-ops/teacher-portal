@@ -105,6 +105,69 @@
     margin: 0;
 }
 
+/* Section Header Actions */
+.section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Search Container */
+.dm-search-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.dm-search-icon {
+    position: absolute;
+    left: 12px;
+    color: #9ca3af;
+    pointer-events: none;
+}
+
+.dm-search-input {
+    padding: 10px 40px 10px 40px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #374151;
+    background-color: #fff;
+    min-width: 250px;
+    transition: all 0.2s ease-in-out;
+}
+
+.dm-search-input:focus {
+    outline: none;
+    border-color: #1E5AF6;
+    box-shadow: 0 0 0 3px rgba(30, 90, 246, 0.1);
+}
+
+.dm-search-input::placeholder {
+    color: #9ca3af;
+}
+
+.dm-search-clear {
+    position: absolute;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background-color: #e5e7eb;
+    color: #6b7280;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease-in-out;
+}
+
+.dm-search-clear:hover {
+    background-color: #d1d5db;
+    color: #374151;
+}
+
 /* Buttons - with higher specificity */
 .data-management-container .dm-btn-primary,
 .data-management-container .dm-btn-secondary,
@@ -508,6 +571,21 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 15px;
+    }
+
+    .section-header-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.75rem;
+    }
+
+    .dm-search-container {
+        width: 100%;
+    }
+
+    .dm-search-input {
+        width: 100%;
+        min-width: unset;
     }
 
     .form-grid {
