@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, use } from 'react';
 import Navbar from './Navbar';
 import { supabase } from '../lib/supabaseClient.mjs';
 import '../styles/IndividualSchedule.css';
-import NonMandatoryScheduleButton from './NonMandatoryScheduleButton';
 
 const IndividualSchedule = ({ user, onLogout }) => {
     const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -17,6 +16,8 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const [isUserRegistered, setIsUserRegistered] = useState(false);
     const [selectedTeachers, setSelectedTeachers] = useState([]);
     const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
+    const [nonMandatoryAssignments, setNonMandatoryAssignments] = useState([]);
+    const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
 
     const specialUser = 'annisa.nugraha@colearn.id';
     const userEmail = user?.email; //add dynamic user email
@@ -52,8 +53,9 @@ const IndividualSchedule = ({ user, onLogout }) => {
         return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     };
 
-    const getBackgroundColor = (level, subject, isPiket = false) => {
+    const getBackgroundColor = (level, subject, isPiket = false, isNonMandatory = false) => {
         if (isPiket) return '#B67CFF';
+        if (isNonMandatory) return '#5B9BD5'; // Distinct blue for Non Mandatory
         if (level === 'SD') return '#F86077';
         if (level === 'SMP') return '#75ABFB';
         if (level === 'SMA') {
@@ -182,6 +184,15 @@ const IndividualSchedule = ({ user, onLogout }) => {
         return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
     }, [allScheduleData]);
 
+    // Filtered teacher list based on search query
+    const filteredTeacherList = useMemo(() => {
+        if (!teacherSearchQuery.trim()) return teacherList;
+        const query = teacherSearchQuery.toLowerCase().trim();
+        return teacherList.filter(name =>
+            name.toLowerCase().includes(query)
+        );
+    }, [teacherList, teacherSearchQuery]);
+
     const fetchPiketData = async () => {
         try {
             let piket;
@@ -220,6 +231,12 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 if (schedule.mentor_email) emails.add(schedule.mentor_email);
             });
 
+            // Also add Non Mandatory teacher/mentor emails
+            nonMandatoryAssignments.forEach(assignment => {
+                if (assignment.teacher_email) emails.add(assignment.teacher_email);
+                if (assignment.mentor_email) emails.add(assignment.mentor_email);
+            });
+
             if (emails.size === 0) return;
 
             const { data: avatars, error: avatarError } = await supabase
@@ -239,6 +256,141 @@ const IndividualSchedule = ({ user, onLogout }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchNonMandatoryAssignments = async () => {
+        try {
+            // Get active semester
+            const { data: activeSemester, error: semesterError } = await supabase
+                .from('semesters')
+                .select('id')
+                .eq('is_active', true)
+                .single();
+
+            if (semesterError || !activeSemester) {
+                console.log('No active semester found');
+                return;
+            }
+
+            // Fetch Non Mandatory assignments with status Open or Upcoming
+            const { data: assignments, error: assignmentError } = await supabase
+                .from('teacher_assignment_slots')
+                .select(`
+                    id,
+                    grade,
+                    subject,
+                    slot_name,
+                    rules,
+                    days,
+                    time_range,
+                    status,
+                    notes,
+                    slot_start_date,
+                    slot_end_date,
+                    guru_juara_id,
+                    mentor_id
+                `)
+                .eq('class_rule', 'Non Mandatory')
+                .eq('semester_id', activeSemester.id)
+                .in('status', ['Open', 'Upcoming']);
+
+            if (assignmentError) throw assignmentError;
+
+            if (!assignments || assignments.length === 0) {
+                setNonMandatoryAssignments([]);
+                return;
+            }
+
+            // Get all teacher IDs to fetch their names and emails
+            const guruJuaraIds = [...new Set(assignments.filter(a => a.guru_juara_id).map(a => a.guru_juara_id))];
+            const mentorIds = [...new Set(assignments.filter(a => a.mentor_id).map(a => a.mentor_id))];
+            const allTeacherIds = [...new Set([...guruJuaraIds, ...mentorIds])];
+
+            let teacherMap = {};
+            if (allTeacherIds.length > 0) {
+                const { data: teachers } = await supabase
+                    .from('teachers_new')
+                    .select('id, name')
+                    .in('id', allTeacherIds);
+
+                if (teachers) {
+                    teacherMap = teachers.reduce((acc, t) => {
+                        acc[t.id] = t.name;
+                        return acc;
+                    }, {});
+                }
+            }
+
+            // Get emails for teachers
+            const teacherNames = Object.values(teacherMap);
+            let emailMap = {};
+            if (teacherNames.length > 0) {
+                const { data: userEmails } = await supabase
+                    .from('user_emails')
+                    .select('full_name, email')
+                    .in('full_name', teacherNames);
+
+                if (userEmails) {
+                    emailMap = userEmails.reduce((acc, u) => {
+                        acc[u.full_name] = u.email;
+                        return acc;
+                    }, {});
+                }
+            }
+
+            // Enrich assignments with teacher/mentor info
+            const enrichedAssignments = assignments.map(assignment => {
+                const guruJuaraName = teacherMap[assignment.guru_juara_id] || null;
+                const mentorName = teacherMap[assignment.mentor_id] || null;
+                const guruJuaraEmail = guruJuaraName ? emailMap[guruJuaraName] : null;
+                const mentorEmail = mentorName ? emailMap[mentorName] : null;
+
+                return {
+                    ...assignment,
+                    teacher_name: guruJuaraName,
+                    teacher_email: guruJuaraEmail,
+                    mentor_name: mentorName,
+                    mentor_email: mentorEmail,
+                    isNonMandatory: true
+                };
+            });
+
+            setNonMandatoryAssignments(enrichedAssignments);
+
+        } catch (error) {
+            console.error('Error fetching non-mandatory assignments:', error);
+            setNonMandatoryAssignments([]);
+        }
+    };
+
+    // Helper: Check if a Non Mandatory assignment should show for a specific date
+    const shouldShowNonMandatory = (assignment, targetDate) => {
+        if (!assignment.slot_start_date || !assignment.slot_end_date) return false;
+
+        const target = new Date(targetDate);
+        target.setHours(0, 0, 0, 0);
+
+        const startDate = new Date(assignment.slot_start_date);
+        startDate.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(assignment.slot_end_date);
+        endDate.setHours(0, 0, 0, 0);
+
+        return target >= startDate && target <= endDate;
+    };
+
+    // Helper: Convert English day name to match assignment.days array
+    const convertDayToEnglish = (dayName) => {
+        const dayMap = {
+            'Senin': 'Monday',
+            'Selasa': 'Tuesday',
+            'Rabu': 'Wednesday',
+            'Kamis': 'Thursday',
+            'Jumat': 'Friday',
+            'Sabtu': 'Saturday',
+            'Minggu': 'Sunday'
+        };
+        return dayMap[dayName] || dayName;
     };
 
     const handleWeekNavigation = (direction) => {
@@ -359,6 +511,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const getSchedulesForDay = (dayName, targetDate) => {
         const dateStr = reformatDate(new Date(targetDate));
+        const englishDayName = dayName; // Keep original English day name for Non Mandatory
         dayName = reformatDayName(dayName);
         const daySchedules = filteredScheduleData.filter(schedule => {
             return schedule.day === dayName && schedule.class_date === dateStr;
@@ -432,7 +585,72 @@ const IndividualSchedule = ({ user, onLogout }) => {
             }
         }
 
-        return [...daySchedules, ...piketSchedules];
+        // === NON MANDATORY SCHEDULES ===
+        let nonMandatorySchedules = [];
+
+        // Filter Non Mandatory assignments for this day and date range
+        const filteredNonMandatory = nonMandatoryAssignments.filter(assignment => {
+            // Check if assignment has this day in its days array
+            if (!assignment.days || !assignment.days.includes(englishDayName)) {
+                return false;
+            }
+
+            // Check if target date is within slot_start_date and slot_end_date
+            if (!shouldShowNonMandatory(assignment, targetDate)) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Apply user/teacher filtering
+        if (userEmail === specialUser) {
+            // Special user sees all Non Mandatory
+            nonMandatorySchedules = filteredNonMandatory;
+
+            // If specific teachers selected, filter by them
+            if (selectedTeachers.length > 0) {
+                nonMandatorySchedules = nonMandatorySchedules.filter(assignment =>
+                    selectedTeachers.includes(assignment.teacher_name) ||
+                    selectedTeachers.includes(assignment.mentor_name)
+                );
+            }
+        } else if (isUserRegistered) {
+            // Registered user sees only their Non Mandatory assignments
+            if (selectedTeachers.length > 0) {
+                nonMandatorySchedules = filteredNonMandatory.filter(assignment =>
+                    selectedTeachers.includes(assignment.teacher_name) ||
+                    selectedTeachers.includes(assignment.mentor_name)
+                );
+            } else {
+                nonMandatorySchedules = filteredNonMandatory.filter(assignment =>
+                    assignment.teacher_email === userEmail || assignment.mentor_email === userEmail
+                );
+            }
+        } else {
+            // Non-registered user sees all Non Mandatory
+            nonMandatorySchedules = filteredNonMandatory;
+
+            if (selectedTeachers.length > 0) {
+                nonMandatorySchedules = nonMandatorySchedules.filter(assignment =>
+                    selectedTeachers.includes(assignment.teacher_name) ||
+                    selectedTeachers.includes(assignment.mentor_name)
+                );
+            }
+        }
+
+        // Transform Non Mandatory to schedule card format
+        nonMandatorySchedules = nonMandatorySchedules.map(assignment => ({
+            ...assignment,
+            id: `nm-${assignment.id}`,
+            day: dayName,
+            time: assignment.time_range,
+            class_date: dateStr,
+            level: assignment.grade <= 6 ? 'SD' : assignment.grade <= 9 ? 'SMP' : 'SMA',
+            isNonMandatory: true
+        }));
+
+        return [...daySchedules, ...piketSchedules, ...nonMandatorySchedules];
     };
 
     const handleCardSelectTeacher = (schedule) => {
@@ -477,17 +695,23 @@ const IndividualSchedule = ({ user, onLogout }) => {
     }, [isUserRegistered]);
 
     useEffect(() => {
-        if (allScheduleData.length > 0) {
+        if (allScheduleData.length > 0 || nonMandatoryAssignments.length > 0) {
             fetchAvatarData();
         } else {
             setLoading(false);
         }
-    }, [allScheduleData]);
+    }, [allScheduleData, nonMandatoryAssignments]);
+
+    // Fetch Non Mandatory assignments on component load and when week changes
+    useEffect(() => {
+        fetchNonMandatoryAssignments();
+    }, [currentWeek]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (!event.target.closest('.teacher-selector')) {
                 setShowTeacherDropdown(false);
+                setTeacherSearchQuery(''); // Clear search when closing dropdown
             }
         };
 
@@ -590,6 +814,28 @@ const IndividualSchedule = ({ user, onLogout }) => {
                             {showTeacherDropdown && (
                                 <div className="teacher-dropdown">
                                     <div className="teacher-dropdown-header">
+                                        <div className="teacher-search-container">
+                                            <input
+                                                type="text"
+                                                className="teacher-search-input"
+                                                placeholder="Search teachers..."
+                                                value={teacherSearchQuery}
+                                                onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                autoFocus
+                                            />
+                                            {teacherSearchQuery && (
+                                                <button
+                                                    className="teacher-search-clear"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTeacherSearchQuery('');
+                                                    }}
+                                                >
+                                                    ×
+                                                </button>
+                                            )}
+                                        </div>
                                         <button
                                             className="select-all-btn"
                                             onClick={handleSelectAllTeachers}
@@ -598,17 +844,23 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                         </button>
                                     </div>
                                     <div className="teacher-list">
-                                        {teacherList.map(name => (
-                                            <label key={name} className="teacher-checkbox-item">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedTeachers.includes(name)}
-                                                    onChange={() => handleTeacherToggle(name)}
-                                                />
-                                                <span className="checkmark"></span>
-                                                <span className="teacher-name">{name}</span>
-                                            </label>
-                                        ))}
+                                        {filteredTeacherList.length > 0 ? (
+                                            filteredTeacherList.map(name => (
+                                                <label key={name} className="teacher-checkbox-item">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedTeachers.includes(name)}
+                                                        onChange={() => handleTeacherToggle(name)}
+                                                    />
+                                                    <span className="checkmark"></span>
+                                                    <span className="teacher-name">{name}</span>
+                                                </label>
+                                            ))
+                                        ) : (
+                                            <div className="teacher-list-empty">
+                                                No teachers found for "{teacherSearchQuery}"
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -665,21 +917,34 @@ const IndividualSchedule = ({ user, onLogout }) => {
                                                 .map((schedule, scheduleIndex) => (
                                                     <div
                                                         key={`${schedule.id}-${scheduleIndex}`}
-                                                        className="schedule-card"
+                                                        className={`schedule-card ${schedule.isNonMandatory ? 'non-mandatory' : ''}`}
                                                         style={{
                                                             backgroundColor: getBackgroundColor(
                                                                 schedule.level,
                                                                 schedule.subject,
-                                                                schedule.isPiket
+                                                                schedule.isPiket,
+                                                                schedule.isNonMandatory
                                                             )
                                                         }}
                                                         onClick={() => handleCardSelectTeacher(schedule)}
                                                     >
+                                                        {schedule.isNonMandatory && (
+                                                            <div className="non-mandatory-badge">Non Mandatory</div>
+                                                        )}
                                                         <div className='card-content'>
                                                             <div className="card-title">
-                                                                {schedule.isPiket ? `Standby for Piket` : `${schedule.grade} ${schedule.slot_name}`}
+                                                                {schedule.isPiket
+                                                                    ? `Standby for Piket`
+                                                                    : schedule.isNonMandatory
+                                                                        ? `${schedule.grade} ${schedule.slot_name}`
+                                                                        : `${schedule.grade} ${schedule.slot_name}`
+                                                                }
                                                             </div>
-                                                            {new Date(schedule.first_class_date) > new Date() && (
+                                                            {schedule.isNonMandatory ? (
+                                                                <span className='card-subtitle'>
+                                                                    {schedule.rules || schedule.subject || 'Non Mandatory Class'}
+                                                                </span>
+                                                            ) : new Date(schedule.first_class_date) > new Date() && (
                                                                 <span className='card-subtitle'>
                                                                     {schedule.isPiket ? `Grade ${schedule.grade}` : `Starts on ${new Date(schedule.first_class_date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`}
                                                                 </span>
@@ -738,8 +1003,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                     </div>
                 </div>
             </div>
-
-            <NonMandatoryScheduleButton userEmail={userEmail} />
         </div>
     );
 };
