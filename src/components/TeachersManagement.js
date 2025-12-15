@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './Navbar';
-import { Plus, Edit2, Trash2, Save, X, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, AlertCircle, Search } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient.mjs';
 import { usePermissions } from '../contexts/PermissionContext';
 import '../styles/DataManagement.css';
@@ -22,6 +22,16 @@ const TeachersManagement = () => {
         subjects: []  // Array of {subject, level, grade, is_active}
     });
     const [errors, setErrors] = useState({});
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Filtered teachers based on search query
+    const filteredTeachers = useMemo(() => {
+        if (!searchQuery.trim()) return teachers;
+        const query = searchQuery.toLowerCase().trim();
+        return teachers.filter(teacher =>
+            teacher.name.toLowerCase().includes(query)
+        );
+    }, [teachers, searchQuery]);
 
     useEffect(() => {
         loadData();
@@ -342,12 +352,32 @@ const TeachersManagement = () => {
         <div className="management-section">
             <div className="section-header">
                 <h2>Teachers Management</h2>
-                {hasEditPermission && (
-                    <button className="dm-btn-primary" onClick={() => handleOpenModal()}>
-                        <Plus size={18} />
-                        Add New Teacher
-                    </button>
-                )}
+                <div className="section-header-actions">
+                    <div className="dm-search-container">
+                        <Search size={18} className="dm-search-icon" />
+                        <input
+                            type="text"
+                            className="dm-search-input"
+                            placeholder="Search teacher name..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                            <button
+                                className="dm-search-clear"
+                                onClick={() => setSearchQuery('')}
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                    {hasEditPermission && (
+                        <button className="dm-btn-primary" onClick={() => handleOpenModal()}>
+                            <Plus size={18} />
+                            Add New Teacher
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="table-wrapper">
@@ -362,7 +392,7 @@ const TeachersManagement = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {teachers.map(teacher => {
+                        {filteredTeachers.map(teacher => {
                             const subjects = teacherSubjects[teacher.id] || [];
 
                             return (
@@ -428,10 +458,24 @@ const TeachersManagement = () => {
                     </tbody>
                 </table>
 
-                {teachers.length === 0 && (
+                {filteredTeachers.length === 0 && (
                     <div className="empty-state">
                         <AlertCircle size={48} />
-                        <p>No teachers found</p>
+                        <p>
+                            {searchQuery
+                                ? `No teachers found for "${searchQuery}"`
+                                : 'No teachers found'
+                            }
+                        </p>
+                        {searchQuery && (
+                            <button
+                                className="dm-btn-secondary"
+                                onClick={() => setSearchQuery('')}
+                                style={{ marginTop: '1rem' }}
+                            >
+                                Clear Search
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
