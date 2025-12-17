@@ -18,9 +18,10 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
     const [nonMandatoryAssignments, setNonMandatoryAssignments] = useState([]);
     const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+    const [semesterStartDate, setSemesterStartDate] = useState(null);
 
     const specialUser = 'annisa.nugraha@colearn.id';
-    const userEmail = user?.email; //add dynamic user email
+    const userEmail = user?.email;
 
     const generateWeekDates = (date) => {
         const week = [];
@@ -55,7 +56,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const getBackgroundColor = (level, subject, isPiket = false, isNonMandatory = false) => {
         if (isPiket) return '#B67CFF';
-        if (isNonMandatory) return '#5B9BD5'; // Distinct blue for Non Mandatory
+        if (isNonMandatory) return '#5B9BD5';
         if (level === 'SD') return '#F86077';
         if (level === 'SMP') return '#75ABFB';
         if (level === 'SMA') {
@@ -184,7 +185,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
         return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
     }, [allScheduleData]);
 
-    // Filtered teacher list based on search query
     const filteredTeacherList = useMemo(() => {
         if (!teacherSearchQuery.trim()) return teacherList;
         const query = teacherSearchQuery.toLowerCase().trim();
@@ -231,7 +231,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 if (schedule.mentor_email) emails.add(schedule.mentor_email);
             });
 
-            // Also add Non Mandatory teacher/mentor emails
             nonMandatoryAssignments.forEach(assignment => {
                 if (assignment.teacher_email) emails.add(assignment.teacher_email);
                 if (assignment.mentor_email) emails.add(assignment.mentor_email);
@@ -260,7 +259,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const fetchNonMandatoryAssignments = async () => {
         try {
-            // Get active semester
             const { data: activeSemester, error: semesterError } = await supabase
                 .from('semesters')
                 .select('id')
@@ -272,7 +270,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 return;
             }
 
-            // Fetch Non Mandatory assignments with status Open or Upcoming
             const { data: assignments, error: assignmentError } = await supabase
                 .from('teacher_assignment_slots')
                 .select(`
@@ -301,7 +298,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 return;
             }
 
-            // Get all teacher IDs to fetch their names and emails
             const guruJuaraIds = [...new Set(assignments.filter(a => a.guru_juara_id).map(a => a.guru_juara_id))];
             const mentorIds = [...new Set(assignments.filter(a => a.mentor_id).map(a => a.mentor_id))];
             const allTeacherIds = [...new Set([...guruJuaraIds, ...mentorIds])];
@@ -321,7 +317,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 }
             }
 
-            // Get emails for teachers
             const teacherNames = Object.values(teacherMap);
             let emailMap = {};
             if (teacherNames.length > 0) {
@@ -338,7 +333,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 }
             }
 
-            // Enrich assignments with teacher/mentor info
             const enrichedAssignments = assignments.map(assignment => {
                 const guruJuaraName = teacherMap[assignment.guru_juara_id] || null;
                 const mentorName = teacherMap[assignment.mentor_id] || null;
@@ -511,7 +505,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const getSchedulesForDay = (dayName, targetDate) => {
         const dateStr = reformatDate(new Date(targetDate));
-        const englishDayName = dayName; // Keep original English day name for Non Mandatory
+        const englishDayName = dayName;
         dayName = reformatDayName(dayName);
         const daySchedules = filteredScheduleData.filter(schedule => {
             return schedule.day === dayName && schedule.class_date === dateStr;
@@ -585,17 +579,13 @@ const IndividualSchedule = ({ user, onLogout }) => {
             }
         }
 
-        // === NON MANDATORY SCHEDULES ===
         let nonMandatorySchedules = [];
 
-        // Filter Non Mandatory assignments for this day and date range
         const filteredNonMandatory = nonMandatoryAssignments.filter(assignment => {
-            // Check if assignment has this day in its days array
             if (!assignment.days || !assignment.days.includes(englishDayName)) {
                 return false;
             }
 
-            // Check if target date is within slot_start_date and slot_end_date
             if (!shouldShowNonMandatory(assignment, targetDate)) {
                 return false;
             }
@@ -671,8 +661,10 @@ const IndividualSchedule = ({ user, onLogout }) => {
     };
 
     const getAcademicWeekNumber = (date) => {
-        const semesterStartDate = new Date('2025-07-07');
-        const semesterStartMonday = getMondayOfWeek(semesterStartDate);
+        if (!semesterStartDate) return null;
+
+        const startDate = new Date(semesterStartDate);
+        const semesterStartMonday = getMondayOfWeek(startDate);
         const currentMonday = getMondayOfWeek(date);
 
         const diffTime = currentMonday.getTime() - semesterStartMonday.getTime();
@@ -681,6 +673,31 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
         return weekNumber < 1 ? null : weekNumber;
     };
+
+    const fetchActiveSemester = async () => {
+        try {
+            const { data: activeSemester, error: semesterError } = await supabase
+                .from('semesters')
+                .select('start_date')
+                .eq('is_active', true)
+                .single();
+
+            if (semesterError) {
+                console.error('Error fetching active semester:', semesterError);
+                return;
+            }
+
+            if (activeSemester?.start_date) {
+                setSemesterStartDate(activeSemester.start_date);
+            }
+        } catch (error) {
+            console.error('Error fetching active semester:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchActiveSemester();
+    }, []);
 
     useEffect(() => {
         if (userEmail) {
@@ -702,7 +719,6 @@ const IndividualSchedule = ({ user, onLogout }) => {
         }
     }, [allScheduleData, nonMandatoryAssignments]);
 
-    // Fetch Non Mandatory assignments on component load and when week changes
     useEffect(() => {
         fetchNonMandatoryAssignments();
     }, [currentWeek]);
@@ -711,7 +727,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
         const handleClickOutside = (event) => {
             if (!event.target.closest('.teacher-selector')) {
                 setShowTeacherDropdown(false);
-                setTeacherSearchQuery(''); // Clear search when closing dropdown
+                setTeacherSearchQuery('');
             }
         };
 
