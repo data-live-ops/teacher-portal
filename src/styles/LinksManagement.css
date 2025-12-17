@@ -140,6 +140,54 @@
     flex-direction: column;
 }
 
+/* Subcategory Group */
+.subcategory-group {
+    margin: 0;
+    border-top: 1px solid #e2e8f0;
+}
+
+.subcategory-group:first-child {
+    border-top: none;
+}
+
+.subcategory-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px 12px 32px;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #0369a1;
+}
+
+.subcategory-header svg {
+    color: #0ea5e9;
+}
+
+.subcategory-count {
+    margin-left: auto;
+    padding: 2px 8px;
+    background: #0ea5e9;
+    color: white;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}
+
+.subcategory-links {
+    display: flex;
+    flex-direction: column;
+}
+
+.subcategory-link-card {
+    padding-left: 44px !important;
+    background: #fafbfc;
+}
+
+.subcategory-link-card:hover {
+    background: #f0f4f8 !important;
+}
+
 /* Link Card */
 .link-card {
     display: flex;
