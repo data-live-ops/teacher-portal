@@ -16,11 +16,9 @@ import DataManagement from "./components/DataManagement";
 import TeacherUtilization from "./components/TeacherUtilization";
 import PopupCampaignDisplay from "./components/PopupCampaignDisplay";
 
-// Wrapper component to handle popup campaign based on current route
 const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
   const location = useLocation();
 
-  // Map routes to page identifiers for popup targeting
   const getPageFromRoute = (pathname) => {
     const routeMap = {
       '/': 'home',
@@ -35,7 +33,6 @@ const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
 
   const currentPage = getPageFromRoute(location.pathname);
 
-  // Only show popup for logged-in users and valid pages
   if (!isLoggedIn || !currentPage) {
     return null;
   }
