@@ -41,6 +41,21 @@ function Links({ category, onBack }) {
 
     const filteredData = linksData.filter(item => item.category === category);
 
+    const groupedData = filteredData.reduce((acc, link) => {
+        const subcategory = link.subcategory || null;
+        if (subcategory) {
+            if (!acc.subcategories[subcategory]) {
+                acc.subcategories[subcategory] = [];
+            }
+            acc.subcategories[subcategory].push(link);
+        } else {
+            acc.directLinks.push(link);
+        }
+        return acc;
+    }, { subcategories: {}, directLinks: [] });
+
+    const hasSubcategories = Object.keys(groupedData.subcategories).length > 0;
+
     return (
         <div className="page-links flex-home">
             {isMobile ? (
@@ -69,11 +84,26 @@ function Links({ category, onBack }) {
                     </div>
                     <div>
                         {filteredData.length > 0 ? (
-                            filteredData.map((link, index) => (
-                                <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
-                                    {link.title}
-                                </a>
-                            ))
+                            <>
+                                {/* Direct links (without subcategory) */}
+                                {groupedData.directLinks.map((link, index) => (
+                                    <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
+                                        {link.title}
+                                    </a>
+                                ))}
+
+                                {/* Subcategories with their links */}
+                                {Object.entries(groupedData.subcategories).map(([subcategory, subLinks]) => (
+                                    <div key={subcategory} className="mobile-subcategory-group">
+                                        <div className="mobile-subcategory-header">{subcategory}</div>
+                                        {subLinks.map((link, index) => (
+                                            <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer" className="mobile-subcategory-link">
+                                                {link.title}
+                                            </a>
+                                        ))}
+                                    </div>
+                                ))}
+                            </>
                         ) : (
                             <div className="skeleton-links-mobile">
                                 {[...Array(6)].map((_, index) => (
@@ -93,11 +123,26 @@ function Links({ category, onBack }) {
                 <div className="content-links">
                     {filteredData.length > 0
                         ? (
-                            filteredData.map((link, index) => (
-                                <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
-                                    <button id={link.id}>{link.title}</button>
-                                </a>
-                            ))
+                            <>
+                                {groupedData.directLinks.map((link, index) => (
+                                    <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
+                                        <button id={link.id}>{link.title}</button>
+                                    </a>
+                                ))}
+
+                                {Object.entries(groupedData.subcategories).map(([subcategory, subLinks]) => (
+                                    <div key={subcategory} className="desktop-subcategory-group">
+                                        <div className="desktop-subcategory-header">{subcategory}</div>
+                                        <div className="desktop-subcategory-links">
+                                            {subLinks.map((link, index) => (
+                                                <a key={index} href={link.file_link} target="_blank" rel="noopener noreferrer">
+                                                    <button id={link.id}>{link.title}</button>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
                         ) : (
                             <div className="skeleton-container">
                                 {[...Array(6)].map((_, index) => (

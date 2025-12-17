@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, Search, ExternalLink, FolderOpen, X, Link2, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, FolderOpen, X, Link2, AlertCircle, Layers } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient.mjs';
 import { usePermissions } from '../contexts/PermissionContext';
 import '../styles/LinksManagement.css';
@@ -10,6 +10,7 @@ const LinksManagement = () => {
 
     const [links, setLinks] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [subcategories, setSubcategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -22,6 +23,7 @@ const LinksManagement = () => {
     // Form state
     const [formData, setFormData] = useState({
         category: '',
+        subcategory: '',
         title: '',
         file_link: ''
     });
@@ -48,6 +50,10 @@ const LinksManagement = () => {
             const uniqueCategories = [...new Set(linksData?.map(l => l.category).filter(Boolean))].sort();
             setCategories(uniqueCategories);
 
+            // Extract unique subcategories
+            const uniqueSubcategories = [...new Set(linksData?.map(l => l.subcategory).filter(Boolean))].sort();
+            setSubcategories(uniqueSubcategories);
+
         } catch (error) {
             console.error('Error loading links:', error);
             alert('Failed to load links data');
@@ -65,6 +71,7 @@ const LinksManagement = () => {
         const matchesSearch = !searchQuery ||
             link.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             link.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            link.subcategory?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             link.file_link?.toLowerCase().includes(searchQuery.toLowerCase());
 
         const matchesCategory = !selectedCategory || link.category === selectedCategory;
@@ -72,13 +79,24 @@ const LinksManagement = () => {
         return matchesSearch && matchesCategory;
     });
 
-    // Group links by category
+    // Group links by category and subcategory
     const groupedLinks = filteredLinks.reduce((acc, link) => {
         const category = link.category || 'Uncategorized';
+        const subcategory = link.subcategory || null;
+
         if (!acc[category]) {
-            acc[category] = [];
+            acc[category] = { subcategories: {}, directLinks: [] };
         }
-        acc[category].push(link);
+
+        if (subcategory) {
+            if (!acc[category].subcategories[subcategory]) {
+                acc[category].subcategories[subcategory] = [];
+            }
+            acc[category].subcategories[subcategory].push(link);
+        } else {
+            acc[category].directLinks.push(link);
+        }
+
         return acc;
     }, {});
 
@@ -116,6 +134,7 @@ const LinksManagement = () => {
             setEditingId(link.id);
             setFormData({
                 category: link.category || '',
+                subcategory: link.subcategory || '',
                 title: link.title || '',
                 file_link: link.file_link || ''
             });
@@ -123,6 +142,7 @@ const LinksManagement = () => {
             setEditingId(null);
             setFormData({
                 category: '',
+                subcategory: '',
                 title: '',
                 file_link: ''
             });
@@ -135,7 +155,7 @@ const LinksManagement = () => {
     const handleCloseModal = () => {
         setShowModal(false);
         setEditingId(null);
-        setFormData({ category: '', title: '', file_link: '' });
+        setFormData({ category: '', subcategory: '', title: '', file_link: '' });
         setErrors({});
     };
 
@@ -148,6 +168,7 @@ const LinksManagement = () => {
 
             const linkData = {
                 category: formData.category.trim() || null,
+                subcategory: formData.subcategory.trim() || null,
                 title: formData.title.trim(),
                 file_link: formData.file_link.trim(),
                 updated_at: new Date().toISOString()
@@ -293,57 +314,116 @@ const LinksManagement = () => {
                 </div>
             ) : (
                 <div className="links-grid">
-                    {Object.entries(groupedLinks).map(([category, categoryLinks]) => (
-                        <div key={category} className="links-category-group">
-                            <div className="category-header">
-                                <FolderOpen size={18} />
-                                <span>{category}</span>
-                                <span className="category-count">{categoryLinks.length}</span>
-                            </div>
+                    {Object.entries(groupedLinks).map(([category, categoryData]) => {
+                        const totalLinks = categoryData.directLinks.length +
+                            Object.values(categoryData.subcategories).reduce((sum, arr) => sum + arr.length, 0);
 
-                            <div className="category-links">
-                                {categoryLinks.map(link => (
-                                    <div key={link.id} className="link-card">
-                                        <div className="link-main">
-                                            <a
-                                                href={link.file_link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="link-title"
-                                            >
-                                                {link.title}
-                                                <ExternalLink size={14} />
-                                            </a>
-                                            <div className="link-url">{getDomain(link.file_link)}</div>
-                                        </div>
+                        return (
+                            <div key={category} className="links-category-group">
+                                <div className="category-header">
+                                    <FolderOpen size={18} />
+                                    <span>{category}</span>
+                                    <span className="category-count">{totalLinks}</span>
+                                </div>
 
-                                        <div className="link-meta">
-                                            <span className="link-date">Updated: {formatDate(link.updated_at)}</span>
-                                        </div>
-
-                                        {hasEditPermission && (
-                                            <div className="link-actions">
-                                                <button
-                                                    className="dm-btn-icon"
-                                                    onClick={() => handleOpenModal(link)}
-                                                    title="Edit"
+                                <div className="category-links">
+                                    {/* Direct links (without subcategory) */}
+                                    {categoryData.directLinks.map(link => (
+                                        <div key={link.id} className="link-card">
+                                            <div className="link-main">
+                                                <a
+                                                    href={link.file_link}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="link-title"
                                                 >
-                                                    <Edit2 size={16} />
-                                                </button>
-                                                <button
-                                                    className="dm-btn-icon delete"
-                                                    onClick={() => setDeleteConfirm(link.id)}
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                    {link.title}
+                                                    <ExternalLink size={14} />
+                                                </a>
+                                                <div className="link-url">{getDomain(link.file_link)}</div>
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+
+                                            <div className="link-meta">
+                                                <span className="link-date">Updated: {formatDate(link.updated_at)}</span>
+                                            </div>
+
+                                            {hasEditPermission && (
+                                                <div className="link-actions">
+                                                    <button
+                                                        className="dm-btn-icon"
+                                                        onClick={() => handleOpenModal(link)}
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        className="dm-btn-icon delete"
+                                                        onClick={() => setDeleteConfirm(link.id)}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {/* Subcategories with their links */}
+                                    {Object.entries(categoryData.subcategories).map(([subcategory, subLinks]) => (
+                                        <div key={subcategory} className="subcategory-group">
+                                            <div className="subcategory-header">
+                                                <Layers size={16} />
+                                                <span>{subcategory}</span>
+                                                <span className="subcategory-count">{subLinks.length}</span>
+                                            </div>
+
+                                            <div className="subcategory-links">
+                                                {subLinks.map(link => (
+                                                    <div key={link.id} className="link-card subcategory-link-card">
+                                                        <div className="link-main">
+                                                            <a
+                                                                href={link.file_link}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="link-title"
+                                                            >
+                                                                {link.title}
+                                                                <ExternalLink size={14} />
+                                                            </a>
+                                                            <div className="link-url">{getDomain(link.file_link)}</div>
+                                                        </div>
+
+                                                        <div className="link-meta">
+                                                            <span className="link-date">Updated: {formatDate(link.updated_at)}</span>
+                                                        </div>
+
+                                                        {hasEditPermission && (
+                                                            <div className="link-actions">
+                                                                <button
+                                                                    className="dm-btn-icon"
+                                                                    onClick={() => handleOpenModal(link)}
+                                                                    title="Edit"
+                                                                >
+                                                                    <Edit2 size={16} />
+                                                                </button>
+                                                                <button
+                                                                    className="dm-btn-icon delete"
+                                                                    onClick={() => setDeleteConfirm(link.id)}
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -365,7 +445,7 @@ const LinksManagement = () => {
                                     type="text"
                                     value={formData.category}
                                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    placeholder="e.g., Documentation, Templates, Resources"
+                                    placeholder="e.g., Kelas Live, Operasional, Learning Resources"
                                     list="category-suggestions"
                                 />
                                 <datalist id="category-suggestions">
@@ -374,6 +454,23 @@ const LinksManagement = () => {
                                     ))}
                                 </datalist>
                                 <span className="input-help">Leave empty for uncategorized</span>
+                            </div>
+
+                            <div className="dm-form-group">
+                                <label>Subcategory</label>
+                                <input
+                                    type="text"
+                                    value={formData.subcategory}
+                                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                    placeholder="e.g., Jadwal, Template, Panduan"
+                                    list="subcategory-suggestions"
+                                />
+                                <datalist id="subcategory-suggestions">
+                                    {subcategories.map(sub => (
+                                        <option key={sub} value={sub} />
+                                    ))}
+                                </datalist>
+                                <span className="input-help">Optional - for grouping within category</span>
                             </div>
 
                             <div className="dm-form-group">
