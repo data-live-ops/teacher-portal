@@ -345,7 +345,7 @@ const TeacherUtilization = ({ selectedSemester }) => {
                         </div>
                         <div>
                             <p className="stat-label">Total Teachers</p>
-                            <p className="stat-value">{utilizationData.length}</p>
+                            <p className="stat-value">{filteredAndSortedData.length}</p>
                         </div>
                     </div>
                 </div>
@@ -358,7 +358,7 @@ const TeacherUtilization = ({ selectedSemester }) => {
                         <div>
                             <p className="stat-label">Full Capacity (50%)</p>
                             <p className="stat-value">
-                                {utilizationData.filter(t => t.minimum_50_teacher_utilization_status === 'FULL CAPACITY').length}
+                                {filteredAndSortedData.filter(t => t.minimum_50_teacher_utilization_status === 'FULL CAPACITY').length}
                             </p>
                         </div>
                     </div>
@@ -372,7 +372,7 @@ const TeacherUtilization = ({ selectedSemester }) => {
                         <div>
                             <p className="stat-label">Below Minimum (50%)</p>
                             <p className="stat-value">
-                                {utilizationData.filter(t => t.minimum_50_teacher_utilization_status === 'BELOW MINIMUM').length}
+                                {filteredAndSortedData.filter(t => t.minimum_50_teacher_utilization_status === 'BELOW MINIMUM').length}
                             </p>
                         </div>
                     </div>
@@ -386,8 +386,8 @@ const TeacherUtilization = ({ selectedSemester }) => {
                         <div>
                             <p className="stat-label">Avg GJ Utilization</p>
                             <p className="stat-value">
-                                {utilizationData.length > 0
-                                    ? Math.round(utilizationData.reduce((sum, t) => sum + (parseFloat(t.teacher_utilization_percentage) || 0), 0) / utilizationData.length)
+                                {filteredAndSortedData.length > 0
+                                    ? Math.round(filteredAndSortedData.reduce((sum, t) => sum + (parseFloat(t.teacher_utilization_percentage) || 0), 0) / filteredAndSortedData.length)
                                     : 0}%
                             </p>
                         </div>
