@@ -179,11 +179,14 @@ const IndividualSchedule = ({ user, onLogout }) => {
     };
 
     const teacherList = useMemo(() => {
-        const names = allScheduleData
-            .flatMap(s => [s.teacher_name, s.mentor_name])
-            .filter(Boolean);
-        return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-    }, [allScheduleData]);
+        // Include teachers from both class_schedules AND non-mandatory assignments
+        const scheduleNames = allScheduleData
+            .flatMap(s => [s.teacher_name, s.mentor_name]);
+        const nonMandatoryNames = nonMandatoryAssignments
+            .flatMap(a => [a.teacher_name, a.mentor_name]);
+        const allNames = [...scheduleNames, ...nonMandatoryNames].filter(Boolean);
+        return Array.from(new Set(allNames)).sort((a, b) => a.localeCompare(b));
+    }, [allScheduleData, nonMandatoryAssignments]);
 
     const filteredTeacherList = useMemo(() => {
         if (!teacherSearchQuery.trim()) return teacherList;
