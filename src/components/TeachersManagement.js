@@ -17,14 +17,14 @@ const TeachersManagement = () => {
 
     const [formData, setFormData] = useState({
         name: '',
+        email: '',
         teacher_leveling_id: '',
         is_active: true,
-        subjects: []  // Array of {subject, level, grade, is_active}
+        subjects: []
     });
     const [errors, setErrors] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Filtered teachers based on search query
     const filteredTeachers = useMemo(() => {
         if (!searchQuery.trim()) return teachers;
         const query = searchQuery.toLowerCase().trim();
@@ -41,7 +41,6 @@ const TeachersManagement = () => {
         try {
             setLoading(true);
 
-            // Load teachers
             const { data: teachersData, error: teachersError } = await supabase
                 .from('teachers_new')
                 .select(`
@@ -56,7 +55,6 @@ const TeachersManagement = () => {
 
             if (teachersError) throw teachersError;
 
-            // Load levelings for dropdown
             const { data: levelingsData, error: levelingsError } = await supabase
                 .from('teacher_leveling')
                 .select('*')
@@ -64,7 +62,6 @@ const TeachersManagement = () => {
 
             if (levelingsError) throw levelingsError;
 
-            // Load all teacher subjects
             const { data: subjectsData, error: subjectsError } = await supabase
                 .from('teacher_subjects')
                 .select('*')
@@ -72,7 +69,6 @@ const TeachersManagement = () => {
 
             if (subjectsError) throw subjectsError;
 
-            // Group subjects by teacher_id
             const subjectsByTeacher = {};
             subjectsData?.forEach(subject => {
                 if (!subjectsByTeacher[subject.teacher_id]) {
@@ -81,7 +77,26 @@ const TeachersManagement = () => {
                 subjectsByTeacher[subject.teacher_id].push(subject);
             });
 
-            setTeachers(teachersData);
+            const teacherNames = teachersData?.map(t => t.name) || [];
+            let emailsByName = {};
+            if (teacherNames.length > 0) {
+                const { data: emailsData } = await supabase
+                    .from('user_emails')
+                    .select('full_name, email')
+                    .in('full_name', teacherNames);
+
+                emailsData?.forEach(e => {
+                    emailsByName[e.full_name] = e.email;
+                });
+            }
+
+            // Attach email to each teacher
+            const teachersWithEmail = teachersData?.map(t => ({
+                ...t,
+                email: emailsByName[t.name] || ''
+            })) || [];
+
+            setTeachers(teachersWithEmail);
             setLevelings(levelingsData);
             setTeacherSubjects(subjectsByTeacher);
         } catch (error) {
@@ -135,6 +150,7 @@ const TeachersManagement = () => {
 
             setFormData({
                 name: teacher.name,
+                email: teacher.email || '',
                 teacher_leveling_id: teacher.teacher_leveling_id,
                 is_active: teacher.is_active,
                 subjects: subjects.map(s => ({
@@ -149,6 +165,7 @@ const TeachersManagement = () => {
             setEditingId(null);
             setFormData({
                 name: '',
+                email: '',
                 teacher_leveling_id: '',
                 is_active: true,
                 subjects: []
@@ -163,11 +180,82 @@ const TeachersManagement = () => {
         setEditingId(null);
         setFormData({
             name: '',
+            email: '',
             teacher_leveling_id: '',
             is_active: true,
             subjects: []
         });
         setErrors({});
+    };
+
+    // Sync teacher email to user_emails table
+    const syncEmailToUserEmails = async (teacherName, email) => {
+        if (!email || !email.trim()) return;
+
+        try {
+            // Check if email already exists for this name
+            const { data: existing } = await supabase
+                .from('user_emails')
+                .select('id, full_name')
+                .eq('full_name', teacherName)
+                .single();
+
+            if (existing) {
+                // Update existing record
+                await supabase
+                    .from('user_emails')
+                    .update({ email: email.trim() })
+                    .eq('full_name', teacherName);
+            } else {
+                // Insert new record
+                await supabase
+                    .from('user_emails')
+                    .insert([{
+                        full_name: teacherName,
+                        email: email.trim()
+                    }]);
+            }
+        } catch (error) {
+            console.error('Error syncing email to user_emails:', error);
+            // Don't throw - this is a secondary operation
+        }
+    };
+
+    // Sync teacher email to class_schedules table (for Individual Schedule display)
+    const syncEmailToClassSchedules = async (teacherName, email) => {
+        if (!email || !email.trim()) return;
+
+        try {
+            const trimmedEmail = email.trim();
+
+            // Update mentor_email where mentor_name matches
+            const { data: mentorUpdates, error: mentorError } = await supabase
+                .from('class_schedules')
+                .update({ mentor_email: trimmedEmail })
+                .eq('mentor_name', teacherName)
+                .is('mentor_email', null)  // Only update if not already set
+                .select('id');
+
+            if (mentorError) throw mentorError;
+
+            // Update teacher_email where teacher_name matches
+            const { data: teacherUpdates, error: teacherError } = await supabase
+                .from('class_schedules')
+                .update({ teacher_email: trimmedEmail })
+                .eq('teacher_name', teacherName)
+                .is('teacher_email', null)  // Only update if not already set
+                .select('id');
+
+            if (teacherError) throw teacherError;
+
+            const totalUpdates = (mentorUpdates?.length || 0) + (teacherUpdates?.length || 0);
+            if (totalUpdates > 0) {
+                console.log(`Updated ${totalUpdates} class_schedules for: ${teacherName} (${trimmedEmail})`);
+            }
+        } catch (error) {
+            console.error('Error syncing email to class_schedules:', error);
+            // Don't throw - this is a secondary operation
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -236,6 +324,10 @@ const TeachersManagement = () => {
                     }
                 }
 
+                // Sync email to user_emails and class_schedules
+                await syncEmailToUserEmails(formData.name, formData.email);
+                await syncEmailToClassSchedules(formData.name, formData.email);
+
                 alert('Teacher updated successfully');
             } else {
                 // Create new teacher
@@ -284,6 +376,10 @@ const TeachersManagement = () => {
                         if (subjectsError) throw subjectsError;
                     }
                 }
+
+                // Sync email to user_emails and class_schedules
+                await syncEmailToUserEmails(formData.name, formData.email);
+                await syncEmailToClassSchedules(formData.name, formData.email);
 
                 alert('Teacher created successfully');
             }
@@ -385,6 +481,7 @@ const TeachersManagement = () => {
                     <thead>
                         <tr>
                             <th>Teacher Name</th>
+                            <th>Email</th>
                             <th>Responsibility</th>
                             <th>Status</th>
                             <th>Subjects</th>
@@ -398,6 +495,15 @@ const TeachersManagement = () => {
                             return (
                                 <tr key={teacher.id}>
                                     <td className="font-semibold">{teacher.name}</td>
+                                    <td>
+                                        {teacher.email ? (
+                                            <span style={{ fontSize: '0.85rem' }}>{teacher.email}</span>
+                                        ) : (
+                                            <span style={{ color: '#f59e0b', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                                ⚠️ Belum ada
+                                            </span>
+                                        )}
+                                    </td>
                                     <td>{teacher.teacher_leveling?.responsibility}</td>
                                     <td>
                                         <span className={`dm-status-badge ${teacher.is_active ? 'active' : 'inactive'}`}>
@@ -496,7 +602,7 @@ const TeachersManagement = () => {
                             <div className="form-section">
                                 <h4>Basic Information</h4>
                                 <div className="form-grid">
-                                    <div className="dm-form-group full-width">
+                                    <div className="dm-form-group">
                                         <label>Teacher Name *</label>
                                         <input
                                             type="text"
@@ -506,6 +612,21 @@ const TeachersManagement = () => {
                                             className={errors.name ? 'error' : ''}
                                         />
                                         {errors.name && <span className="error-message">{errors.name}</span>}
+                                    </div>
+
+                                    <div className="dm-form-group">
+                                        <label>Email</label>
+                                        <input
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                                            placeholder="e.g., teacher@colearn.id"
+                                            className={errors.email ? 'error' : ''}
+                                        />
+                                        {errors.email && <span className="error-message">{errors.email}</span>}
+                                        <small style={{ color: '#666', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                                            Email diperlukan agar nama dan avatar guru/mentor muncul di Individual Schedule
+                                        </small>
                                     </div>
 
                                     <div className="dm-form-group">
@@ -575,71 +696,71 @@ const TeachersManagement = () => {
                                             <p className="text-muted">No subjects added yet. Click "Add Subject" to add teaching capabilities.</p>
                                         )}
 
-                                {formData.subjects.map((subject, index) => (
-                                    <div key={index} className="subject-form-row">
-                                        <div className="form-grid">
-                                            <div className="dm-form-group">
-                                                <label>Subject *</label>
-                                                <input
-                                                    type="text"
-                                                    value={subject.subject}
-                                                    onChange={(e) => updateSubject(index, 'subject', e.target.value)}
-                                                    placeholder="e.g., Math SMP"
-                                                    className={errors[`subject_${index}`] ? 'error' : ''}
-                                                />
-                                                {errors[`subject_${index}`] && <span className="error-message">{errors[`subject_${index}`]}</span>}
-                                            </div>
+                                        {formData.subjects.map((subject, index) => (
+                                            <div key={index} className="subject-form-row">
+                                                <div className="form-grid">
+                                                    <div className="dm-form-group">
+                                                        <label>Subject *</label>
+                                                        <input
+                                                            type="text"
+                                                            value={subject.subject}
+                                                            onChange={(e) => updateSubject(index, 'subject', e.target.value)}
+                                                            placeholder="e.g., Math SMP"
+                                                            className={errors[`subject_${index}`] ? 'error' : ''}
+                                                        />
+                                                        {errors[`subject_${index}`] && <span className="error-message">{errors[`subject_${index}`]}</span>}
+                                                    </div>
 
-                                            <div className="dm-form-group">
-                                                <label>Level *</label>
-                                                <select
-                                                    value={subject.level}
-                                                    onChange={(e) => updateSubject(index, 'level', e.target.value)}
-                                                    className={errors[`level_${index}`] ? 'error' : ''}
+                                                    <div className="dm-form-group">
+                                                        <label>Level *</label>
+                                                        <select
+                                                            value={subject.level}
+                                                            onChange={(e) => updateSubject(index, 'level', e.target.value)}
+                                                            className={errors[`level_${index}`] ? 'error' : ''}
+                                                        >
+                                                            <option value="">Select</option>
+                                                            <option value="SD">SD</option>
+                                                            <option value="SMP">SMP</option>
+                                                            <option value="SMA">SMA</option>
+                                                        </select>
+                                                        {errors[`level_${index}`] && <span className="error-message">{errors[`level_${index}`]}</span>}
+                                                    </div>
+
+                                                    <div className="dm-form-group">
+                                                        <label>Grade *</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="12"
+                                                            value={subject.grade}
+                                                            onChange={(e) => updateSubject(index, 'grade', parseInt(e.target.value) || 1)}
+                                                            className={errors[`grade_${index}`] ? 'error' : ''}
+                                                        />
+                                                        {errors[`grade_${index}`] && <span className="error-message">{errors[`grade_${index}`]}</span>}
+                                                    </div>
+
+                                                    <div className="dm-form-group">
+                                                        <label>Status</label>
+                                                        <select
+                                                            value={subject.is_active}
+                                                            onChange={(e) => updateSubject(index, 'is_active', e.target.value === 'true')}
+                                                        >
+                                                            <option value="true">Active</option>
+                                                            <option value="false">Inactive</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="dm-btn-icon dm-btn-delete"
+                                                    onClick={() => removeSubject(index)}
+                                                    title="Remove subject"
                                                 >
-                                                    <option value="">Select</option>
-                                                    <option value="SD">SD</option>
-                                                    <option value="SMP">SMP</option>
-                                                    <option value="SMA">SMA</option>
-                                                </select>
-                                                {errors[`level_${index}`] && <span className="error-message">{errors[`level_${index}`]}</span>}
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
-
-                                            <div className="dm-form-group">
-                                                <label>Grade *</label>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="12"
-                                                    value={subject.grade}
-                                                    onChange={(e) => updateSubject(index, 'grade', parseInt(e.target.value) || 1)}
-                                                    className={errors[`grade_${index}`] ? 'error' : ''}
-                                                />
-                                                {errors[`grade_${index}`] && <span className="error-message">{errors[`grade_${index}`]}</span>}
-                                            </div>
-
-                                            <div className="dm-form-group">
-                                                <label>Status</label>
-                                                <select
-                                                    value={subject.is_active}
-                                                    onChange={(e) => updateSubject(index, 'is_active', e.target.value === 'true')}
-                                                >
-                                                    <option value="true">Active</option>
-                                                    <option value="false">Inactive</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            className="dm-btn-icon dm-btn-delete"
-                                            onClick={() => removeSubject(index)}
-                                            title="Remove subject"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                ))}
+                                        ))}
                                     </div>
                                 );
                             })()}
