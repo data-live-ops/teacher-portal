@@ -747,29 +747,64 @@ const PiketSchedule = ({ user, onLogout }) => {
     }, [hasEditPermission]);
 
     useEffect(() => {
-        const uniqueGradeSubjects = [...new Set(piketData.map(item => `${item.grade}-${item.subject}`))];
+        const uniqueGradeSubjects = [...new Set(piketData.map(item => `${item.grade}|||${item.subject}`))];
         const uniqueGrades = [...new Set(piketData.map(item => item.grade))];
         const gradeSubjectArr = uniqueGradeSubjects.map(gs => {
-            const [grade, subject] = gs.split('-');
+            const [grade, subject] = gs.split('|||');
             return { grade, subject };
         });
 
-        const order = [
-            '4', '5', '6', 'SD', 'SMP MATH', 'SMA MATH', 'SCIENCE'
-        ];
-        const getOrderIndex = (gs) => {
-            const key = gs.grade.trim().toUpperCase() + (gs.subject ? ' ' + gs.subject.trim().toUpperCase() : '');
+        const getGradeSortKey = (grade) => {
+            const g = grade.trim();
+            const gUpper = g.toUpperCase();
 
-            if (key.startsWith('SMP') && gs.subject && gs.subject.toUpperCase().includes('MATH')) return order.indexOf('SMP MATH');
-            if (key.startsWith('SMA') && gs.subject && gs.subject.toUpperCase().includes('MATH')) return order.indexOf('SMA MATH');
-            if (gs.subject && gs.subject.toUpperCase().includes('SCIENCE')) return order.indexOf('SCIENCE');
+            if (/^\d+$/.test(g)) {
+                return { priority: 1, subPriority: parseInt(g), name: g };
+            }
 
-            const idx = order.findIndex(o => o === gs.grade.trim().toUpperCase());
-            return idx !== -1 ? idx : 99;
+            // 2. SMP related
+            if (gUpper.includes('SMP')) {
+                return { priority: 2, subPriority: 0, name: g };
+            }
+
+            // 3. IPA with grade range (e.g., "IPA (7-10)")
+            if (gUpper.includes('IPA') && !gUpper.includes('SMA')) {
+                const match = g.match(/\((\d+)/);
+                const startGrade = match ? parseInt(match[1]) : 0;
+                return { priority: 3, subPriority: startGrade, name: g };
+            }
+
+            // 4. SMA (pure SMA without specific subject)
+            if (gUpper === 'SMA') {
+                return { priority: 4, subPriority: 0, name: g };
+            }
+
+            // 5. SMA subjects (FIS SMA, KIM SMA, etc.)
+            if (gUpper.includes('SMA')) {
+                const match = g.match(/\((\d+)/);
+                const startGrade = match ? parseInt(match[1]) : 0;
+                return { priority: 5, subPriority: startGrade, name: g };
+            }
+
+            // 6. Everything else - sort alphabetically
+            return { priority: 99, subPriority: 0, name: g };
         };
 
-        gradeSubjectArr.sort((a, b) => getOrderIndex(a) - getOrderIndex(b));
-        uniqueGrades.sort((a, b) => getOrderIndex({ grade: a }) - getOrderIndex({ grade: b }));
+        const compareGrades = (a, b) => {
+            const keyA = getGradeSortKey(a.grade || a);
+            const keyB = getGradeSortKey(b.grade || b);
+
+            if (keyA.priority !== keyB.priority) {
+                return keyA.priority - keyB.priority;
+            }
+            if (keyA.subPriority !== keyB.subPriority) {
+                return keyA.subPriority - keyB.subPriority;
+            }
+            return keyA.name.localeCompare(keyB.name);
+        };
+
+        gradeSubjectArr.sort(compareGrades);
+        uniqueGrades.sort(compareGrades);
 
         setGradeSubjects(gradeSubjectArr);
         setUniqueGrades(uniqueGrades);
@@ -795,19 +830,35 @@ const PiketSchedule = ({ user, onLogout }) => {
     const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
     const getButtonColor = (grade) => {
-        if (['4', '5', '6'].includes(grade)) {
+        const g = grade.toUpperCase();
+
+        if (/^\d+$/.test(grade)) {
             return '#F86077';
-        } else if (grade === '10 IPA & KIM') {
-            return '#FFED76'
-        } else if (grade.includes('SMP')) {
-            return '#75ABFB';
-        } else if (grade.includes('SMA')) {
-            return '#67F5AD';
-        } else if (grade.includes('IPA')) {
-            return '#FF8D9E';
-        } else {
-            return '#FFED76';
         }
+
+        if (g.includes('SMP')) {
+            return '#75ABFB';
+        }
+
+        if (g.includes('IPA') && !g.includes('SMA')) {
+            return '#FF8D9E';
+        }
+
+        if (g === 'SMA') {
+            return '#67F5AD';
+        }
+
+        if (g.includes('SMA')) {
+            if (g.includes('FIS')) {
+                return '#A78BFA';
+            }
+            if (g.includes('KIM')) {
+                return '#FBBF24';
+            }
+            return '#67F5AD';
+        }
+
+        return '#FFED76';
     };
 
     const getTeachersForSlot = (time, day, gradeSubject) => {
