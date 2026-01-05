@@ -191,22 +191,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
     const sortAssignments = (assignmentsArray) => {
         return assignmentsArray.sort((a, b) => {
-            const classRuleA = a.class_rule || '';
-            const classRuleB = b.class_rule || '';
-
-            const getClassRulePriority = (rule) => {
-                if (rule === 'Mandatory') return 0;
-                if (rule === 'Non Mandatory') return 1;
-                return 2;
-            };
-
-            const classRulePriorityA = getClassRulePriority(classRuleA);
-            const classRulePriorityB = getClassRulePriority(classRuleB);
-
-            if (classRulePriorityA !== classRulePriorityB) {
-                return classRulePriorityA - classRulePriorityB;
-            }
-
+            // Sort by Grade first
             const gradeA = parseInt(a.grade) || 0;
             const gradeB = parseInt(b.grade) || 0;
 
