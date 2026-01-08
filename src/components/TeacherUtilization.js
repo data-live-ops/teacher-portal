@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -44,6 +44,10 @@ const TeacherUtilization = ({ selectedSemester }) => {
     const [columnFilters, setColumnFilters] = useState({
         teacher_name: ''
     });
+
+    // ✅ Recalculate state
+    const [isRecalculating, setIsRecalculating] = useState(false);
+    const [recalculateResult, setRecalculateResult] = useState(null);
 
     // ✅ Load data when selectedSemester changes (from parent)
     useEffect(() => {
@@ -207,6 +211,55 @@ const TeacherUtilization = ({ selectedSemester }) => {
         return [...new Set(values)].filter(Boolean).sort();
     };
 
+    // ✅ Recalculate utilization data
+    const handleRecalculate = async () => {
+        if (!selectedSemester) {
+            alert('Please select a semester first');
+            return;
+        }
+
+        const confirmRecalculate = window.confirm(
+            `Are you sure you want to recalculate all teacher utilization for ${selectedSemester.name}?\n\n` +
+            'This will sync the utilization data with the actual assignment slots.'
+        );
+
+        if (!confirmRecalculate) return;
+
+        setIsRecalculating(true);
+        setRecalculateResult(null);
+
+        try {
+            const { data, error } = await supabase
+                .rpc('restore_all_teacher_utilization', {
+                    p_semester_id: selectedSemester.id
+                });
+
+            if (error) throw error;
+
+            // Count changes
+            const updatedCount = data?.filter(r => r.change_status === 'UPDATED').length || 0;
+            const totalCount = data?.length || 0;
+
+            setRecalculateResult({
+                success: true,
+                message: `Recalculation complete! ${updatedCount} of ${totalCount} teachers updated.`,
+                details: data?.filter(r => r.change_status === 'UPDATED') || []
+            });
+
+            // Reload data to show updated values
+            await loadUtilizationData();
+
+        } catch (error) {
+            console.error('Error recalculating utilization:', error);
+            setRecalculateResult({
+                success: false,
+                message: `Error: ${error.message}`
+            });
+        } finally {
+            setIsRecalculating(false);
+        }
+    };
+
     // ✅ Filter and sort data
     const filteredAndSortedData = utilizationData
         .filter(teacher => {
@@ -332,8 +385,97 @@ const TeacherUtilization = ({ selectedSemester }) => {
                             <option value="MEET MINIMUM">Meet Minimum</option>
                             <option value="BELOW MINIMUM">Below Minimum</option>
                         </select>
+
+                        {/* ✅ Recalculate Button */}
+                        <button
+                            onClick={handleRecalculate}
+                            disabled={isRecalculating || !selectedSemester}
+                            className="recalculate-button"
+                            title="Recalculate all teacher utilization based on current assignment slots"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 16px',
+                                background: isRecalculating ? '#94a3b8' : '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: isRecalculating ? 'not-allowed' : 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: '500',
+                                transition: 'background 0.2s'
+                            }}
+                        >
+                            <RefreshCw
+                                size={16}
+                                className={isRecalculating ? 'spinning' : ''}
+                                style={{
+                                    animation: isRecalculating ? 'spin 1s linear infinite' : 'none'
+                                }}
+                            />
+                            {isRecalculating ? 'Recalculating...' : 'Recalculate'}
+                        </button>
                     </div>
                 </div>
+
+                {/* ✅ Recalculate Result Banner */}
+                {recalculateResult && (
+                    <div
+                        className="recalculate-result"
+                        style={{
+                            padding: '12px 16px',
+                            marginBottom: '16px',
+                            borderRadius: '8px',
+                            background: recalculateResult.success ? '#dcfce7' : '#fee2e2',
+                            border: `1px solid ${recalculateResult.success ? '#86efac' : '#fca5a5'}`,
+                            color: recalculateResult.success ? '#166534' : '#dc2626',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '12px'
+                        }}
+                    >
+                        {recalculateResult.success ? <CheckCircle size={20} /> : <XCircle size={20} />}
+                        <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, fontWeight: '500' }}>{recalculateResult.message}</p>
+                            {recalculateResult.details && recalculateResult.details.length > 0 && (
+                                <details style={{ marginTop: '8px' }}>
+                                    <summary style={{ cursor: 'pointer', fontSize: '0.875rem' }}>
+                                        View updated teachers ({recalculateResult.details.length})
+                                    </summary>
+                                    <ul style={{
+                                        margin: '8px 0 0 0',
+                                        paddingLeft: '20px',
+                                        fontSize: '0.875rem',
+                                        maxHeight: '200px',
+                                        overflowY: 'auto'
+                                    }}>
+                                        {recalculateResult.details.map((detail, idx) => (
+                                            <li key={idx}>
+                                                <strong>{detail.teacher_name}</strong>:
+                                                GJ {detail.old_mandatory}→{detail.new_mandatory},
+                                                Other {detail.old_non_mandatory}→{detail.new_non_mandatory},
+                                                Mentor {detail.old_mentor}→{detail.new_mentor}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => setRecalculateResult(null)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                color: recalculateResult.success ? '#166534' : '#dc2626'
+                            }}
+                        >
+                            <XCircle size={16} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Stats Cards */}
