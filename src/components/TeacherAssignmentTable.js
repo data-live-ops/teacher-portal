@@ -617,7 +617,6 @@ const TeacherAssignmentTable = ({
     }
   };
 
-  // Handle individual row selection
   const handleSelectRow = (id) => {
     setSelectedIds(prev => {
       const newSet = new Set(prev);
@@ -630,7 +629,6 @@ const TeacherAssignmentTable = ({
     });
   };
 
-  // Handle bulk delete
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
 
@@ -653,7 +651,6 @@ const TeacherAssignmentTable = ({
     }
   };
 
-  // Handle bulk status change
   const handleBulkStatusChange = async (newStatus) => {
     if (selectedIds.size === 0) return;
 
@@ -677,9 +674,7 @@ const TeacherAssignmentTable = ({
     }
   };
 
-  // Clear selection when filtered assignments change
   useEffect(() => {
-    // Remove selected IDs that are no longer in filtered view
     setSelectedIds(prev => {
       const filteredIds = new Set(filteredAssignments.map(a => a.id));
       const newSet = new Set();
