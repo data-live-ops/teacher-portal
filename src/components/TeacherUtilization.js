@@ -27,7 +27,6 @@ const TeacherUtilization = ({ selectedSemester }) => {
     });
     const [resizing, setResizing] = useState(null);
     const [filters, setFilters] = useState({
-        level: '',
         gjStatus50: '',
         gjStatus75: '',
         mentorStatus: '',
@@ -42,7 +41,9 @@ const TeacherUtilization = ({ selectedSemester }) => {
 
     // ✅ Column filter state
     const [columnFilters, setColumnFilters] = useState({
-        teacher_name: ''
+        teacher_name: '',
+        level: '',
+        responsibility: ''
     });
 
     // ✅ Recalculate state
@@ -267,7 +268,6 @@ const TeacherUtilization = ({ selectedSemester }) => {
                 teacher.level.toLowerCase().includes(searchTerm.toLowerCase());
 
             const matchesFilters =
-                (!filters.level || teacher.level === filters.level) &&
                 (!filters.gjStatus50 || teacher.minimum_50_teacher_utilization_status === filters.gjStatus50) &&
                 (!filters.gjStatus75 || teacher.minimum_75_teacher_utilization_status === filters.gjStatus75) &&
                 (!filters.mentorStatus || teacher.minimum_mentor_utilization_status === filters.mentorStatus);
@@ -288,7 +288,33 @@ const TeacherUtilization = ({ selectedSemester }) => {
                 }
             }
 
-            return matchesSearch && matchesFilters && matchesActiveStatus && matchesColumnFilters;
+            // ✅ Column filter for level
+            let matchesLevelFilter = true;
+            if (columnFilters.level) {
+                try {
+                    const selectedLevels = JSON.parse(columnFilters.level);
+                    if (Array.isArray(selectedLevels) && selectedLevels.length > 0) {
+                        matchesLevelFilter = selectedLevels.includes(teacher.level);
+                    }
+                } catch {
+                    matchesLevelFilter = teacher.level.toLowerCase().includes(columnFilters.level.toLowerCase());
+                }
+            }
+
+            // ✅ Column filter for responsibility
+            let matchesResponsibilityFilter = true;
+            if (columnFilters.responsibility) {
+                try {
+                    const selectedResponsibilities = JSON.parse(columnFilters.responsibility);
+                    if (Array.isArray(selectedResponsibilities) && selectedResponsibilities.length > 0) {
+                        matchesResponsibilityFilter = selectedResponsibilities.includes(teacher.responsibility);
+                    }
+                } catch {
+                    matchesResponsibilityFilter = teacher.responsibility.toLowerCase().includes(columnFilters.responsibility.toLowerCase());
+                }
+            }
+
+            return matchesSearch && matchesFilters && matchesActiveStatus && matchesColumnFilters && matchesLevelFilter && matchesResponsibilityFilter;
         })
         .sort((a, b) => {
             let aValue = a[sortConfig.key];
@@ -363,17 +389,6 @@ const TeacherUtilization = ({ selectedSemester }) => {
                             />
                             <span>Show Inactive</span>
                         </label>
-
-                        <select
-                            value={filters.level}
-                            onChange={(e) => setFilters({ ...filters, level: e.target.value })}
-                            className="filter-select"
-                        >
-                            <option value="">All Levels</option>
-                            {[...new Set(utilizationData.map(t => t.level))].map(level => (
-                                <option key={level} value={level}>{level}</option>
-                            ))}
-                        </select>
 
                         <select
                             value={filters.gjStatus50}
@@ -560,44 +575,30 @@ const TeacherUtilization = ({ selectedSemester }) => {
                                     onResize={startResizing}
                                     existingValues={getColumnValues('teacher_name')}
                                 />
-                                <th
-                                    onClick={() => handleSort('level')}
-                                    style={{
-                                        cursor: 'pointer',
-                                        userSelect: 'none',
-                                        width: `${columnWidths.level}px`,
-                                        position: 'relative'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        Level
-                                        {getSortIcon('level')}
-                                    </div>
-                                    <div
-                                        className="resize-handle"
-                                        onMouseDown={(e) => startResizing('level', e)}
-                                        onClick={(e) => e.stopPropagation()}
-                                    ></div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort('responsibility')}
-                                    style={{
-                                        cursor: 'pointer',
-                                        userSelect: 'none',
-                                        width: `${columnWidths.responsibility}px`,
-                                        position: 'relative'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        Responsibility
-                                        {getSortIcon('responsibility')}
-                                    </div>
-                                    <div
-                                        className="resize-handle"
-                                        onMouseDown={(e) => startResizing('responsibility', e)}
-                                        onClick={(e) => e.stopPropagation()}
-                                    ></div>
-                                </th>
+                                <SortableFilterableHeader
+                                    column="level"
+                                    title="Level"
+                                    sortConfig={sortConfig}
+                                    onSort={handleSort}
+                                    filterValue={columnFilters.level || ''}
+                                    onFilter={handleColumnFilter}
+                                    columnType="select"
+                                    width={columnWidths.level}
+                                    onResize={startResizing}
+                                    existingValues={getColumnValues('level')}
+                                />
+                                <SortableFilterableHeader
+                                    column="responsibility"
+                                    title="Responsibility"
+                                    sortConfig={sortConfig}
+                                    onSort={handleSort}
+                                    filterValue={columnFilters.responsibility || ''}
+                                    onFilter={handleColumnFilter}
+                                    columnType="select"
+                                    width={columnWidths.responsibility}
+                                    onResize={startResizing}
+                                    existingValues={getColumnValues('responsibility')}
+                                />
                                 <th
                                     onClick={() => handleSort('hours_as_teacher_in_mandatory_class')}
                                     style={{
