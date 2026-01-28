@@ -15,8 +15,65 @@
     font-size: 1.75rem;
     font-weight: 700;
     color: #1E5AF6;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     text-align: center;
+}
+
+.time-adjustment-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 1.25rem 2rem;
+    background:
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, #0d5c47 0%, #0a4a3a 50%, #083d30 100%);
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    color: #d4af37;
+    font-size: 1rem;
+    box-shadow: 0 4px 15px rgba(13, 92, 71, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.time-adjustment-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0L60 40L100 50L60 60L50 100L40 60L0 50L40 40Z' fill='%23ffffff' fill-opacity='0.02'/%3E%3C/svg%3E");
+    pointer-events: none;
+}
+
+.time-adjustment-icon {
+    font-size: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.time-adjustment-text {
+    text-align: left;
+    position: relative;
+    z-index: 1;
+}
+
+.time-adjustment-text strong {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #d4af37;
+}
+
+.time-adjustment-text {
+    color: #e8d5a3;
+    font-size: 0.95rem;
 }
 
 .control-section {
@@ -945,6 +1002,25 @@
 }
 
 @media (max-width: 768px) {
+    .time-adjustment-banner {
+        padding: 1rem 1.25rem;
+        gap: 1rem;
+        border-radius: 12px;
+    }
+
+    .time-adjustment-icon svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    .time-adjustment-text {
+        font-size: 0.85rem;
+    }
+
+    .time-adjustment-text strong {
+        font-size: 1rem;
+    }
+
     .schedule-container {
         padding: 1rem;
         max-width: 100vw;
@@ -1033,6 +1109,26 @@
 }
 
 @media (max-width: 480px) {
+    .time-adjustment-banner {
+        padding: 0.875rem 1rem;
+        gap: 0.75rem;
+        border-radius: 10px;
+        flex-direction: row;
+    }
+
+    .time-adjustment-icon svg {
+        width: 28px;
+        height: 28px;
+    }
+
+    .time-adjustment-text {
+        font-size: 0.75rem;
+    }
+
+    .time-adjustment-text strong {
+        font-size: 0.875rem;
+    }
+
     .schedule-container {
         padding: 0.75rem;
     }
