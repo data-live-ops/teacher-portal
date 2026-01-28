@@ -1387,7 +1387,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
         try {
             setIsImporting(true);
 
-            // Step 1: Fetch data from Google Spreadsheet
             console.log('Fetching data from Google Spreadsheet...');
             const rawData = await fetchGoogleSheetData(spreadsheetId, sheetName);
 
@@ -1395,7 +1394,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 throw new Error('No data found in spreadsheet');
             }
 
-            // Step 2: Parse the data
             console.log('Parsing spreadsheet data...');
             const parsedAssignments = parseSheetDataToAssignments(rawData.values, teachers);
 
@@ -1403,7 +1401,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 throw new Error('No valid assignments found in spreadsheet');
             }
 
-            // Step 3: Validate assignments
             console.log('Validating assignments...');
             const validation = validateAssignments(parsedAssignments);
 
@@ -1414,7 +1411,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 return;
             }
 
-            // Step 4: Delete existing assignments for this semester
             console.log(`Deleting existing assignments for semester ${selectedSemester.id}...`);
             const { error: deleteError } = await supabase
                 .from('teacher_assignment_slots')
