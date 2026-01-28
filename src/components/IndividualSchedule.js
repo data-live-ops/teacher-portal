@@ -19,6 +19,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
     const [nonMandatoryAssignments, setNonMandatoryAssignments] = useState([]);
     const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
     const [semesterStartDate, setSemesterStartDate] = useState(null);
+    const [timeAdjustments, setTimeAdjustments] = useState([]);
 
     const specialUser = 'annisa.nugraha@colearn.id';
     const userEmail = user?.email;
@@ -48,6 +49,40 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     const formatTime = (timeRange) => {
         return timeRange.split('-')[0];
+    };
+
+    // Get adjusted time based on active time adjustment period
+    const getAdjustedTime = (originalTime, targetDate) => {
+        if (!timeAdjustments || timeAdjustments.length === 0) {
+            return originalTime;
+        }
+
+        // Check if target date is within any adjustment period
+        const target = new Date(targetDate);
+        target.setHours(0, 0, 0, 0);
+
+        // Find adjustment that covers the target date
+        const activeAdjustment = timeAdjustments.find(adj => {
+            const startDate = new Date(adj.start_date);
+            const endDate = new Date(adj.end_date);
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            return target >= startDate && target <= endDate;
+        });
+
+        if (!activeAdjustment || !activeAdjustment.mappings || activeAdjustment.mappings.length === 0) {
+            return originalTime;
+        }
+
+        // Normalize time for comparison (remove spaces)
+        const normalizedOriginal = originalTime.replace(/\s/g, '');
+
+        // Find matching mapping
+        const mapping = activeAdjustment.mappings.find(m =>
+            m.original_time.replace(/\s/g, '') === normalizedOriginal
+        );
+
+        return mapping ? mapping.adjusted_time : originalTime;
     };
 
     const formatMonthYear = (date) => {
@@ -486,6 +521,28 @@ const IndividualSchedule = ({ user, onLogout }) => {
         return filtered;
     }, [allScheduleData, selectedRole, userEmail, isUserRegistered, selectedTeachers]);
 
+    // Get active time adjustment for current week display
+    const activeTimeAdjustmentForWeek = useMemo(() => {
+        if (!timeAdjustments || timeAdjustments.length === 0) return null;
+
+        const weekDates = generateWeekDates(currentWeek);
+        const weekStart = new Date(weekDates[0]);
+        const weekEnd = new Date(weekDates[weekDates.length - 1]);
+        weekStart.setHours(0, 0, 0, 0);
+        weekEnd.setHours(0, 0, 0, 0);
+
+        // Find adjustment that overlaps with current week
+        return timeAdjustments.find(adj => {
+            const adjStart = new Date(adj.start_date);
+            const adjEnd = new Date(adj.end_date);
+            adjStart.setHours(0, 0, 0, 0);
+            adjEnd.setHours(0, 0, 0, 0);
+
+            // Check if adjustment period overlaps with week
+            return adjStart <= weekEnd && adjEnd >= weekStart;
+        }) || null;
+    }, [timeAdjustments, currentWeek]);
+
     const reformatDate = (dateStr) => {
         const year = dateStr.getFullYear();
         const month = String(dateStr.getMonth() + 1).padStart(2, '0');
@@ -633,11 +690,13 @@ const IndividualSchedule = ({ user, onLogout }) => {
         }
 
         // Transform Non Mandatory to schedule card format
+        // Apply time adjustment for Non Mandatory (from teacher_assignment_slots)
         nonMandatorySchedules = nonMandatorySchedules.map(assignment => ({
             ...assignment,
             id: `nm-${assignment.id}`,
             day: dayName,
-            time: assignment.time_range,
+            time: getAdjustedTime(assignment.time_range, targetDate),
+            original_time: assignment.time_range,
             class_date: dateStr,
             level: assignment.grade <= 6 ? 'SD' : assignment.grade <= 9 ? 'SMP' : 'SMA',
             isNonMandatory: true
@@ -698,8 +757,53 @@ const IndividualSchedule = ({ user, onLogout }) => {
         }
     };
 
+    const fetchTimeAdjustments = async () => {
+        try {
+            // Fetch all active time adjustments
+            const { data: adjustments, error: adjError } = await supabase
+                .from('time_adjustments')
+                .select('*')
+                .eq('is_active', true)
+                .order('start_date', { ascending: true });
+
+            if (adjError) {
+                console.error('Error fetching time adjustments:', adjError);
+                return;
+            }
+
+            if (!adjustments || adjustments.length === 0) {
+                setTimeAdjustments([]);
+                return;
+            }
+
+            // Fetch mappings for all adjustments
+            const adjustmentIds = adjustments.map(a => a.id);
+            const { data: mappings, error: mapError } = await supabase
+                .from('time_adjustment_mappings')
+                .select('*')
+                .in('adjustment_id', adjustmentIds);
+
+            if (mapError) {
+                console.error('Error fetching time adjustment mappings:', mapError);
+                return;
+            }
+
+            // Combine adjustments with their mappings
+            const adjustmentsWithMappings = adjustments.map(adj => ({
+                ...adj,
+                mappings: (mappings || []).filter(m => m.adjustment_id === adj.id)
+            }));
+
+            setTimeAdjustments(adjustmentsWithMappings);
+            console.log(`Loaded ${adjustmentsWithMappings.length} time adjustment(s)`);
+        } catch (error) {
+            console.error('Error fetching time adjustments:', error);
+        }
+    };
+
     useEffect(() => {
         fetchActiveSemester();
+        fetchTimeAdjustments();
     }, []);
 
     useEffect(() => {
@@ -781,6 +885,20 @@ const IndividualSchedule = ({ user, onLogout }) => {
                         {selectedTeachers.length > 1 || !isUserRegistered ? 'All Teachers Schedule' : 'Individual Schedule'}
                     </u>
                 </h1>
+
+                {activeTimeAdjustmentForWeek && (
+                    <div className="time-adjustment-banner">
+                        <span className="time-adjustment-icon">
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M24 4C20.5 4 17.2 5.1 14.5 7C18.9 9.4 22 14.3 22 20C22 25.7 18.9 30.6 14.5 33C17.2 34.9 20.5 36 24 36C32.8 36 40 28.8 40 20C40 11.2 32.8 4 24 4Z" fill="#d4af37"/>
+                                <path d="M12 8L13.5 12L17.5 12L14 14.5L15.5 18.5L12 16L8.5 18.5L10 14.5L6.5 12L10.5 12L12 8Z" fill="#d4af37"/>
+                            </svg>
+                        </span>
+                        <span className="time-adjustment-text">
+                            <strong>{activeTimeAdjustmentForWeek.name}</strong> | Jadwal kelas disesuaikan ({new Date(activeTimeAdjustmentForWeek.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - {new Date(activeTimeAdjustmentForWeek.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})
+                        </span>
+                    </div>
+                )}
 
                 <div className="control-section">
                     <div className="control-left">
