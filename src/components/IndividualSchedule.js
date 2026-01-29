@@ -53,7 +53,7 @@ const IndividualSchedule = ({ user, onLogout }) => {
 
     // Get adjusted time based on active time adjustment period
     const getAdjustedTime = (originalTime, targetDate) => {
-        if (!timeAdjustments || timeAdjustments.length === 0) {
+        if (!timeAdjustments || timeAdjustments.length === 0 || !originalTime) {
             return originalTime;
         }
 
@@ -77,10 +77,28 @@ const IndividualSchedule = ({ user, onLogout }) => {
         // Normalize time for comparison (remove spaces)
         const normalizedOriginal = originalTime.replace(/\s/g, '');
 
-        // Find matching mapping
-        const mapping = activeAdjustment.mappings.find(m =>
+        // Find matching mapping - try exact match first
+        let mapping = activeAdjustment.mappings.find(m =>
             m.original_time.replace(/\s/g, '') === normalizedOriginal
         );
+
+        // If no exact match, try matching by start time only (for piket format like "17:15")
+        if (!mapping) {
+            const originalStartTime = normalizedOriginal.split('-')[0];
+            mapping = activeAdjustment.mappings.find(m => {
+                const mappingStartTime = m.original_time.replace(/\s/g, '').split('-')[0];
+                return mappingStartTime === originalStartTime;
+            });
+
+            // If matched by start time, return adjusted start time (for piket display)
+            if (mapping) {
+                const adjustedStartTime = mapping.adjusted_time.split('-')[0].trim();
+                // If original was just start time, return just adjusted start time
+                if (!originalTime.includes('-')) {
+                    return adjustedStartTime;
+                }
+            }
+        }
 
         return mapping ? mapping.adjusted_time : originalTime;
     };
