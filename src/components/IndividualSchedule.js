@@ -581,7 +581,9 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
-                class_date: dateStr
+                class_date: dateStr,
+                time: getAdjustedTime(piket.time, targetDate),
+                original_time: piket.time
             }));
 
             if (selectedTeachers.length > 0) {
@@ -608,7 +610,9 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
-                class_date: dateStr
+                class_date: dateStr,
+                time: getAdjustedTime(piket.time, targetDate),
+                original_time: piket.time
             }));
         } else {
             piketSchedules = piketData.filter(piket => {
@@ -618,7 +622,9 @@ const IndividualSchedule = ({ user, onLogout }) => {
                 slot: 'Piket',
                 slot_name: 'Piket',
                 isPiket: true,
-                class_date: dateStr
+                class_date: dateStr,
+                time: getAdjustedTime(piket.time, targetDate),
+                original_time: piket.time
             }));
 
             if (selectedTeachers.length > 0) {
