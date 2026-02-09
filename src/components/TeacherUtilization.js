@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
+import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Calendar } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import SortableFilterableHeader from './SortableFilterableHeader';
+import Navbar from './Navbar';
 
-// ✅ Receive selectedSemester from parent component
-const TeacherUtilization = ({ selectedSemester }) => {
+// ✅ Self-managed semester selection
+const TeacherUtilization = ({ user, onLogout }) => {
     const [utilizationData, setUtilizationData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // ✅ Semester states
+    const [semesters, setSemesters] = useState([]);
+    const [selectedSemester, setSelectedSemester] = useState(null);
+    const [loadingSemesters, setLoadingSemesters] = useState(true);
 
     // ✅ Column width state for resizing
     const [columnWidths, setColumnWidths] = useState({
@@ -50,12 +56,41 @@ const TeacherUtilization = ({ selectedSemester }) => {
     const [isRecalculating, setIsRecalculating] = useState(false);
     const [recalculateResult, setRecalculateResult] = useState(null);
 
-    // ✅ Load data when selectedSemester changes (from parent)
+    // ✅ Load semesters on mount
+    useEffect(() => {
+        loadSemesters();
+    }, []);
+
+    // ✅ Load data when selectedSemester changes
     useEffect(() => {
         if (selectedSemester) {
             loadUtilizationData();
         }
     }, [selectedSemester]);
+
+    // ✅ Load semesters from database
+    const loadSemesters = async () => {
+        try {
+            setLoadingSemesters(true);
+            const { data, error } = await supabase
+                .from('semesters')
+                .select('*')
+                .order('start_date', { ascending: false });
+
+            if (error) throw error;
+
+            setSemesters(data || []);
+
+            // Auto-select active semester or latest
+            const activeSemester = data?.find(s => s.is_active);
+            setSelectedSemester(activeSemester || data?.[0] || null);
+        } catch (error) {
+            console.error('Error loading semesters:', error);
+            alert('Failed to load semesters: ' + error.message);
+        } finally {
+            setLoadingSemesters(false);
+        }
+    };
 
     // ✅ Column resizing handlers
     const startResizing = (column, e) => {
@@ -345,55 +380,135 @@ const TeacherUtilization = ({ selectedSemester }) => {
             return 0;
         });
 
-    if (loading) {
+    if (loadingSemesters) {
         return (
-            <div className="loading-container">
-                <div className="loading-spinner"></div>
-                <div className="loading-text">Loading teacher utilization data...</div>
-            </div>
+            <>
+                <Navbar userEmail={user} onLogoutClick={onLogout} />
+                <div className="teacher-assignment-container">
+                    <div className="loading-container">
+                        <div className="loading-spinner"></div>
+                        <div className="loading-text">Loading semesters...</div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    if (loading && selectedSemester) {
+        return (
+            <>
+                <Navbar userEmail={user} onLogoutClick={onLogout} />
+                <div className="teacher-assignment-container">
+                    <div className="loading-container">
+                        <div className="loading-spinner"></div>
+                        <div className="loading-text">Loading teacher utilization data...</div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    if (!selectedSemester && semesters.length === 0) {
+        return (
+            <>
+                <Navbar userEmail={user} onLogoutClick={onLogout} />
+                <div className="teacher-assignment-container">
+                    <div className="loading-container">
+                        <div className="loading-text">No semesters available. Please create a semester first.</div>
+                    </div>
+                </div>
+            </>
         );
     }
 
     return (
-        <div className="teacher-utilization-container">
-            <div className="header">
-                <div className="header-actions">
-                    <div className="search-bar">
-                        <Search className="search-icon" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search teachers or leveling.."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="search-input"
-                        />
+        <>
+            <Navbar userEmail={user} onLogoutClick={onLogout} />
+            <div className="teacher-assignment-container">
+                <div className="header">
+                    <div className="header-content">
+                        <h1 className="title">Teacher Utilization</h1>
+                        <p className="subtitle">Monitor teacher workload and utilization status</p>
+
+                        {/* Semester Selector */}
+                        {selectedSemester && (
+                            <div style={{ marginTop: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Calendar size={18} color="#3b82f6" />
+                                    <select
+                                        value={selectedSemester?.id || ''}
+                                        onChange={(e) => {
+                                            const semester = semesters.find(s => s.id === e.target.value);
+                                            setSelectedSemester(semester);
+                                        }}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            border: '2px solid #3b82f6',
+                                            fontSize: '14px',
+                                            fontWeight: '500',
+                                            cursor: 'pointer',
+                                            minWidth: '200px',
+                                            background: 'white'
+                                        }}
+                                    >
+                                        {semesters.map(sem => (
+                                            <option key={sem.id} value={sem.id}>
+                                                {sem.name} {sem.is_active ? '(Active)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="filter-group">
-                        {/* ✅ Show Inactive Toggle */}
-                        <label className="filter-checkbox" style={{
+                    <div className="header-actions">
+                        <div className="search-bar">
+                            <Search className="search-icon" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search teachers or leveling..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="search-input"
+                            />
+                        </div>
+
+                        <label style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 12px',
+                            gap: '8px',
+                            padding: '10px 16px',
                             background: 'white',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '0.9rem',
-                            cursor: 'pointer'
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            color: '#374151'
                         }}>
                             <input
                                 type="checkbox"
                                 checked={filters.showInactive}
                                 onChange={(e) => setFilters({ ...filters, showInactive: e.target.checked })}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                             />
-                            <span>Show Inactive</span>
+                            Show Inactive
                         </label>
 
                         <select
                             value={filters.gjStatus50}
                             onChange={(e) => setFilters({ ...filters, gjStatus50: e.target.value })}
-                            className="filter-select"
+                            style={{
+                                padding: '10px 12px',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                background: 'white',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                minWidth: '160px'
+                            }}
                         >
                             <option value="">All GJ 50% Status</option>
                             <option value="FULL CAPACITY">Full Capacity</option>
@@ -401,40 +516,22 @@ const TeacherUtilization = ({ selectedSemester }) => {
                             <option value="BELOW MINIMUM">Below Minimum</option>
                         </select>
 
-                        {/* ✅ Recalculate Button */}
                         <button
                             onClick={handleRecalculate}
                             disabled={isRecalculating || !selectedSemester}
-                            className="recalculate-button"
+                            className="dropdown-button"
                             title="Recalculate all teacher utilization based on current assignment slots"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '8px 16px',
-                                background: isRecalculating ? '#94a3b8' : '#3b82f6',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: isRecalculating ? 'not-allowed' : 'pointer',
-                                fontSize: '0.9rem',
-                                fontWeight: '500',
-                                transition: 'background 0.2s'
-                            }}
                         >
                             <RefreshCw
                                 size={16}
                                 className={isRecalculating ? 'spinning' : ''}
-                                style={{
-                                    animation: isRecalculating ? 'spin 1s linear infinite' : 'none'
-                                }}
                             />
                             {isRecalculating ? 'Recalculating...' : 'Recalculate'}
                         </button>
                     </div>
                 </div>
 
-                {/* ✅ Recalculate Result Banner */}
+                {/* Recalculate Result Banner */}
                 {recalculateResult && (
                     <div
                         className="recalculate-result"
@@ -491,7 +588,6 @@ const TeacherUtilization = ({ selectedSemester }) => {
                         </button>
                     </div>
                 )}
-            </div>
 
             {/* Stats Cards */}
             <div className="stats-container">
@@ -829,7 +925,8 @@ const TeacherUtilization = ({ selectedSemester }) => {
                     </div>
                 )}
             </div>
-        </div>
+            </div>
+        </>
     );
 };
 
