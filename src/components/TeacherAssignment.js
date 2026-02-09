@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, Fragment, useMemo } from 'react';
-import { Plus, X, Search, Users, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize, Settings, RefreshCw, FlaskConical } from 'lucide-react';
+import { Plus, X, Search, ChevronDown, Calendar, Clock, BookOpen, User, Trash2, Edit3, Check, AlertCircle, Filter, Download, Upload, Save, Eye, EyeOff, Maximize, Minimize, Settings, RefreshCw, FlaskConical } from 'lucide-react';
 import Navbar from "./Navbar";
-import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import TeacherAssignmentTable from './TeacherAssignmentTable';
-import TeacherUtilization from './TeacherUtilization';
 import { useTeacherAssignmentValidation } from '../hooks/useTeacherAssignmentValidation';
 import SemesterManager from './SemesterManager';
 import ImportAssignmentModal from './ImportAssignmentModal';
@@ -44,7 +42,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
     const [hoveredRowIndex, setHoveredRowIndex] = useState(null);
     const [showAddRowId, setShowAddRowId] = useState(null);
     const [isFullScreen, setIsFullScreen] = useState(false);
-    const [activeTab, setActiveTab] = useState('assignments');
     const [gradeForAllTeachers, setGradeForAllTeachers] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [columnFilters, setColumnFilters] = useState({});
@@ -125,25 +122,6 @@ const TeacherAssignment = ({ user, onLogout }) => {
         document.addEventListener('mousemove', handleResize);
         document.addEventListener('mouseup', stopResizing);
     };
-
-    const renderTabNavigation = () => (
-        <div className="tab-navigation">
-            <button
-                className={`tab-button ${activeTab === 'assignments' ? 'active' : ''}`}
-                onClick={() => setActiveTab('assignments')}
-            >
-                <BookOpen size={16} />
-                Teacher Assignments
-            </button>
-            <button
-                className={`tab-button ${activeTab === 'utilization' ? 'active' : ''}`}
-                onClick={() => setActiveTab('utilization')}
-            >
-                <Users size={16} />
-                Teacher Utilization
-            </button>
-        </div>
-    );
 
     const handleClearAllFilters = () => {
         setColumnFilters({});
@@ -1523,16 +1501,10 @@ const TeacherAssignment = ({ user, onLogout }) => {
         setShowRecommendationModal(false);
     };
 
-    const activeTabInformation = {
-        assignments: {
-            title: "Teacher Assignment Management",
-            description: "Assign teachers to classes and manage schedules"
-        },
-        utilization: {
-            title: "Teacher Utilization Overview",
-            description: "Monitor teacher workload and utilization status"
-        }
-    }
+    const pageInfo = {
+        title: "Teacher Assignment Management",
+        description: "Assign teachers to classes and manage schedules"
+    };
 
     const getUniqueValues = (data, column) => {
         const values = data.map(item => {
@@ -1653,8 +1625,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
             <div className="teacher-assignment-container">
                 <div className="header">
                     <div className="header-content">
-                        <h1 className="title">{activeTabInformation[activeTab]?.title}</h1>
-                        <p className="subtitle">{activeTabInformation[activeTab]?.description}</p>
+                        <h1 className="title">{pageInfo.title}</h1>
+                        <p className="subtitle">{pageInfo.description}</p>
 
                         {/* Semester Selector */}
                         {selectedSemester && (
@@ -1711,10 +1683,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                         )}
                     </div>
 
-                    {renderTabNavigation()}
-
-                    {activeTab === 'assignments' && (
-                        <div className="header-actions">
+                    <div className="header-actions">
                             <button
                                 onClick={() => setIsFullScreen(true)}
                                 className="fullscreen-button"
@@ -1861,12 +1830,10 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                 </select>
                             </div>
                         </div>
-                    )}
                 </div>
 
-                {activeTab === 'assignments' ? (
-                    <>
-                        <button
+                <>
+                    <button
                             className="secondary-button"
                             onClick={() => setShowStats(!showStats)}
                         >
@@ -2080,9 +2047,7 @@ const TeacherAssignment = ({ user, onLogout }) => {
                                 </div>
                             </div>
                         )}
-                    </>) : (
-                    <TeacherUtilization selectedSemester={selectedSemester} />
-                )}
+                </>
 
                 {showRecommendationModal && (
                     <div className="recommendation-modal-overlay">
