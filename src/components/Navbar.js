@@ -73,6 +73,9 @@ const Navbar = ({ userEmail, onLoginClick, isLoggedIn, onLogoutClick }) => {
                             {canView('teacher_assignment') && (
                                 <li onClick={() => { navigate('/teacher-assignment'); setShowMenu(false); }}>Teacher Assignment</li>
                             )}
+                            {canView('teacher_utilization') && (
+                                <li onClick={() => { navigate('/teacher-utilization'); setShowMenu(false); }}>Teacher Utilization</li>
+                            )}
                             {canView('data_management') && (
                                 <li onClick={() => { navigate('/data-management'); setShowMenu(false); }}>Data Management</li>
                             )}
