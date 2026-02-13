@@ -159,3 +159,261 @@ export async function syncTeacherAvatar() {
         throw new Error(e);
     }
 }
+
+// =============================================
+// In Class Assessment (ICA) Sync Functions
+// =============================================
+
+/**
+ * Parse CSV with proper handling of quoted fields containing commas
+ */
+const parseCSVAdvanced = (csv) => {
+    const lines = csv.trim().split('\n');
+    const headerLine = lines[0];
+    const headers = parseCSVLine(headerLine);
+
+    return lines.slice(1).map(line => {
+        const values = parseCSVLine(line);
+        return headers.reduce((obj, key, idx) => {
+            obj[key.trim()] = values[idx]?.trim() || '';
+            return obj;
+        }, {});
+    });
+};
+
+/**
+ * Parse a single CSV line handling quoted fields
+ */
+const parseCSVLine = (line) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current);
+
+    return result.map(val => val.replace(/^"|"$/g, '').trim());
+};
+
+/**
+ * Sync ICA Answer Keys from Metabase Question 4288
+ * Stores answer keys for determining understanding types
+ */
+export async function syncICAAnswerKeys() {
+    try {
+        console.log('📊 Starting ICA Answer Keys sync from Metabase Q4288...');
+
+        const rawData = await retrieveQuestionMetabase(4288);
+        const parsedData = parseCSVAdvanced(rawData);
+
+        console.log(`📝 Parsed ${parsedData.length} answer key records`);
+
+        // Transform data to match table schema
+        const transformedData = parsedData.map(item => ({
+            question_id: item.question_id || '',
+            reference_id: item.reference_id || '',
+            options: item.options || '',
+            ic_correct: item.ic_correct || '',
+            student_answer_option: item.student_answer_option || '',
+            understanding_types: item.understanding_types || ''
+        }));
+
+        // Clear existing data
+        const { error: deleteError } = await supabase
+            .from('ica_answer_keys')
+            .delete()
+            .gte('created_at', '1900-01-01');
+
+        if (deleteError) {
+            throw new Error(`Failed to clear ica_answer_keys: ${deleteError.message}`);
+        }
+
+        // Insert in batches of 1000
+        const batchSize = 1000;
+        for (let i = 0; i < transformedData.length; i += batchSize) {
+            const batch = transformedData.slice(i, i + batchSize);
+            const { error: insertError } = await supabase
+                .from('ica_answer_keys')
+                .insert(batch);
+
+            if (insertError) {
+                console.error(`Failed to insert batch ${i}-${i + batch.length}:`, insertError.message);
+            } else {
+                console.log(`✅ Inserted batch ${i}-${i + batch.length}`);
+            }
+        }
+
+        console.log(`✅ ICA Answer Keys sync completed: ${transformedData.length} records`);
+        return { success: true, count: transformedData.length };
+    }
+    catch (e) {
+        console.error(`❌ Sync ICA Answer Keys error: ${e.message}`);
+        throw new Error(e);
+    }
+}
+
+/**
+ * Sync ICA Student Data from Metabase Question 4289
+ * Enriches with understanding_types based on answer keys
+ */
+export async function syncICAStudentData() {
+    try {
+        console.log('📊 Starting ICA Student Data sync from Metabase Q4289...');
+
+        // Step 1: Fetch student data from Metabase
+        const rawData = await retrieveQuestionMetabase(4289);
+        const parsedData = parseCSVAdvanced(rawData);
+
+        console.log(`📝 Parsed ${parsedData.length} student assessment records`);
+
+        // Step 2: Fetch answer keys from Supabase for lookup
+        const { data: answerKeys, error: akError } = await supabase
+            .from('ica_answer_keys')
+            .select('reference_id, options, understanding_types');
+
+        if (akError) {
+            throw new Error(`Failed to fetch answer keys: ${akError.message}`);
+        }
+
+        // Create lookup map: reference_id + options -> understanding_types
+        const answerKeyMap = new Map();
+        answerKeys.forEach(ak => {
+            const key = `${ak.reference_id}|${ak.options}`;
+            answerKeyMap.set(key, ak.understanding_types);
+        });
+
+        console.log(`📚 Loaded ${answerKeys.length} answer keys for lookup`);
+
+        // Step 3: Transform and enrich data
+        const transformedData = parsedData.map(item => {
+            const referenceId = item.reference_id || '';
+            const studentAnswers = item.student_answers || '';
+
+            // Lookup understanding_types
+            const lookupKey = `${referenceId}|${studentAnswers}`;
+            let understandingTypes = answerKeyMap.get(lookupKey);
+
+            // If not found in answer keys, mark as "No Attempt"
+            if (!understandingTypes && studentAnswers) {
+                understandingTypes = 'No Attempt';
+            } else if (!understandingTypes) {
+                understandingTypes = 'No Attempt';
+            }
+
+            return {
+                reference_id: referenceId,
+                user_id: item.user_id || '',
+                student_name: item.student_name || '',
+                grade_list: item.grade_list || '',
+                slot_name: item.slot_name || '',
+                session_date: item.session_date || null,
+                question_id: item.questid || item.question_id || '',
+                student_answers: studentAnswers,
+                understanding_types: understandingTypes
+            };
+        });
+
+        // Step 4: Update students roster (for ABSENT detection)
+        const studentsRoster = new Map();
+        transformedData.forEach(item => {
+            const key = `${item.user_id}|${item.grade_list}|${item.slot_name}`;
+            if (!studentsRoster.has(key)) {
+                studentsRoster.set(key, {
+                    user_id: item.user_id,
+                    student_name: item.student_name,
+                    grade_list: item.grade_list,
+                    slot_name: item.slot_name
+                });
+            }
+        });
+
+        // Clear and insert roster
+        await supabase
+            .from('ica_students_roster')
+            .delete()
+            .gte('created_at', '1900-01-01');
+
+        const rosterData = Array.from(studentsRoster.values());
+        if (rosterData.length > 0) {
+            const { error: rosterError } = await supabase
+                .from('ica_students_roster')
+                .insert(rosterData);
+
+            if (rosterError) {
+                console.error(`Failed to insert roster: ${rosterError.message}`);
+            } else {
+                console.log(`✅ Inserted ${rosterData.length} students to roster`);
+            }
+        }
+
+        // Step 5: Clear existing assessment data
+        const { error: deleteError } = await supabase
+            .from('ica_student_assessments')
+            .delete()
+            .gte('created_at', '1900-01-01');
+
+        if (deleteError) {
+            throw new Error(`Failed to clear ica_student_assessments: ${deleteError.message}`);
+        }
+
+        // Step 6: Insert in batches
+        const batchSize = 1000;
+        for (let i = 0; i < transformedData.length; i += batchSize) {
+            const batch = transformedData.slice(i, i + batchSize);
+            const { error: insertError } = await supabase
+                .from('ica_student_assessments')
+                .insert(batch);
+
+            if (insertError) {
+                console.error(`Failed to insert batch ${i}-${i + batch.length}:`, insertError.message);
+            } else {
+                console.log(`✅ Inserted batch ${i}-${i + batch.length}`);
+            }
+        }
+
+        console.log(`✅ ICA Student Data sync completed: ${transformedData.length} records`);
+        return { success: true, count: transformedData.length, rosterCount: rosterData.length };
+    }
+    catch (e) {
+        console.error(`❌ Sync ICA Student Data error: ${e.message}`);
+        throw new Error(e);
+    }
+}
+
+/**
+ * Sync all ICA data (answer keys first, then student data)
+ */
+export async function syncAllICAData() {
+    try {
+        console.log('🚀 Starting full ICA data sync...');
+
+        // Sync answer keys first
+        const akResult = await syncICAAnswerKeys();
+
+        // Then sync student data (which depends on answer keys)
+        const sdResult = await syncICAStudentData();
+
+        console.log('✅ Full ICA sync completed successfully');
+        return {
+            success: true,
+            answerKeys: akResult.count,
+            studentAssessments: sdResult.count,
+            studentsRoster: sdResult.rosterCount
+        };
+    }
+    catch (e) {
+        console.error(`❌ Full ICA sync error: ${e.message}`);
+        throw new Error(e);
+    }
+}
