@@ -97,8 +97,10 @@ const InClassAssessment = ({ user, onLogout }) => {
 
             if (error) throw error;
 
-            // Get unique slots
-            const uniqueSlots = [...new Set(data.map(d => d.slot_name))].filter(Boolean).sort();
+            // Get unique slots with natural sort (Matematika 1, 2, 10, 11)
+            const uniqueSlots = [...new Set(data.map(d => d.slot_name))]
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
             setSlots(uniqueSlots);
             setSelectedSlot('');
         } catch (error) {
