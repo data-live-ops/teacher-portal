@@ -1,0 +1,317 @@
+/* In Class Assessment Styles */
+
+/* Filter Group */
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.filter-select {
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 160px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.filter-select:hover:not(:disabled) {
+    border-color: #3b82f6;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.filter-select:disabled {
+    background-color: #f1f5f9;
+    cursor: not-allowed;
+    color: #94a3b8;
+}
+
+/* ICA Table Styles */
+.ica-table-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 400px);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.ica-table {
+    min-width: max-content;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.ica-table th,
+.ica-table td {
+    padding: 10px 12px;
+    text-align: center;
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.ica-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Sticky columns */
+.sticky-col {
+    position: sticky;
+    background: white;
+    z-index: 5;
+}
+
+.sticky-col-1 {
+    left: 0;
+    min-width: 100px;
+    max-width: 120px;
+}
+
+.sticky-col-2 {
+    left: 120px;
+    min-width: 180px;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+thead .sticky-col {
+    z-index: 15;
+    background: #f8fafc;
+}
+
+/* Question header */
+.question-header {
+    min-width: 100px;
+}
+
+.question-id {
+    font-weight: 600;
+    font-size: 13px;
+    color: #1e293b;
+}
+
+.session-date {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 400;
+}
+
+/* Student cells */
+.student-id {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 11px;
+    color: #64748b;
+    text-align: left;
+}
+
+.student-name {
+    font-weight: 500;
+    text-align: left;
+    color: #1e293b;
+}
+
+/* Cell with copy button */
+.cell-with-copy {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.cell-with-copy span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    opacity: 0;
+}
+
+.cell-with-copy:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    background: #e2e8f0;
+    color: #3b82f6;
+}
+
+.copy-btn:active {
+    transform: scale(0.9);
+}
+
+/* Show check icon in green when copied */
+.copy-btn svg {
+    transition: color 0.15s ease;
+}
+
+.copy-btn:has(svg[class*="check"]) {
+    color: #22c55e;
+    opacity: 1;
+}
+
+/* Status cells */
+.status-cell {
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 80px;
+    transition: transform 0.1s;
+}
+
+.status-cell:hover {
+    transform: scale(1.05);
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Legend */
+.ica-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    border-radius: 0 0 8px 8px;
+    flex-wrap: wrap;
+}
+
+.legend-title {
+    font-weight: 600;
+    color: #374151;
+    font-size: 13px;
+}
+
+.legend-item {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Stats cards additional styles */
+.stat-success {
+    border-left: 4px solid #22c55e;
+}
+
+.stat-danger {
+    border-left: 4px solid #ef4444;
+}
+
+.stat-warning {
+    border-left: 4px solid #eab308;
+}
+
+/* Empty state enhancement */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #64748b;
+    background: #f8fafc;
+    border-radius: 12px;
+    margin-top: 20px;
+}
+
+.empty-state svg {
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 15px;
+    text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .header-actions {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .filter-group {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .filter-select {
+        width: 100%;
+        min-width: auto;
+    }
+
+    .search-bar {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .ica-table-scroll {
+        max-height: calc(100vh - 500px);
+    }
+
+    .sticky-col-2 {
+        left: 100px;
+    }
+
+    .ica-legend {
+        justify-content: center;
+    }
+}
+
+/* Print styles */
+@media print {
+    .header-actions {
+        display: none;
+    }
+
+    .ica-table-scroll {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .sticky-col {
+        position: relative;
+        left: auto;
+    }
+
+    .ica-legend {
+        break-inside: avoid;
+    }
+}
