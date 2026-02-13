@@ -49,6 +49,19 @@ const SyncSchedulerManagement = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showHistory, setShowHistory] = useState(false);
 
+  // ICA Sync states
+  const [icaConfig, setIcaConfig] = useState({
+    is_enabled: false,
+    cron_schedule: '0 6 * * *', // Default: once daily at 6 AM
+    last_sync_at: null,
+    last_sync_status: null,
+    last_sync_message: null,
+    answer_keys_count: 0,
+    student_data_count: 0
+  });
+  const [isSyncingICA, setIsSyncingICA] = useState(false);
+  const [icaMessage, setIcaMessage] = useState({ type: '', text: '' });
+
   // Load configuration
   const loadConfig = async () => {
     try {
@@ -99,7 +112,143 @@ const SyncSchedulerManagement = () => {
   useEffect(() => {
     loadConfig();
     loadSyncHistory();
+    loadICAConfig();
   }, []);
+
+  // Load ICA configuration
+  const loadICAConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sync_scheduler_config')
+        .select('*')
+        .eq('id', 2) // ICA config uses id=2
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading ICA config:', error);
+        return;
+      }
+
+      if (data) {
+        setIcaConfig({
+          is_enabled: data.is_enabled || false,
+          cron_schedule: data.cron_schedule || '0 6 * * *',
+          last_sync_at: data.last_sync_at,
+          last_sync_status: data.last_sync_status,
+          last_sync_message: data.last_sync_message,
+          answer_keys_count: data.answer_keys_count || 0,
+          student_data_count: data.student_data_count || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error loading ICA config:', error);
+    }
+  };
+
+  // Save ICA configuration
+  const saveICAConfig = async () => {
+    try {
+      setIsSaving(true);
+      setIcaMessage({ type: '', text: '' });
+
+      const { error } = await supabase
+        .from('sync_scheduler_config')
+        .upsert({
+          id: 2, // ICA config uses id=2
+          is_enabled: icaConfig.is_enabled,
+          cron_schedule: icaConfig.cron_schedule,
+          question_number: '4288,4289', // Both questions
+          sync_type: 'ica',
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setIcaMessage({ type: 'success', text: 'ICA configuration saved successfully!' });
+      setTimeout(() => setIcaMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      console.error('Error saving ICA config:', error);
+      setIcaMessage({ type: 'error', text: `Failed to save: ${error.message}` });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Manual ICA sync trigger
+  const triggerICASync = async () => {
+    try {
+      setIsSyncingICA(true);
+      setIcaMessage({ type: 'info', text: 'Starting ICA sync... This may take a few minutes.' });
+
+      // Call the edge function for ICA sync
+      const { data, error } = await supabase.functions.invoke('sync-ica-data', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setIcaMessage({
+          type: 'success',
+          text: `ICA Sync completed! Answer Keys: ${data.answerKeysCount || 0}, Student Data: ${data.studentDataCount || 0}`
+        });
+
+        // Update config with last sync info
+        setIcaConfig(prev => ({
+          ...prev,
+          last_sync_at: new Date().toISOString(),
+          last_sync_status: 'success',
+          last_sync_message: data.message,
+          answer_keys_count: data.answerKeysCount || 0,
+          student_data_count: data.studentDataCount || 0
+        }));
+
+        // Save to database
+        await supabase
+          .from('sync_scheduler_config')
+          .upsert({
+            id: 2,
+            is_enabled: icaConfig.is_enabled,
+            cron_schedule: icaConfig.cron_schedule,
+            question_number: '4288,4289',
+            sync_type: 'ica',
+            last_sync_at: new Date().toISOString(),
+            last_sync_status: 'success',
+            last_sync_message: `Answer Keys: ${data.answerKeysCount}, Student Data: ${data.studentDataCount}`,
+            answer_keys_count: data.answerKeysCount || 0,
+            student_data_count: data.studentDataCount || 0,
+            updated_at: new Date().toISOString()
+          });
+
+        // Log to history
+        await supabase
+          .from('sync_history')
+          .insert({
+            status: 'success',
+            sync_type: 'ica',
+            rows_processed: (data.answerKeysCount || 0) + (data.studentDataCount || 0),
+            message: `ICA Sync: ${data.answerKeysCount} answer keys, ${data.studentDataCount} student records`,
+            triggered_by: 'manual'
+          });
+
+        loadSyncHistory();
+      } else {
+        throw new Error(data?.message || 'ICA Sync failed');
+      }
+    } catch (error) {
+      console.error('Error triggering ICA sync:', error);
+      setIcaMessage({ type: 'error', text: `ICA Sync failed: ${error.message}` });
+
+      setIcaConfig(prev => ({
+        ...prev,
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: 'failed',
+        last_sync_message: error.message
+      }));
+    } finally {
+      setIsSyncingICA(false);
+    }
+  };
 
   // Save configuration
   const saveConfig = async () => {
@@ -416,6 +565,142 @@ const SyncSchedulerManagement = () => {
           )}
         </div>
       )}
+
+      {/* ICA Sync Section */}
+      <div className="ica-sync-section">
+        <h3>
+          <Database size={18} />
+          In Class Assessment (ICA) Sync
+        </h3>
+        <p className="section-description">
+          Sync student assessment data from Metabase Questions 4288 (Answer Keys) and 4289 (Student Data).
+        </p>
+
+        {/* ICA Message */}
+        {icaMessage.text && (
+          <div className={`sync-message ${icaMessage.type}`}>
+            {icaMessage.type === 'success' ? <CheckCircle size={16} /> :
+             icaMessage.type === 'error' ? <AlertCircle size={16} /> : <Loader size={16} className="spinning" />}
+            <span>{icaMessage.text}</span>
+          </div>
+        )}
+
+        {/* ICA Status Card */}
+        <div className="sync-status-card ica">
+          <div className="status-header">
+            <div className={`status-indicator ${icaConfig.is_enabled ? 'active' : 'inactive'}`}>
+              {icaConfig.is_enabled ? <Play size={16} /> : <Pause size={16} />}
+              <span>{icaConfig.is_enabled ? 'ICA Scheduler Active' : 'ICA Scheduler Inactive'}</span>
+            </div>
+            <button
+              onClick={() => setIcaConfig(prev => ({ ...prev, is_enabled: !prev.is_enabled }))}
+              className={`toggle-button ${icaConfig.is_enabled ? 'active' : ''}`}
+            >
+              {icaConfig.is_enabled ? 'Disable' : 'Enable'}
+            </button>
+          </div>
+
+          {icaConfig.last_sync_at && (
+            <div className="last-sync-info">
+              <Clock size={14} />
+              <span>Last sync: {formatDate(icaConfig.last_sync_at)}</span>
+              {icaConfig.last_sync_status && (
+                <span className={`sync-status-badge ${icaConfig.last_sync_status}`}>
+                  {icaConfig.last_sync_status}
+                </span>
+              )}
+            </div>
+          )}
+
+          {(icaConfig.answer_keys_count > 0 || icaConfig.student_data_count > 0) && (
+            <div className="sync-stats">
+              <span>Answer Keys: {icaConfig.answer_keys_count}</span>
+              <span>Student Records: {icaConfig.student_data_count}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ICA Config Form */}
+        <div className="sync-config-form">
+          <div className="config-grid">
+            <div className="dm-form-group">
+              <label>
+                <Calendar size={14} />
+                Sync Interval
+              </label>
+              <select
+                value={icaConfig.cron_schedule}
+                onChange={(e) => setIcaConfig(prev => ({ ...prev, cron_schedule: e.target.value }))}
+                disabled={isSaving}
+              >
+                {INTERVAL_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <small className="help-text">{getScheduleDescription(icaConfig.cron_schedule)}</small>
+            </div>
+
+            <div className="dm-form-group">
+              <label>
+                <Database size={14} />
+                Metabase Questions
+              </label>
+              <input
+                type="text"
+                value="4288, 4289"
+                disabled
+                style={{ backgroundColor: '#f1f5f9' }}
+              />
+              <small className="help-text">Q4288: Answer Keys, Q4289: Student Data</small>
+            </div>
+          </div>
+
+          <div className="cron-display">
+            <label>Cron Expression:</label>
+            <code>{icaConfig.cron_schedule}</code>
+          </div>
+
+          <div className="config-actions">
+            <button
+              onClick={saveICAConfig}
+              className="dm-btn-primary"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader size={16} className="spinning" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save ICA Config
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={triggerICASync}
+              className="dm-btn-secondary"
+              disabled={isSyncingICA}
+            >
+              {isSyncingICA ? (
+                <>
+                  <Loader size={16} className="spinning" />
+                  Syncing ICA...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={16} />
+                  Sync ICA Now
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Setup Instructions */}
       <div className="setup-instructions">
@@ -764,6 +1049,47 @@ $$;`}</pre>
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        /* ICA Sync Section */
+        .ica-sync-section {
+          background: #f0fdf4;
+          border: 1px solid #86efac;
+          border-radius: 12px;
+          padding: 24px;
+          margin-bottom: 24px;
+        }
+
+        .ica-sync-section h3 {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 0 0 8px 0;
+          color: #166534;
+          font-size: 1.1rem;
+        }
+
+        .ica-sync-section .section-description {
+          color: #15803d;
+          margin-bottom: 16px;
+        }
+
+        .sync-status-card.ica {
+          background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        .sync-stats {
+          display: flex;
+          gap: 20px;
+          margin-top: 8px;
+          font-size: 0.85rem;
+          opacity: 0.9;
+        }
+
+        .sync-message.info {
+          background: #dbeafe;
+          border: 1px solid #93c5fd;
+          color: #1e40af;
         }
 
         /* Setup Instructions */
