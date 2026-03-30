@@ -2,8 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
+
+// Helper function to get local date in YYYY-MM-DD format
+const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 // Status tabs configuration
 const TABS = [
@@ -131,18 +140,43 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const userEmail = user?.email;
     const userName = user?.displayName || userEmail;
 
+    // Track current date for auto session expiry
+    const [sessionDate, setSessionDate] = useState(getLocalDateString());
+
     // Check if user has selected PIC today
     useEffect(() => {
         checkPICSession();
         loadActivePICs();
     }, [userEmail]);
 
+    // Auto-check for date change every minute (session expiry)
+    useEffect(() => {
+        const checkDateChange = () => {
+            const today = getLocalDateString();
+            if (today !== sessionDate) {
+                console.log('Date changed, session expired. Redirecting to PIC selector...');
+                setSessionDate(today);
+                setCurrentPIC(null);
+                setShowPICSelector(true);
+                loadActivePICs();
+            }
+        };
+
+        // Check every minute
+        const interval = setInterval(checkDateChange, 60000);
+
+        // Also check immediately on mount
+        checkDateChange();
+
+        return () => clearInterval(interval);
+    }, [sessionDate]);
+
     const checkPICSession = async () => {
         if (!userEmail) return;
 
         setCheckingPIC(true);
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDateString();
 
             const { data: session, error } = await supabase
                 .from('pic_sessions')
@@ -170,7 +204,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
     const loadActivePICs = async () => {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDateString();
 
             const { data: sessions, error } = await supabase
                 .from('pic_sessions')
@@ -193,7 +227,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         if (!userEmail) return;
 
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDateString();
 
             const { error } = await supabase
                 .from('pic_sessions')
@@ -217,6 +251,34 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             loadActivePICs();
         } catch (error) {
             console.error('Error:', error);
+        }
+    };
+
+    const handleEndPICSession = async () => {
+        if (!userEmail) return;
+        if (!window.confirm('Apakah Anda yakin ingin mengakhiri sesi PIC?')) return;
+
+        try {
+            const today = getLocalDateString();
+
+            const { error } = await supabase
+                .from('pic_sessions')
+                .delete()
+                .eq('user_email', userEmail)
+                .eq('session_date', today);
+
+            if (error) {
+                console.error('Error ending PIC session:', error);
+                alert('Gagal mengakhiri sesi. Silakan coba lagi.');
+                return;
+            }
+
+            setCurrentPIC(null);
+            setShowPICSelector(true);
+            loadActivePICs();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan. Silakan coba lagi.');
         }
     };
 
@@ -529,7 +591,17 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 <div className="tm-header">
                     <div className="tm-header-left">
                         <h1>Teacher Monitoring</h1>
-                        <span className="tm-pic-badge">PIC {currentPIC}</span>
+                        <div className="tm-pic-info">
+                            <span className="tm-pic-badge">PIC {currentPIC}</span>
+                            <button
+                                className="tm-end-session-btn"
+                                onClick={handleEndPICSession}
+                                title="Akhiri Sesi PIC"
+                            >
+                                <LogOut size={14} />
+                                Akhiri Sesi
+                            </button>
+                        </div>
                     </div>
                     <div className="tm-header-right">
                         <div className="tm-active-pics">

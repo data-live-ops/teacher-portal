@@ -58,6 +58,12 @@
     margin: 0;
 }
 
+.tm-pic-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .tm-pic-badge {
     background: #1E5AF6;
     color: white;
@@ -65,6 +71,26 @@
     border-radius: 16px;
     font-size: 14px;
     font-weight: 600;
+}
+
+.tm-end-session-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid #DC2626;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #DC2626;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tm-end-session-btn:hover {
+    background: #DC2626;
+    color: white;
 }
 
 .tm-header-right {
