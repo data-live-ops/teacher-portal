@@ -712,7 +712,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 {/* Footer info */}
                 <div className="tm-footer">
                     <p className="tm-note">
-                        * Data dummy untuk kebutuhan testing ya ges.
+                        * Jangan terkejut. Ini hanya data dummy untuk kebutuhan testing ya ges.
                     </p>
                 </div>
             </div>
