@@ -11,6 +11,7 @@ const FEATURES = [
     { key: 'teacher_assignment', label: 'Teacher Assignment', description: 'Assign teachers to classes' },
     { key: 'teacher_utilization', label: 'Teacher Utilization', description: 'View utilization metrics' },
     { key: 'in_class_assessment', label: 'In Class Assessment', description: 'View student understanding per session' },
+    { key: 'teacher_monitoring', label: 'Teacher Monitoring', description: 'Monitor teacher status in live classes' },
     { key: 'data_management', label: 'Data Management', description: 'Manage master data' }
 ];
 
@@ -103,6 +104,7 @@ const UserAccessManagement = ({ currentUserEmail }) => {
         defaultPerms.home = { view: true };
         defaultPerms.individual_schedule = { view: true };
         defaultPerms.piket_schedule = { view: true, edit: false };
+        defaultPerms.teacher_monitoring = { view: false, edit: false };
         return defaultPerms;
     };
 

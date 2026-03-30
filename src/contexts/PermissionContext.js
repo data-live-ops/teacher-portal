@@ -11,7 +11,8 @@ const FEATURE_KEYS = [
     'teacher_assignment',
     'teacher_utilization',
     'in_class_assessment',
-    'data_management'
+    'data_management',
+    'teacher_monitoring'
 ];
 
 // Default permissions for users NOT in piket_editors
@@ -22,7 +23,8 @@ const DEFAULT_PERMISSIONS = {
     teacher_assignment: { view: false, edit: false },
     teacher_utilization: { view: false, edit: false },
     in_class_assessment: { view: false, edit: false },
-    data_management: { view: false, edit: false }
+    data_management: { view: false, edit: false },
+    teacher_monitoring: { view: false, edit: false }
 };
 
 // Merge permissions using OR logic (MAX permissions from all sources)
