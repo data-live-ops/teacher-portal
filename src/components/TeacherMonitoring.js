@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
 
 // Helper function to get local date in YYYY-MM-DD format
@@ -56,19 +56,27 @@ const DUMMY_CLASSES = [
     { id: 1142772, session_id: '3af1e78d-3892-4b99-9f06-bc35744f1fce', subject: 'Matematika', session_topic: 'Bangun Ruang', slot_name: 'Matematika 18', teacher_name: 'Katherine Himawati Kosim', grade: '5', class_time: '19:00-20:00' },
 ];
 
-const STATIC_STATUSES = [
+// Initial statuses for demo - will change dynamically
+// 'stuck' is a special marker for joining with >5 min duration (will be converted to 'joining')
+const INITIAL_STATUSES = [
     'not_started', 'not_started', 'not_started', 'not_started', 'not_started',  // 5 not started
-    'joining', 'joining', 'joining',  // 3 joining (some will be stuck)
-    'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined',  // 10 joined
+    'stuck', 'stuck', 'stuck',  // 3 stuck join (joining > 5 min)
+    'joining', 'joining',  // 2 normal joining
+    'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined',  // 8 joined
     'left', 'left', 'left',  // 3 left
-    'not_started', 'joining', 'joined', 'joined', 'joined', 'left', 'joined', 'joined'  // rest
+    'not_started', 'stuck', 'joining', 'joined', 'joined', 'joined', 'left', 'joined', 'joined'  // rest
 ];
 
-const generateStaticData = () => {
+// Generate initial data for the simulation
+const generateInitialData = () => {
     const now = new Date();
 
     return DUMMY_CLASSES.map((cls, index) => {
-        const status = STATIC_STATUSES[index] || 'joined';
+        const statusMarker = INITIAL_STATUSES[index] || 'joined';
+        // Convert 'stuck' marker to actual 'joining' status
+        const status = statusMarker === 'stuck' ? 'joining' : statusMarker;
+        const isStuckJoin = statusMarker === 'stuck';
+
         const [startTime, endTime] = cls.class_time.split('-');
 
         // Parse class time
@@ -80,13 +88,17 @@ const generateStaticData = () => {
         const [endHour, endMin] = endTime.split(':').map(Number);
         classEndTime.setHours(endHour, endMin, 0, 0);
 
-        // Joining time (for joining/joined status)
-        const joiningTime = new Date(classStartTime);
-        // Make some "stuck" by setting joining time > 5 minutes ago
-        if (status === 'joining' && index % 2 === 0) {
-            joiningTime.setMinutes(joiningTime.getMinutes() - 8); // Stuck for 8 minutes
+        // Joining time - set based on stuck status
+        const joiningTime = new Date(now);
+        if (isStuckJoin) {
+            // Stuck: joining time 6-12 minutes ago (definitely > 5 min threshold)
+            joiningTime.setMinutes(joiningTime.getMinutes() - (6 + Math.floor(Math.random() * 7)));
+        } else if (status === 'joining') {
+            // Normal joining: 1-3 minutes ago
+            joiningTime.setMinutes(joiningTime.getMinutes() - (1 + Math.floor(Math.random() * 3)));
         } else {
-            joiningTime.setMinutes(joiningTime.getMinutes() - 2);
+            // Other statuses: random time
+            joiningTime.setMinutes(joiningTime.getMinutes() - Math.floor(Math.random() * 10));
         }
 
         // Generate teacher email from name
@@ -116,8 +128,79 @@ const generateStaticData = () => {
     });
 };
 
-// Initialize static data once
-const STATIC_DATA = generateStaticData();
+// Simulate status changes for demo
+const simulateStatusChange = (currentData) => {
+    const now = new Date();
+
+    return currentData.map(item => {
+        // Skip items that need replacement (handled separately)
+        if (item.need_replacement) return item;
+
+        // Random chance to change status (25% chance per item per cycle)
+        if (Math.random() > 0.25) return item;
+
+        let newStatus = item.status;
+        let newJoiningTime = item.joining_time;
+
+        // Check if currently stuck (> 5 minutes in joining)
+        const joiningDuration = item.joining_time ?
+            (now - new Date(item.joining_time)) / 60000 : 0;
+        const isCurrentlyStuck = item.status === 'joining' && joiningDuration > 5;
+
+        switch (item.status) {
+            case 'not_started':
+                // 60% chance to start joining, 40% stay not_started
+                if (Math.random() < 0.6) {
+                    newStatus = 'joining';
+                    newJoiningTime = now.toISOString();
+                }
+                break;
+
+            case 'joining':
+                if (isCurrentlyStuck) {
+                    // Stuck join - lower chance to resolve (30%), keeps it visible longer
+                    const rand = Math.random();
+                    if (rand < 0.2) {
+                        newStatus = 'joined';  // 20% finally joined
+                    } else if (rand < 0.3) {
+                        newStatus = 'left';    // 10% gave up/disconnected
+                    }
+                    // 70% stays stuck - visible for demo
+                } else {
+                    // Normal joining - 50% chance to join, 50% stay joining (may become stuck)
+                    if (Math.random() < 0.5) {
+                        newStatus = 'joined';
+                    }
+                    // Staying in 'joining' will eventually become stuck after 5 min
+                }
+                break;
+
+            case 'joined':
+                // 10% chance to leave (teacher disconnected, etc.)
+                if (Math.random() < 0.1) {
+                    newStatus = 'left';
+                }
+                break;
+
+            case 'left':
+                // 50% chance to rejoin
+                if (Math.random() < 0.5) {
+                    newStatus = 'joining';
+                    newJoiningTime = now.toISOString();
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        return {
+            ...item,
+            status: newStatus,
+            joining_time: newJoiningTime,
+        };
+    });
+};
 
 const TeacherMonitoring = ({ user, onLogout }) => {
     const [activeTab, setActiveTab] = useState('not_started');
@@ -137,13 +220,15 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const [piketTeachers, setPiketTeachers] = useState([]);
     const [loadingPiket, setLoadingPiket] = useState(false);
 
+    // Active visits state - to prevent double visits
+    const [activeVisits, setActiveVisits] = useState({});
+    const [visitingClass, setVisitingClass] = useState(null); // Currently claiming visit
+
     const userEmail = user?.email;
     const userName = user?.displayName || userEmail;
 
-    // Track current date for auto session expiry
     const [sessionDate, setSessionDate] = useState(getLocalDateString());
 
-    // Check if user has selected PIC today
     useEffect(() => {
         checkPICSession();
         loadActivePICs();
@@ -170,6 +255,77 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
         return () => clearInterval(interval);
     }, [sessionDate]);
+
+    // Load and subscribe to active visits (real-time)
+    useEffect(() => {
+        const today = getLocalDateString();
+
+        // Load initial active visits
+        const loadActiveVisits = async () => {
+            const { data: visits, error } = await supabase
+                .from('active_visits')
+                .select('*')
+                .eq('visit_date', today)
+                .eq('is_active', true);
+
+            if (!error && visits) {
+                const visitsMap = {};
+                visits.forEach(v => {
+                    visitsMap[v.live_class_id] = {
+                        pic_number: v.pic_number,
+                        pic_name: v.pic_name,
+                        visited_at: v.visited_at
+                    };
+                });
+                setActiveVisits(visitsMap);
+            }
+        };
+
+        loadActiveVisits();
+
+        // Subscribe to real-time changes
+        const subscription = supabase
+            .channel('active_visits_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'active_visits',
+                filter: `visit_date=eq.${today}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    const visit = payload.new;
+                    if (visit.is_active) {
+                        setActiveVisits(prev => ({
+                            ...prev,
+                            [visit.live_class_id]: {
+                                pic_number: visit.pic_number,
+                                pic_name: visit.pic_name,
+                                visited_at: visit.visited_at
+                            }
+                        }));
+                    } else {
+                        // Visit ended
+                        setActiveVisits(prev => {
+                            const updated = { ...prev };
+                            delete updated[visit.live_class_id];
+                            return updated;
+                        });
+                    }
+                } else if (payload.eventType === 'DELETE') {
+                    const visit = payload.old;
+                    setActiveVisits(prev => {
+                        const updated = { ...prev };
+                        delete updated[visit.live_class_id];
+                        return updated;
+                    });
+                }
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
 
     const checkPICSession = async () => {
         if (!userEmail) return;
@@ -282,6 +438,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
+    // Ref to store emergency map for preserving emergency status during simulation
+    const emergencyMapRef = useRef({});
+
     useEffect(() => {
         const loadDataWithEmergencies = async () => {
             setLoading(true);
@@ -292,40 +451,38 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     .select('live_class_id, reason, requested_by_name, created_at')
                     .eq('status', 'pending');
 
-                if (error) {
-                    console.error('Error fetching emergencies:', error);
-                    setData(STATIC_DATA);
-                } else {
-                    // Create a map of emergency class IDs
-                    const emergencyMap = {};
-                    emergencies?.forEach(e => {
+                // Create a map of emergency class IDs
+                const emergencyMap = {};
+                if (!error && emergencies) {
+                    emergencies.forEach(e => {
                         emergencyMap[e.live_class_id] = {
                             reason: e.reason,
                             requested_by: e.requested_by_name,
                             requested_at: e.created_at
                         };
                     });
-
-                    // Update static data with emergency status
-                    const updatedData = STATIC_DATA.map(item => {
-                        const emergency = emergencyMap[item.live_class_id];
-                        if (emergency) {
-                            return {
-                                ...item,
-                                need_replacement: true,
-                                replacement_reason: emergency.reason,
-                                replacement_requested_by: emergency.requested_by,
-                                replacement_requested_at: emergency.requested_at
-                            };
-                        }
-                        return item;
-                    });
-
-                    setData(updatedData);
                 }
+                emergencyMapRef.current = emergencyMap;
+
+                // Generate initial data with emergency status
+                const initialData = generateInitialData().map(item => {
+                    const emergency = emergencyMap[item.live_class_id];
+                    if (emergency) {
+                        return {
+                            ...item,
+                            need_replacement: true,
+                            replacement_reason: emergency.reason,
+                            replacement_requested_by: emergency.requested_by,
+                            replacement_requested_at: emergency.requested_at
+                        };
+                    }
+                    return item;
+                });
+
+                setData(initialData);
             } catch (err) {
                 console.error('Error:', err);
-                setData(STATIC_DATA);
+                setData(generateInitialData());
             } finally {
                 setLoading(false);
                 setLastRefresh(new Date());
@@ -334,12 +491,31 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
         loadDataWithEmergencies();
 
-        // Simulate auto refresh every 5 seconds (just update lastRefresh)
-        const interval = setInterval(() => {
-            setLastRefresh(new Date());
-        }, 5000);
+        // Dynamic simulation: update statuses every 3 seconds for demo
+        const simulationInterval = setInterval(() => {
+            setData(prevData => {
+                // Simulate status changes
+                const simulatedData = simulateStatusChange(prevData);
 
-        return () => clearInterval(interval);
+                // Preserve emergency status from database
+                return simulatedData.map(item => {
+                    const emergency = emergencyMapRef.current[item.live_class_id];
+                    if (emergency) {
+                        return {
+                            ...item,
+                            need_replacement: true,
+                            replacement_reason: emergency.reason,
+                            replacement_requested_by: emergency.requested_by,
+                            replacement_requested_at: emergency.requested_at
+                        };
+                    }
+                    return item;
+                });
+            });
+            setLastRefresh(new Date());
+        }, 3000);
+
+        return () => clearInterval(simulationInterval);
     }, []);
 
     const filteredData = useMemo(() => {
@@ -393,10 +569,86 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             isStuck(item);
     };
 
+    // Check if a class is being visited by another PIC
+    const getActiveVisit = (liveClassId) => {
+        return activeVisits[liveClassId] || null;
+    };
+
+    // Check if current user is the one visiting
+    const isMyVisit = (liveClassId) => {
+        const visit = activeVisits[liveClassId];
+        return visit && visit.pic_number === currentPIC;
+    };
+
     const handleVisitClass = async (item) => {
+        // Check if already being visited by another PIC
+        const existingVisit = getActiveVisit(item.live_class_id);
+        if (existingVisit && existingVisit.pic_number !== currentPIC) {
+            alert(`Kelas ini sedang dikunjungi oleh PIC ${existingVisit.pic_number} (${existingVisit.pic_name})`);
+            return;
+        }
+
+        // Set loading state for this specific class
+        setVisitingClass(item.live_class_id);
+
         try {
-            // Log the visit to database
-            const { error } = await supabase
+            const today = getLocalDateString();
+            const visitReason = item.status === 'not_started' ? 'class_not_started' :
+                isStuck(item) ? 'stuck_join' : 'teacher_left';
+
+            // Try to claim the visit (race condition prevention)
+            // Using upsert with unique constraint on (live_class_id, visit_date, is_active)
+            const { data: claimResult, error: claimError } = await supabase
+                .from('active_visits')
+                .upsert({
+                    live_class_id: item.live_class_id,
+                    visit_date: today,
+                    pic_number: currentPIC,
+                    pic_name: userName,
+                    pic_email: userEmail,
+                    slot_name: item.slot_name,
+                    teacher_name: item.teacher_name,
+                    visit_reason: visitReason,
+                    visited_at: new Date().toISOString(),
+                    is_active: true
+                }, {
+                    onConflict: 'live_class_id,visit_date',
+                    ignoreDuplicates: false
+                })
+                .select()
+                .single();
+
+            // Check if we successfully claimed (or if someone else claimed first)
+            if (claimError) {
+                // Check who has the claim
+                const { data: currentClaim } = await supabase
+                    .from('active_visits')
+                    .select('*')
+                    .eq('live_class_id', item.live_class_id)
+                    .eq('visit_date', today)
+                    .eq('is_active', true)
+                    .single();
+
+                if (currentClaim && currentClaim.pic_number !== currentPIC) {
+                    alert(`Kelas ini sudah diklaim oleh PIC ${currentClaim.pic_number} (${currentClaim.pic_name})`);
+                    setVisitingClass(null);
+                    return;
+                }
+            }
+
+            // If we got here, we successfully claimed or already own the claim
+            // Update local state immediately
+            setActiveVisits(prev => ({
+                ...prev,
+                [item.live_class_id]: {
+                    pic_number: currentPIC,
+                    pic_name: userName,
+                    visited_at: new Date().toISOString()
+                }
+            }));
+
+            // Log to class_visits for history
+            await supabase
                 .from('class_visits')
                 .insert({
                     live_class_id: item.live_class_id,
@@ -407,22 +659,42 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     visited_by_email: userEmail,
                     visited_by_name: userName,
                     pic_number: currentPIC,
-                    visit_reason: item.status === 'not_started' ? 'class_not_started' :
-                        isStuck(item) ? 'stuck_join' : 'teacher_left',
+                    visit_reason: visitReason,
                     zoom_link: item.zoom_link,
                 });
 
-            if (error) {
-                console.error('Error logging visit:', error);
-                // Still open Zoom even if logging fails
-            }
-
             // Open Zoom link in new tab
             window.open(item.zoom_link, '_blank');
+
         } catch (error) {
             console.error('Error:', error);
-            // Still open Zoom even if error
-            window.open(item.zoom_link, '_blank');
+            alert('Terjadi kesalahan. Silakan coba lagi.');
+        } finally {
+            setVisitingClass(null);
+        }
+    };
+
+    // End visit - release the claim
+    const handleEndVisit = async (liveClassId) => {
+        try {
+            const today = getLocalDateString();
+
+            await supabase
+                .from('active_visits')
+                .update({ is_active: false, ended_at: new Date().toISOString() })
+                .eq('live_class_id', liveClassId)
+                .eq('visit_date', today)
+                .eq('pic_number', currentPIC);
+
+            // Update local state
+            setActiveVisits(prev => {
+                const updated = { ...prev };
+                delete updated[liveClassId];
+                return updated;
+            });
+
+        } catch (error) {
+            console.error('Error ending visit:', error);
         }
     };
 
@@ -462,6 +734,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 alert('Gagal menyimpan data emergency. Silakan coba lagi.');
                 return;
             }
+
+            // Update emergencyMapRef to preserve status during simulation
+            emergencyMapRef.current[selectedClass.live_class_id] = {
+                reason: emergencyReason,
+                requested_by: userName,
+                requested_at: new Date().toISOString()
+            };
 
             // Update local data to mark as need_replacement
             setData(prevData => prevData.map(item =>
@@ -545,10 +824,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 console.error('Error resolving emergency:', error);
             }
 
+            // Remove from emergencyMapRef
+            delete emergencyMapRef.current[item.live_class_id];
+
             // Update local data
             setData(prevData => prevData.map(d =>
                 d.id === item.id
-                    ? { ...d, need_replacement: false }
+                    ? { ...d, need_replacement: false, replacement_reason: null, replacement_requested_by: null, replacement_requested_at: null }
                     : d
             ));
 
@@ -723,55 +1005,118 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                         </td>
                                         <td>
                                             <div className="tm-actions">
-                                                {/* Need Replacement tab actions */}
-                                                {item.need_replacement ? (
-                                                    <>
-                                                        <button
-                                                            className="tm-action-btn visit"
-                                                            onClick={() => handleVisitClass(item)}
-                                                            title="Visit Class"
-                                                        >
-                                                            <ExternalLink size={14} />
-                                                            Visit
-                                                        </button>
-                                                        <button
-                                                            className="tm-action-btn piket"
-                                                            onClick={() => handleViewPiketTeachers(item)}
-                                                            title="View Piket Teachers"
-                                                        >
-                                                            <Users size={14} />
-                                                            Piket
-                                                        </button>
-                                                        <button
-                                                            className="tm-action-btn resolve"
-                                                            onClick={() => handleResolveEmergency(item)}
-                                                            title="Mark as Resolved"
-                                                        >
-                                                            ✓ Resolved
-                                                        </button>
-                                                    </>
-                                                ) : shouldShowActions(item) ? (
-                                                    <>
-                                                        <button
-                                                            className="tm-action-btn visit"
-                                                            onClick={() => handleVisitClass(item)}
-                                                            title="Visit Class"
-                                                        >
-                                                            <ExternalLink size={14} />
-                                                            Visit
-                                                        </button>
-                                                        <button
-                                                            className="tm-action-btn emergency"
-                                                            onClick={() => handleEmergencyClick(item)}
-                                                            title="Request Replacement"
-                                                        >
-                                                            <AlertTriangle size={14} />
-                                                            Emergency
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <span className="tm-no-action">-</span>
-                                                )}
+                                                {/* Check if class is being visited */}
+                                                {(() => {
+                                                    const activeVisit = getActiveVisit(item.live_class_id);
+                                                    const isVisitedByMe = isMyVisit(item.live_class_id);
+                                                    const isVisitedByOther = activeVisit && !isVisitedByMe;
+                                                    const isClaimingThis = visitingClass === item.live_class_id;
+
+                                                    // Show "being visited" indicator
+                                                    if (isVisitedByOther) {
+                                                        return (
+                                                            <div className="tm-visit-info">
+                                                                <Eye size={14} />
+                                                                <span>Dikunjungi PIC {activeVisit.pic_number}</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    // Show "end visit" button if I'm visiting
+                                                    if (isVisitedByMe) {
+                                                        return (
+                                                            <>
+                                                                <span className="tm-visiting-badge">
+                                                                    <Eye size={12} />
+                                                                    Anda sedang mengunjungi
+                                                                </span>
+                                                                <button
+                                                                    className="tm-action-btn end-visit"
+                                                                    onClick={() => handleEndVisit(item.live_class_id)}
+                                                                    title="Selesai Visit"
+                                                                >
+                                                                    <CheckCircle size={14} />
+                                                                    Selesai
+                                                                </button>
+                                                                {item.need_replacement && (
+                                                                    <>
+                                                                        <button
+                                                                            className="tm-action-btn piket"
+                                                                            onClick={() => handleViewPiketTeachers(item)}
+                                                                            title="View Piket Teachers"
+                                                                        >
+                                                                            <Users size={14} />
+                                                                            Piket
+                                                                        </button>
+                                                                        <button
+                                                                            className="tm-action-btn resolve"
+                                                                            onClick={() => handleResolveEmergency(item)}
+                                                                            title="Mark as Resolved"
+                                                                        >
+                                                                            ✓ Resolved
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    }
+
+                                                    // Normal actions
+                                                    if (item.need_replacement) {
+                                                        return (
+                                                            <>
+                                                                <button
+                                                                    className="tm-action-btn visit"
+                                                                    onClick={() => handleVisitClass(item)}
+                                                                    disabled={isClaimingThis}
+                                                                    title="Visit Class"
+                                                                >
+                                                                    {isClaimingThis ? <Loader size={14} className="spinning" /> : <ExternalLink size={14} />}
+                                                                    {isClaimingThis ? 'Claiming...' : 'Visit'}
+                                                                </button>
+                                                                <button
+                                                                    className="tm-action-btn piket"
+                                                                    onClick={() => handleViewPiketTeachers(item)}
+                                                                    title="View Piket Teachers"
+                                                                >
+                                                                    <Users size={14} />
+                                                                    Piket
+                                                                </button>
+                                                                <button
+                                                                    className="tm-action-btn resolve"
+                                                                    onClick={() => handleResolveEmergency(item)}
+                                                                    title="Mark as Resolved"
+                                                                >
+                                                                    ✓ Resolved
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    } else if (shouldShowActions(item)) {
+                                                        return (
+                                                            <>
+                                                                <button
+                                                                    className="tm-action-btn visit"
+                                                                    onClick={() => handleVisitClass(item)}
+                                                                    disabled={isClaimingThis}
+                                                                    title="Visit Class"
+                                                                >
+                                                                    {isClaimingThis ? <Loader size={14} className="spinning" /> : <ExternalLink size={14} />}
+                                                                    {isClaimingThis ? 'Claiming...' : 'Visit'}
+                                                                </button>
+                                                                <button
+                                                                    className="tm-action-btn emergency"
+                                                                    onClick={() => handleEmergencyClick(item)}
+                                                                    title="Request Replacement"
+                                                                >
+                                                                    <AlertTriangle size={14} />
+                                                                    Emergency
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    } else {
+                                                        return <span className="tm-no-action">-</span>;
+                                                    }
+                                                })()}
                                             </div>
                                         </td>
                                     </tr>
@@ -784,7 +1129,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 {/* Footer info */}
                 <div className="tm-footer">
                     <p className="tm-note">
-                        * Jangan terkejut. Ini hanya data dummy untuk kebutuhan testing ya ges.
+                        <strong>Jangan terkejut</strong>. Cuma data dummy yummy Mr DIY ini. Mas Anthony dkk lagi sibuk.
                     </p>
                 </div>
             </div>

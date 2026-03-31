@@ -620,6 +620,56 @@
     font-size: 13px;
 }
 
+/* Visit Status Indicators */
+.tm-visit-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #FEF3C7;
+    color: #92400E;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.tm-visiting-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #DCFCE7;
+    color: #16A34A;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tm-action-btn.end-visit {
+    background: #DCFCE7;
+    color: #16A34A;
+}
+
+.tm-action-btn.end-visit:hover {
+    background: #16A34A;
+    color: white;
+}
+
+.tm-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.tm-action-btn:disabled:hover {
+    background: inherit;
+    color: inherit;
+}
+
+/* Spinning animation for loader */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
 /* Modal */
 .tm-modal-overlay {
     position: fixed;
