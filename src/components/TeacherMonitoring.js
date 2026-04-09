@@ -1129,7 +1129,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 {/* Footer info */}
                 <div className="tm-footer">
                     <p className="tm-note">
-                        <strong>Jangan terkejut</strong>. Cuma data dummy yummy Mr DIY ini. Mas Anthony dkk lagi sibuk.
+                        <strong>Jangan terkejut</strong>. Cuma data dummy yummy Mr DIY jangan lupa bersyukur ini. Mas Anthony dkk lagi sibuk.
                     </p>
                 </div>
             </div>
@@ -1231,7 +1231,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                         className="tm-piket-contact email"
                                                         title={teacher.email}
                                                     >
-                                                        Email
+                                                        Slack
                                                     </a>
                                                 )}
                                                 <a

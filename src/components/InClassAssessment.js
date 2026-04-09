@@ -231,6 +231,54 @@ const InClassAssessment = ({ user, onLogout }) => {
         return status;
     };
 
+    // Calculate participation status for a student
+    const getParticipationStatus = (student) => {
+        if (!questionsWithDates.length) return { percentage: 0, status: 'Below', participated: 0, eligible: 0 };
+
+        let participated = 0; // Full Understanding + No Understanding
+        let eligible = 0; // Total questions where student is not ABSENT
+
+        questionsWithDates.forEach(q => {
+            const status = getStatus(student, q.reference_id, q.session_date);
+
+            // Only count if student was not absent
+            if (status !== 'ABSENT') {
+                eligible++;
+                // Count as participated if answered (Full Understanding or No Understanding)
+                if (status === 'Full Understanding' || status === 'No Understanding') {
+                    participated++;
+                }
+            }
+        });
+
+        const percentage = eligible > 0 ? (participated / eligible) * 100 : 0;
+
+        let statusLabel;
+        if (percentage > 80) {
+            statusLabel = 'Above';
+        } else if (percentage >= 50) {
+            statusLabel = 'Optimal';
+        } else {
+            statusLabel = 'Below';
+        }
+
+        return { percentage, status: statusLabel, participated, eligible };
+    };
+
+    // Get participation status cell style
+    const getParticipationStyle = (status) => {
+        switch (status) {
+            case 'Above':
+                return { backgroundColor: '#dcfce7', color: '#166534' }; // Green
+            case 'Optimal':
+                return { backgroundColor: '#dbeafe', color: '#1e40af' }; // Blue
+            case 'Below':
+                return { backgroundColor: '#fee2e2', color: '#991b1b' }; // Red
+            default:
+                return { backgroundColor: '#f9fafb', color: '#374151' };
+        }
+    };
+
     // Get cell style based on status
     const getCellStyle = (status) => {
         switch (status) {
@@ -494,6 +542,7 @@ const InClassAssessment = ({ user, onLogout }) => {
                                     <tr>
                                         <th className="sticky-col sticky-col-1">Student ID</th>
                                         <th className="sticky-col sticky-col-2">Student Name</th>
+                                        <th className="sticky-col sticky-col-3">Participation</th>
                                         {questionsWithDates.map(q => (
                                             <th key={`${q.reference_id}-${q.session_date}`} className="question-header">
                                                 <div className="question-id">{q.reference_id}</div>
@@ -529,6 +578,21 @@ const InClassAssessment = ({ user, onLogout }) => {
                                                     </button>
                                                 </div>
                                             </td>
+                                            {(() => {
+                                                const participation = getParticipationStatus(student);
+                                                return (
+                                                    <td
+                                                        className="sticky-col sticky-col-3 participation-cell"
+                                                        style={getParticipationStyle(participation.status)}
+                                                        title={`${participation.participated}/${participation.eligible} questions (${participation.percentage.toFixed(1)}%)`}
+                                                    >
+                                                        <div className="participation-content">
+                                                            <span className="participation-status">{participation.status}</span>
+                                                            <span className="participation-percentage">{participation.percentage.toFixed(0)}%</span>
+                                                        </div>
+                                                    </td>
+                                                );
+                                            })()}
                                             {questionsWithDates.map(q => {
                                                 const status = getStatus(student, q.reference_id, q.session_date);
                                                 return (
@@ -550,7 +614,7 @@ const InClassAssessment = ({ user, onLogout }) => {
 
                         {/* Legend */}
                         <div className="ica-legend">
-                            <span className="legend-title">Legend:</span>
+                            <span className="legend-title">Status:</span>
                             <span className="legend-item" style={getCellStyle('Full Understanding')}>
                                 Full = Full Understanding
                             </span>
@@ -562,6 +626,18 @@ const InClassAssessment = ({ user, onLogout }) => {
                             </span>
                             <span className="legend-item" style={getCellStyle('ABSENT')}>
                                 ABSENT = Student Absent
+                            </span>
+                        </div>
+                        <div className="ica-legend">
+                            <span className="legend-title">Participation:</span>
+                            <span className="legend-item" style={getParticipationStyle('Above')}>
+                                Above = &gt;80%
+                            </span>
+                            <span className="legend-item" style={getParticipationStyle('Optimal')}>
+                                Optimal = 50-80%
+                            </span>
+                            <span className="legend-item" style={getParticipationStyle('Below')}>
+                                Below = &lt;50%
                             </span>
                         </div>
                     </div>

@@ -60,11 +60,13 @@
 
 .ica-table th,
 .ica-table td {
-    padding: 10px 12px;
+    padding: 8px 6px;
     text-align: center;
     border-bottom: 1px solid #e2e8f0;
     border-right: 1px solid #e2e8f0;
     white-space: nowrap;
+    position: relative;
+    box-sizing: border-box;
 }
 
 .ica-table th {
@@ -73,35 +75,55 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    user-select: none;
 }
 
-/* Sticky columns */
+/* Corner cells (intersection of sticky row and column) need highest z-index */
+.ica-table thead th.sticky-col {
+    z-index: 25;
+}
+
+/* Fixed columns - no sticky positioning for proper alignment */
 .sticky-col {
-    position: sticky;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
     background: white;
-    z-index: 5;
 }
 
 .sticky-col-1 {
-    left: 0;
+    width: 100px;
     min-width: 100px;
-    max-width: 120px;
 }
 
 .sticky-col-2 {
-    left: 120px;
+    width: 180px;
     min-width: 180px;
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
 }
 
+.sticky-col-3 {
+    width: 110px;
+    min-width: 110px;
+    border-right: 2px solid #cbd5e1;
+}
+
+/* Header row background */
 thead .sticky-col {
-    z-index: 15;
     background: #f8fafc;
+}
+
+/* Body row background */
+tbody .sticky-col {
+    background: white;
 }
 
 /* Question header */
 .question-header {
-    min-width: 100px;
+    width: 120px;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
 }
 
 .question-id {
@@ -185,12 +207,38 @@ thead .sticky-col {
     opacity: 1;
 }
 
+/* Participation cell */
+.participation-cell {
+    text-align: center;
+}
+
+.participation-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.participation-status {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.participation-percentage {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
 /* Status cells */
 .status-cell {
+    width: 120px;
+    min-width: 120px;
     font-size: 12px;
     font-weight: 500;
-    min-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition: transform 0.1s;
+    box-sizing: border-box;
 }
 
 .status-cell:hover {
@@ -286,10 +334,6 @@ thead .sticky-col {
         max-height: calc(100vh - 500px);
     }
 
-    .sticky-col-2 {
-        left: 100px;
-    }
-
     .ica-legend {
         justify-content: center;
     }
@@ -307,8 +351,11 @@ thead .sticky-col {
     }
 
     .sticky-col {
-        position: relative;
-        left: auto;
+        position: relative !important;
+        left: auto !important;
+        width: auto !important;
+        min-width: auto !important;
+        max-width: none !important;
     }
 
     .ica-legend {
