@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Calendar } from 'lucide-react';
+import { Users, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Calendar, Download } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/TeacherUtilization.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -296,6 +296,65 @@ const TeacherUtilization = ({ user, onLogout }) => {
         }
     };
 
+    // ✅ Export to CSV function
+    const handleExportCSV = () => {
+        if (filteredAndSortedData.length === 0) {
+            alert('No data to export');
+            return;
+        }
+
+        // Define CSV headers
+        const headers = [
+            'Teacher Name',
+            'Level',
+            'Responsibility',
+            'Status in Semester',
+            'Scheduled as GJ (hours)',
+            'Scheduled as GJ Other (hours)',
+            'Scheduled as Mentor (hours)',
+            'GJ Utilization (%)',
+            'In-Class Utilization (%)',
+            'Min GJ 50% Status',
+            'Min GJ 75% Status',
+            'In-Class Status'
+        ];
+
+        // Convert data to CSV rows
+        const csvRows = filteredAndSortedData.map(teacher => [
+            `"${teacher.teacher_name || ''}"`,
+            `"${teacher.level || ''}"`,
+            `"${teacher.responsibility || ''}"`,
+            teacher.is_active_in_semester ? 'Active' : 'Inactive',
+            teacher.hours_as_teacher_in_mandatory_class || 0,
+            teacher.hours_as_teacher_in_non_mandatory_class || 0,
+            teacher.hours_as_mentor || 0,
+            teacher.teacher_utilization_percentage || 0,
+            teacher.mentor_utilization_percentage || 0,
+            `"${teacher.minimum_50_teacher_utilization_status || 'N/A'}"`,
+            `"${teacher.minimum_75_teacher_utilization_status || 'N/A'}"`,
+            `"${teacher.minimum_mentor_utilization_status || 'N/A'}"`
+        ].join(','));
+
+        // Combine headers and rows
+        const csvContent = [headers.join(','), ...csvRows].join('\n');
+
+        // Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        // Generate filename with semester name and date
+        const date = new Date().toISOString().split('T')[0];
+        const semesterName = selectedSemester?.name?.replace(/\s+/g, '_') || 'Unknown';
+        link.href = url;
+        link.download = `Teacher_Utilization_${semesterName}_${date}.csv`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     // ✅ Filter and sort data
     const filteredAndSortedData = utilizationData
         .filter(teacher => {
@@ -527,6 +586,17 @@ const TeacherUtilization = ({ user, onLogout }) => {
                                 className={isRecalculating ? 'spinning' : ''}
                             />
                             {isRecalculating ? 'Recalculating...' : 'Recalculate'}
+                        </button>
+
+                        <button
+                            onClick={handleExportCSV}
+                            disabled={filteredAndSortedData.length === 0}
+                            className="dropdown-button"
+                            style={{ backgroundColor: '#10b981' }}
+                            title="Export current view to CSV"
+                        >
+                            <Download size={16} />
+                            Export CSV
                         </button>
                     </div>
                 </div>
