@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
 
 // Helper function to get local date in YYYY-MM-DD format
@@ -1322,15 +1322,38 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                         const note = getClassNote(item.live_class_id);
                                                         return (
                                                             <>
+                                                                {/* Note display with edit - for not_started */}
                                                                 {item.status === 'not_started' && (
-                                                                    <button
-                                                                        className={`tm-action-btn notes ${note ? 'has-note' : ''}`}
-                                                                        onClick={() => handleNotesClick(item)}
-                                                                        title={note ? `Note: ${note.note_text}` : 'Add Note'}
-                                                                    >
-                                                                        <MessageSquare size={14} />
-                                                                        {note ? 'Edit Note' : 'Notes'}
-                                                                    </button>
+                                                                    note ? (
+                                                                        <div className="tm-note-display with-edit">
+                                                                            <MessageSquare size={12} />
+                                                                            <span className="tm-note-text">{note.note_text}</span>
+                                                                            <button
+                                                                                className="tm-note-edit-btn"
+                                                                                onClick={() => handleNotesClick(item)}
+                                                                                title="Edit Note"
+                                                                            >
+                                                                                <Pencil size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            className="tm-action-btn notes"
+                                                                            onClick={() => handleNotesClick(item)}
+                                                                            title="Add Note"
+                                                                        >
+                                                                            <MessageSquare size={14} />
+                                                                            Notes
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                                {/* Note display for other statuses (left, stuck) */}
+                                                                {item.status !== 'not_started' && note && (
+                                                                    <div className="tm-note-display">
+                                                                        <MessageSquare size={12} />
+                                                                        <span className="tm-note-text">{note.note_text}</span>
+                                                                        <span className="tm-note-author">- PIC {note.pic_number}</span>
+                                                                    </div>
                                                                 )}
                                                                 <button
                                                                     className="tm-action-btn visit"
@@ -1349,13 +1372,6 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                                     <AlertTriangle size={14} />
                                                                     Emergency
                                                                 </button>
-                                                                {item.status !== 'not_started' && note && (
-                                                                    <div className="tm-note-display">
-                                                                        <MessageSquare size={12} />
-                                                                        <span className="tm-note-text">{note.note_text}</span>
-                                                                        <span className="tm-note-author">- PIC {note.pic_number}</span>
-                                                                    </div>
-                                                                )}
                                                             </>
                                                         );
                                                     } else {

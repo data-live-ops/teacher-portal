@@ -646,10 +646,19 @@
     max-width: 280px;
 }
 
+.tm-note-display.with-edit {
+    align-items: center;
+    padding: 6px 8px 6px 12px;
+}
+
 .tm-note-display svg {
     flex-shrink: 0;
     color: #7C3AED;
     margin-top: 2px;
+}
+
+.tm-note-display.with-edit > svg {
+    margin-top: 0;
 }
 
 .tm-note-text {
@@ -657,6 +666,7 @@
     color: #5B21B6;
     line-height: 1.4;
     word-break: break-word;
+    flex: 1;
 }
 
 .tm-note-author {
@@ -665,6 +675,26 @@
     white-space: nowrap;
     margin-left: auto;
     font-style: italic;
+}
+
+.tm-note-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #7C3AED;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+.tm-note-edit-btn:hover {
+    background: #7C3AED;
+    color: white;
 }
 
 .tm-no-action {
