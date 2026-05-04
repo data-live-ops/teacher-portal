@@ -325,6 +325,21 @@
     color: #EA580C;
 }
 
+/* Urgent Not Started - class approaching start time but not started */
+.tm-status-badge.not_started.urgent {
+    background: #DC2626;
+    color: white;
+    animation: pulse 1.5s infinite;
+}
+
+.tm-table tbody tr.urgent-not-started {
+    background: #FEF2F2;
+}
+
+.tm-table tbody tr.urgent-not-started:hover {
+    background: #FEE2E2;
+}
+
 @keyframes pulse {
 
     0%,

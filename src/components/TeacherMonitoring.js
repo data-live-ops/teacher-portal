@@ -712,6 +712,15 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         return diff > 5 * 60 * 1000; // > 5 minutes
     };
 
+    // Check if class is urgent (within 5 minutes of start time or past it, but not started)
+    const isUrgentNotStarted = (item) => {
+        if (item.status !== 'not_started') return false;
+        const now = new Date();
+        const startTime = new Date(item.class_start_time);
+        const fiveMinutesBefore = new Date(startTime.getTime() - 5 * 60 * 1000);
+        return now >= fiveMinutesBefore; // Current time is within 5 min of start or past it
+    };
+
     const formatTime = (isoString) => {
         if (!isoString) return '-';
         return new Date(isoString).toLocaleTimeString('id-ID', {
@@ -1179,7 +1188,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                 </tr>
                             ) : (
                                 filteredData.map(item => (
-                                    <tr key={item.id} className={`${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'need-replacement' : ''}`}>
+                                    <tr key={item.id} className={`${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'need-replacement' : ''} ${isUrgentNotStarted(item) ? 'urgent-not-started' : ''}`}>
                                         <td>
                                             <div className="tm-teacher-info">
                                                 <span className="tm-teacher-name">{item.teacher_name}</span>
@@ -1211,13 +1220,15 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                         </td>
                                         <td>
                                             <span
-                                                className={`tm-status-badge ${item.status} ${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'replacement' : ''}`}
+                                                className={`tm-status-badge ${item.status} ${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'replacement' : ''} ${isUrgentNotStarted(item) ? 'urgent' : ''}`}
                                             >
                                                 {item.need_replacement
                                                     ? 'Need Replacement'
                                                     : isStuck(item)
                                                         ? 'Stuck Join'
-                                                        : item.status.replace('_', ' ')
+                                                        : isUrgentNotStarted(item)
+                                                            ? 'Urgent - Not Started'
+                                                            : item.status.replace('_', ' ')
                                                 }
                                             </span>
                                         </td>
