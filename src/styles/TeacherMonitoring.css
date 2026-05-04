@@ -326,9 +326,12 @@
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.7;
     }
@@ -518,9 +521,12 @@
 }
 
 @keyframes emergency-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
     }
+
     50% {
         box-shadow: 0 0 0 8px rgba(124, 58, 237, 0);
     }
@@ -631,7 +637,7 @@
 }
 
 .tm-action-btn.notes.has-note:hover {
-    background: #6D28D9;
+    background: #8d72b8;
 }
 
 /* Note Display (non-button) */
@@ -657,7 +663,7 @@
     margin-top: 2px;
 }
 
-.tm-note-display.with-edit > svg {
+.tm-note-display.with-edit>svg {
     margin-top: 0;
 }
 
@@ -694,7 +700,10 @@
 
 .tm-note-edit-btn:hover {
     background: #7C3AED;
-    color: white;
+}
+
+.tm-note-edit-btn>svg:hover {
+    color: #ffff;
 }
 
 .tm-no-action {
