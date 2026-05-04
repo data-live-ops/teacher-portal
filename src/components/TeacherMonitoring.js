@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
 
 // Helper function to get local date in YYYY-MM-DD format
@@ -225,6 +225,11 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const [activeVisits, setActiveVisits] = useState({});
     const [visitingClass, setVisitingClass] = useState(null); // Currently claiming visit
 
+    // Notes state
+    const [classNotes, setClassNotes] = useState({});
+    const [showNotesModal, setShowNotesModal] = useState(false);
+    const [noteText, setNoteText] = useState('');
+
     const userEmail = user?.email;
     const userName = user?.displayName || userEmail;
 
@@ -317,6 +322,69 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     setActiveVisits(prev => {
                         const updated = { ...prev };
                         delete updated[visit.live_class_id];
+                        return updated;
+                    });
+                }
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    // Load and subscribe to class notes (real-time)
+    useEffect(() => {
+        const today = getLocalDateString();
+
+        // Load initial notes
+        const loadClassNotes = async () => {
+            const { data: notes, error } = await supabase
+                .from('class_notes')
+                .select('*')
+                .eq('note_date', today);
+
+            if (!error && notes) {
+                const notesMap = {};
+                notes.forEach(n => {
+                    notesMap[n.live_class_id] = {
+                        note_text: n.note_text,
+                        created_by_name: n.created_by_name,
+                        pic_number: n.pic_number,
+                        created_at: n.created_at
+                    };
+                });
+                setClassNotes(notesMap);
+            }
+        };
+
+        loadClassNotes();
+
+        // Subscribe to real-time changes
+        const subscription = supabase
+            .channel('class_notes_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'class_notes',
+                filter: `note_date=eq.${today}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    const note = payload.new;
+                    setClassNotes(prev => ({
+                        ...prev,
+                        [note.live_class_id]: {
+                            note_text: note.note_text,
+                            created_by_name: note.created_by_name,
+                            pic_number: note.pic_number,
+                            created_at: note.created_at
+                        }
+                    }));
+                } else if (payload.eventType === 'DELETE') {
+                    const note = payload.old;
+                    setClassNotes(prev => {
+                        const updated = { ...prev };
+                        delete updated[note.live_class_id];
                         return updated;
                     });
                 }
@@ -920,6 +988,74 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
+    // Notes functions
+    const handleNotesClick = (item) => {
+        setSelectedClass(item);
+        setNoteText(classNotes[item.live_class_id]?.note_text || '');
+        setShowNotesModal(true);
+    };
+
+    const handleNotesSubmit = async () => {
+        if (!selectedClass) return;
+
+        try {
+            const today = getLocalDateString();
+
+            const { error } = await supabase
+                .from('class_notes')
+                .upsert({
+                    live_class_id: selectedClass.live_class_id,
+                    note_date: today,
+                    note_text: noteText.trim(),
+                    created_by_email: userEmail,
+                    created_by_name: userName,
+                    pic_number: currentPIC,
+                    created_at: new Date().toISOString(),
+                }, {
+                    onConflict: 'live_class_id,note_date'
+                });
+
+            if (error) {
+                console.error('Error saving note:', error);
+                alert('Gagal menyimpan catatan. Silakan coba lagi.');
+                return;
+            }
+
+            // Update local state
+            if (noteText.trim()) {
+                setClassNotes(prev => ({
+                    ...prev,
+                    [selectedClass.live_class_id]: {
+                        note_text: noteText.trim(),
+                        created_by_name: userName,
+                        pic_number: currentPIC,
+                        created_at: new Date().toISOString()
+                    }
+                }));
+            } else {
+                // If note is empty, remove it
+                setClassNotes(prev => {
+                    const updated = { ...prev };
+                    delete updated[selectedClass.live_class_id];
+                    return updated;
+                });
+            }
+
+            setShowNotesModal(false);
+            setSelectedClass(null);
+            setNoteText('');
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan. Silakan coba lagi.');
+        }
+    };
+
+    // Get note for a class
+    const getClassNote = (liveClassId) => {
+        return classNotes[liveClassId] || null;
+    };
+
     if (checkingPIC) {
         return (
             <div className="tm-page">
@@ -1173,8 +1309,19 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                             </>
                                                         );
                                                     } else if (shouldShowActions(item)) {
+                                                        const note = getClassNote(item.live_class_id);
                                                         return (
                                                             <>
+                                                                {item.status === 'not_started' && (
+                                                                    <button
+                                                                        className={`tm-action-btn notes ${note ? 'has-note' : ''}`}
+                                                                        onClick={() => handleNotesClick(item)}
+                                                                        title={note ? `Note: ${note.note_text}` : 'Add Note'}
+                                                                    >
+                                                                        <MessageSquare size={14} />
+                                                                        {note ? 'Edit Note' : 'Notes'}
+                                                                    </button>
+                                                                )}
                                                                 <button
                                                                     className="tm-action-btn visit"
                                                                     onClick={() => handleVisitClass(item)}
@@ -1192,9 +1339,27 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                                     <AlertTriangle size={14} />
                                                                     Emergency
                                                                 </button>
+                                                                {item.status !== 'not_started' && note && (
+                                                                    <div className="tm-note-display">
+                                                                        <MessageSquare size={12} />
+                                                                        <span className="tm-note-text">{note.note_text}</span>
+                                                                        <span className="tm-note-author">- PIC {note.pic_number}</span>
+                                                                    </div>
+                                                                )}
                                                             </>
                                                         );
                                                     } else {
+                                                        // For joined status, show note if exists
+                                                        const note = getClassNote(item.live_class_id);
+                                                        if (note) {
+                                                            return (
+                                                                <div className="tm-note-display">
+                                                                    <MessageSquare size={12} />
+                                                                    <span className="tm-note-text">{note.note_text}</span>
+                                                                    <span className="tm-note-author">- PIC {note.pic_number}</span>
+                                                                </div>
+                                                            );
+                                                        }
                                                         return <span className="tm-no-action">-</span>;
                                                     }
                                                 })()}
@@ -1336,6 +1501,54 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                 onClick={() => setShowPiketModal(false)}
                             >
                                 Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notes Modal */}
+            {showNotesModal && selectedClass && (
+                <div className="tm-modal-overlay" onClick={() => setShowNotesModal(false)}>
+                    <div className="tm-modal notes-modal" onClick={e => e.stopPropagation()}>
+                        <div className="tm-modal-header">
+                            <h3>
+                                <MessageSquare size={20} />
+                                Catatan Kelas
+                            </h3>
+                            <button className="tm-modal-close" onClick={() => setShowNotesModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="tm-modal-body">
+                            <div className="tm-modal-info">
+                                <p><strong>Teacher:</strong> {selectedClass.teacher_name}</p>
+                                <p><strong>Slot:</strong> {selectedClass.slot_name} (Grade {selectedClass.class_grade})</p>
+                                <p><strong>Time:</strong> {formatTime(selectedClass.class_start_time)} - {formatTime(selectedClass.class_end_time)}</p>
+                            </div>
+                            <div className="tm-form-group">
+                                <label>Catatan untuk PIC lain</label>
+                                <textarea
+                                    value={noteText}
+                                    onChange={(e) => setNoteText(e.target.value)}
+                                    placeholder="Contoh: Sudah dihubungi via WA, menunggu respon..."
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                        <div className="tm-modal-footer">
+                            <button
+                                className="tm-btn secondary"
+                                onClick={() => setShowNotesModal(false)}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                className="tm-btn primary notes"
+                                onClick={handleNotesSubmit}
+                            >
+                                <MessageSquare size={16} />
+                                Simpan Catatan
                             </button>
                         </div>
                     </div>

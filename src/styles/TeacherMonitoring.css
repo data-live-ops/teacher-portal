@@ -615,6 +615,58 @@
     color: white;
 }
 
+.tm-action-btn.notes {
+    background: #F3E8FF;
+    color: #7C3AED;
+}
+
+.tm-action-btn.notes:hover {
+    background: #7C3AED;
+    color: white;
+}
+
+.tm-action-btn.notes.has-note {
+    background: #7C3AED;
+    color: white;
+}
+
+.tm-action-btn.notes.has-note:hover {
+    background: #6D28D9;
+}
+
+/* Note Display (non-button) */
+.tm-note-display {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #F3E8FF;
+    border-radius: 8px;
+    border-left: 3px solid #7C3AED;
+    max-width: 280px;
+}
+
+.tm-note-display svg {
+    flex-shrink: 0;
+    color: #7C3AED;
+    margin-top: 2px;
+}
+
+.tm-note-text {
+    font-size: 12px;
+    color: #5B21B6;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.tm-note-author {
+    font-size: 11px;
+    color: #9CA3AF;
+    white-space: nowrap;
+    margin-left: auto;
+    font-style: italic;
+}
+
 .tm-no-action {
     color: #D1D5DB;
     font-size: 13px;
@@ -819,6 +871,18 @@
 
 .tm-btn.primary.emergency:hover:not(:disabled) {
     background: #B91C1C;
+}
+
+.tm-btn.primary.notes {
+    background: #7C3AED;
+}
+
+.tm-btn.primary.notes:hover:not(:disabled) {
+    background: #6D28D9;
+}
+
+.tm-modal.notes-modal {
+    max-width: 480px;
 }
 
 .tm-btn.secondary {
