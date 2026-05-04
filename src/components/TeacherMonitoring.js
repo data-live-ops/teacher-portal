@@ -23,183 +23,184 @@ const TABS = [
     { key: 'joined', label: 'Joined', color: '#16A34A', bgColor: '#DCFCE7' },
 ];
 
-const DUMMY_CLASSES = [
-    { id: 1146652, session_id: 'a9eff481-d4ab-46f1-9959-cfd116e5cd7c', subject: 'IPA', session_topic: 'Usaha dan Energi', slot_name: 'IPA 1', teacher_name: 'Iftita Selviana', grade: '10', class_time: '16:00-17:00' },
-    { id: 1146480, session_id: '5e8f054e-8e6a-4faa-a4c6-8c6d10f19764', subject: 'IPA', session_topic: 'Usaha dan Energi', slot_name: 'IPA 6', teacher_name: 'Nurfadila', grade: '10', class_time: '17:15-18:15' },
-    { id: 1146733, session_id: 'cc0e6aa9-e006-4f30-a224-6b36418e628a', subject: 'IPA', session_topic: 'Usaha dan Energi', slot_name: 'IPA 8', teacher_name: 'Iftita Selviana', grade: '10', class_time: '19:00-20:00' },
-    { id: 1146402, session_id: '3cd39ab9-ca9e-4a0d-a4c4-6fb0d2f3c2a5', subject: 'Matematika', session_topic: 'Persiapan PTS', slot_name: 'Matematika 1 (1x)', teacher_name: 'Devi Claudia', grade: '10', class_time: '16:00-17:00' },
-    { id: 1146597, session_id: '9349111e-8c78-4ccd-8161-71291224ceff', subject: 'Matematika', session_topic: 'Persiapan PTS', slot_name: 'Matematika 11 (1x)', teacher_name: 'Sinatrya Nisa Budikusuma', grade: '10', class_time: '17:15-18:15' },
-    { id: 1146280, session_id: '03426fe4-e4ec-4079-80c9-6e05212753af', subject: 'Matematika', session_topic: 'Persiapan PTS', slot_name: 'Matematika 2 (2x)', teacher_name: 'Indra Setiawan', grade: '10', class_time: '17:15-18:15' },
-    { id: 1146359, session_id: '2be389db-d029-4269-ac95-bf471ea3c6fd', subject: 'Matematika', session_topic: 'Persiapan PTS', slot_name: 'Matematika 6 (1x)', teacher_name: 'Maya Annisa', grade: '10', class_time: '19:00-20:00' },
-    { id: 1146335, session_id: '1fbb7997-05b5-48f3-b4e8-220ac0531ca5', subject: 'Matematika', session_topic: 'Persiapan PTS', slot_name: 'Matematika 6 (2x)', teacher_name: 'Meicheil Yohansa', grade: '10', class_time: '19:00-20:00' },
-    { id: 1146946, session_id: '42498d77-c47e-4065-963e-252761c136d9', subject: 'Fisika', session_topic: 'Persiapan PTS', slot_name: 'Fisika 2', teacher_name: 'Luthfi Yuliyanthi Suryadi', grade: '11', class_time: '19:00-20:00' },
-    { id: 1147041, session_id: '7a604cc1-f609-4210-bbbd-6f53f37a7b58', subject: 'Kimia', session_topic: 'Persiapan PTS', slot_name: 'Kimia 4', teacher_name: 'Indah Permatasari', grade: '11', class_time: '17:15-18:15' },
-    { id: 1147195, session_id: 'd1097158-9b64-408a-991a-b6adceffc0f6', subject: 'Matematika', session_topic: 'Statistika Regresi', slot_name: 'Matematika 1 (1x)', teacher_name: 'Devi Claudia', grade: '11', class_time: '17:15-18:15' },
-    { id: 1147166, session_id: 'bd7122ff-3623-4fad-9a07-a863c44ab04c', subject: 'Matematika', session_topic: 'Statistika Regresi', slot_name: 'Matematika 2 (2x)', teacher_name: 'Mohamad Handri Tuloli', grade: '11', class_time: '17:15-18:15' },
-    { id: 1146993, session_id: '61e129e3-0890-48e9-a510-84c2916b3973', subject: 'Matematika', session_topic: 'Statistika Regresi', slot_name: 'Matematika 4 (2x)', teacher_name: 'Benedictus Aditya Kurniawan', grade: '11', class_time: '19:00-20:00' },
-    { id: 1147211, session_id: 'd9233811-fcb2-4e7d-b95d-f35db8732d31', subject: 'Matematika', session_topic: 'Statistika Regresi', slot_name: 'Matematika 6 (1x)', teacher_name: 'Razieq Ilham Amali', grade: '11', class_time: '19:00-20:00' },
-    { id: 1147226, session_id: 'e3f83c7c-880c-461a-beee-a191c8cca229', subject: 'Matematika', session_topic: 'Statistika Regresi', slot_name: 'Matematika 6 (2x)', teacher_name: 'Muhamad Ijharudin', grade: '11', class_time: '19:00-20:00' },
-    { id: 1147358, session_id: 'caa64291-e506-4710-8b00-25364499a4b6', subject: 'Matematika', session_topic: 'Persiapan US', slot_name: 'Matematika 1', teacher_name: 'Levi Lawrence', grade: '12', class_time: '17:15-18:15' },
-    { id: 1147292, session_id: '1f8ca010-dead-4f5f-8b5c-57e6f091b97b', subject: 'Matematika', session_topic: 'Persiapan US', slot_name: 'Matematika 3', teacher_name: 'Mohamad Handri Tuloli', grade: '12', class_time: '19:00-20:00' },
-    { id: 1142503, session_id: 'd5c526c7-f302-41e6-8490-e922363332b9', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 1', teacher_name: 'Ainun Widyawati', grade: '4', class_time: '14:30-15:30' },
-    { id: 1142405, session_id: 'ac3df436-612b-469b-829a-742cadd0063a', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 12', teacher_name: 'Eka Kartika Damayanti', grade: '4', class_time: '17:15-18:15' },
-    { id: 1142462, session_id: 'c2ff1cff-6bd0-493c-9495-89befd4b20e0', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 19', teacher_name: 'Windi Getti Nurasti Dewik', grade: '4', class_time: '19:00-20:00' },
-    { id: 1142589, session_id: 'f9d69c5e-ba3d-47cf-8cd2-3795463d2845', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 23', teacher_name: 'Meilysa Ajeng Kartika Putri', grade: '4', class_time: '19:00-20:00' },
-    { id: 1142472, session_id: 'c67fb0f6-b260-4001-8c19-83d18bcd065f', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 27', teacher_name: 'Siti Nurazizah', grade: '4', class_time: '16:00-17:00' },
-    { id: 1142453, session_id: 'bf041ede-22ec-4b08-b718-c1d33c3d3455', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 32', teacher_name: 'Alfi Fani Supardi', grade: '4', class_time: '17:15-18:15' },
-    { id: 1142538, session_id: 'e711101a-56e4-457b-a87e-7d68e70a699b', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 35', teacher_name: 'Fahkriani Hanif', grade: '4', class_time: '16:00-17:00' },
-    { id: 1142237, session_id: '6972a8bc-c4e9-4b5f-b492-518f6501b95b', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 38', teacher_name: 'Siti Nurazizah', grade: '4', class_time: '19:00-20:00' },
-    { id: 1142054, session_id: '1f947b4b-51f2-4db8-b49a-2126eb63337d', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 41', teacher_name: 'Siti Nurazizah', grade: '4', class_time: '17:15-18:15' },
-    { id: 1142571, session_id: 'f3e6771a-bed1-48f0-94a3-ce6f2299e942', subject: 'Matematika', session_topic: 'Bangun Datar', slot_name: 'Matematika 7', teacher_name: 'Yufrida Septi Nindya', grade: '4', class_time: '16:00-17:00' },
-    { id: 1143210, session_id: 'c93f6c21-7963-4a26-ae58-5fc29c500f55', subject: 'Matematika', session_topic: 'Bangun Ruang', slot_name: 'Matematika 1', teacher_name: 'Gracia Evelyn Setyaputri', grade: '5', class_time: '16:00-17:00' },
-    { id: 1143200, session_id: 'c7591936-2838-45de-8366-ade8afe2bc6d', subject: 'Matematika', session_topic: 'Bangun Ruang', slot_name: 'Matematika 13', teacher_name: 'Adelina Savitri', grade: '5', class_time: '14:30-15:30' },
-    { id: 1142772, session_id: '3af1e78d-3892-4b99-9f06-bc35744f1fce', subject: 'Matematika', session_topic: 'Bangun Ruang', slot_name: 'Matematika 18', teacher_name: 'Katherine Himawati Kosim', grade: '5', class_time: '19:00-20:00' },
-];
+// Helper function to parse class time string (e.g., "16:00-17:00") to start/end Date objects
+const parseClassTime = (classDate, timeString) => {
+    const [startTime, endTime] = timeString.split('-');
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
 
-// Initial statuses for demo - will change dynamically
-// 'stuck' is a special marker for joining with >5 min duration (will be converted to 'joining')
-const INITIAL_STATUSES = [
-    'not_started', 'not_started', 'not_started', 'not_started', 'not_started',  // 5 not started
-    'stuck', 'stuck', 'stuck',  // 3 stuck join (joining > 5 min)
-    'joining', 'joining',  // 2 normal joining
-    'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined', 'joined',  // 8 joined
-    'left', 'left', 'left',  // 3 left
-    'not_started', 'stuck', 'joining', 'joined', 'joined', 'joined', 'left', 'joined', 'joined'  // rest
-];
+    const start = new Date(classDate);
+    start.setHours(startHour, startMin, 0, 0);
 
-// Generate initial data for the simulation
-const generateInitialData = () => {
-    const now = new Date();
+    const end = new Date(classDate);
+    end.setHours(endHour, endMin, 0, 0);
 
-    return DUMMY_CLASSES.map((cls, index) => {
-        const statusMarker = INITIAL_STATUSES[index] || 'joined';
-        // Convert 'stuck' marker to actual 'joining' status
-        const status = statusMarker === 'stuck' ? 'joining' : statusMarker;
-        const isStuckJoin = statusMarker === 'stuck';
+    return { start, end };
+};
 
-        const [startTime, endTime] = cls.class_time.split('-');
+// Calculate teacher status from zoom events
+const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEndTime) => {
+    const classEvents = zoomEvents.filter(e => e.live_class_id === scheduleId);
 
-        // Parse class time
-        const classStartTime = new Date(now);
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        classStartTime.setHours(startHour, startMin, 0, 0);
+    // 1. Check meeting.started
+    const meetingStarted = classEvents.find(e => e.event_name === 'meeting.started');
+    if (!meetingStarted) {
+        return { status: 'not_started', joining_time: null };
+    }
 
-        const classEndTime = new Date(now);
-        const [endHour, endMin] = endTime.split(':').map(Number);
-        classEndTime.setHours(endHour, endMin, 0, 0);
+    // 2. Check teacher participant_joined (latest)
+    const teacherJoined = classEvents
+        .filter(e => e.event_name === 'meeting.participant_joined' && e.participant_email === teacherEmail)
+        .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
 
-        // Joining time - set based on stuck status
-        const joiningTime = new Date(now);
-        if (isStuckJoin) {
-            // Stuck: joining time 6-12 minutes ago (definitely > 5 min threshold)
-            joiningTime.setMinutes(joiningTime.getMinutes() - (6 + Math.floor(Math.random() * 7)));
-        } else if (status === 'joining') {
-            // Normal joining: 1-3 minutes ago
-            joiningTime.setMinutes(joiningTime.getMinutes() - (1 + Math.floor(Math.random() * 3)));
-        } else {
-            // Other statuses: random time
-            joiningTime.setMinutes(joiningTime.getMinutes() - Math.floor(Math.random() * 10));
+    // 3. Check teacher participant_left (latest)
+    const teacherLeft = classEvents
+        .filter(e => e.event_name === 'meeting.participant_left' && e.participant_email === teacherEmail)
+        .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
+
+    // 4. Determine status
+    if (!teacherJoined) {
+        return { status: 'joining', joining_time: meetingStarted.event_timestamp };
+    }
+
+    // Check if teacher left DURING class time (before class end time)
+    // If teacher left AFTER class end time, it's normal (class finished)
+    if (teacherLeft && new Date(teacherLeft.event_timestamp) > new Date(teacherJoined.event_timestamp)) {
+        const leftTime = new Date(teacherLeft.event_timestamp);
+        const endTime = new Date(classEndTime);
+
+        // Only mark as 'left' if teacher left BEFORE class was supposed to end
+        if (leftTime < endTime) {
+            return { status: 'left', joining_time: teacherJoined.event_timestamp };
         }
+    }
 
-        // Generate teacher email from name
-        const teacherEmail = cls.teacher_name.toLowerCase().replace(/\s+/g, '.') + '@colearn.id';
+    return { status: 'joined', joining_time: teacherJoined.event_timestamp };
+};
 
+// Load today's classes from class_schedules
+const loadTodayClasses = async (supabaseClient) => {
+    const today = getLocalDateString();
+
+    // Get active semester
+    const { data: semester, error: semesterError } = await supabaseClient
+        .from('semesters')
+        .select('id')
+        .eq('is_active', true)
+        .single();
+
+    if (semesterError || !semester) {
+        console.error('Error loading active semester:', semesterError);
+        return [];
+    }
+
+    // Load classes for today
+    const { data: classes, error: classError } = await supabaseClient
+        .from('class_schedules')
+        .select(`
+            schedule_id,
+            teacher_name,
+            teacher_email,
+            slot_name,
+            subject,
+            grade,
+            time,
+            class_date
+        `)
+        .eq('class_date', today)
+        .eq('semester_id', semester.id)
+        .eq('is_available', true);
+
+    if (classError) {
+        console.error('Error loading classes:', classError);
+        return [];
+    }
+
+    if (!classes || classes.length === 0) {
+        return [];
+    }
+
+    // Load session_topic from raw_sessions
+    const scheduleIds = classes.map(c => c.schedule_id);
+    const { data: sessions } = await supabaseClient
+        .from('raw_sessions')
+        .select('session_id, session_topic')
+        .in('session_id', scheduleIds);
+
+    // Load teacher phones from user_emails (if available)
+    const teacherEmails = [...new Set(classes.map(c => c.teacher_email).filter(Boolean))];
+    let phonesMap = {};
+    if (teacherEmails.length > 0) {
+        const { data: phones } = await supabaseClient
+            .from('user_emails')
+            .select('email, phone')
+            .in('email', teacherEmails);
+        if (phones) {
+            phonesMap = Object.fromEntries(phones.filter(p => p.phone).map(p => [p.email, p.phone]));
+        }
+    }
+
+    // Create lookup maps
+    const sessionsMap = sessions ? Object.fromEntries(sessions.map(s => [s.session_id, s.session_topic])) : {};
+
+    // Map to UI format
+    return classes.map(cls => {
+        const { start, end } = parseClassTime(cls.class_date, cls.time);
         return {
-            id: `class-${cls.id}`,
-            live_class_id: cls.session_id,
-            teacher_name: cls.teacher_name,
-            teacher_email: teacherEmail,
-            teacher_phone: `0812${String(cls.id).slice(-8).padStart(8, '0')}`,
-            slot_name: cls.slot_name,
-            session_topic: cls.session_topic,
-            class_subject: cls.subject,
-            class_grade: cls.grade,
-            class_time: cls.class_time,
-            class_start_time: classStartTime.toISOString(),
-            class_end_time: classEndTime.toISOString(),
-            zoom_link: `https://zoom.us/j/${cls.id}`,
-            status: status,
-            joining_time: status !== 'not_started' ? joiningTime.toISOString() : null,
-            need_replacement: false,
-            replacement_reason: null,
-            replacement_requested_at: null,
-            replacement_requested_by: null,
+            ...cls,
+            session_topic: sessionsMap[cls.schedule_id] || cls.slot_name,
+            teacher_phone: phonesMap[cls.teacher_email] || null,
+            zoom_link: `https://zoom.us/j/${cls.schedule_id}`, // Dummy link for now
+            class_start_time: start.toISOString(),
+            class_end_time: end.toISOString(),
         };
     });
 };
 
-// Simulate status changes for demo
-const simulateStatusChange = (currentData) => {
-    const now = new Date();
+// Load zoom events for given schedule IDs
+const loadZoomEvents = async (supabaseClient, scheduleIds) => {
+    if (!scheduleIds || scheduleIds.length === 0) {
+        return [];
+    }
 
-    return currentData.map(item => {
-        // Skip items that need replacement (handled separately)
-        if (item.need_replacement) return item;
+    const { data: events, error } = await supabaseClient
+        .from('zoom_event_logs')
+        .select('*')
+        .in('live_class_id', scheduleIds)
+        .order('event_timestamp', { ascending: true });
 
-        // Random chance to change status (25% chance per item per cycle)
-        if (Math.random() > 0.25) return item;
+    if (error) {
+        console.error('Error loading zoom events:', error);
+        return [];
+    }
 
-        let newStatus = item.status;
-        let newJoiningTime = item.joining_time;
+    return events || [];
+};
 
-        // Check if currently stuck (> 5 minutes in joining)
-        const joiningDuration = item.joining_time ?
-            (now - new Date(item.joining_time)) / 60000 : 0;
-        const isCurrentlyStuck = item.status === 'joining' && joiningDuration > 5;
-
-        switch (item.status) {
-            case 'not_started':
-                // 60% chance to start joining, 40% stay not_started
-                if (Math.random() < 0.6) {
-                    newStatus = 'joining';
-                    newJoiningTime = now.toISOString();
-                }
-                break;
-
-            case 'joining':
-                if (isCurrentlyStuck) {
-                    // Stuck join - lower chance to resolve (30%), keeps it visible longer
-                    const rand = Math.random();
-                    if (rand < 0.2) {
-                        newStatus = 'joined';  // 20% finally joined
-                    } else if (rand < 0.3) {
-                        newStatus = 'left';    // 10% gave up/disconnected
-                    }
-                    // 70% stays stuck - visible for demo
-                } else {
-                    // Normal joining - 50% chance to join, 50% stay joining (may become stuck)
-                    if (Math.random() < 0.5) {
-                        newStatus = 'joined';
-                    }
-                    // Staying in 'joining' will eventually become stuck after 5 min
-                }
-                break;
-
-            case 'joined':
-                // 10% chance to leave (teacher disconnected, etc.)
-                if (Math.random() < 0.1) {
-                    newStatus = 'left';
-                }
-                break;
-
-            case 'left':
-                // 50% chance to rejoin
-                if (Math.random() < 0.5) {
-                    newStatus = 'joining';
-                    newJoiningTime = now.toISOString();
-                }
-                break;
-
-            default:
-                break;
-        }
-
-        return {
-            ...item,
-            status: newStatus,
-            joining_time: newJoiningTime,
-        };
-    });
+// Map class data to UI format with status
+const mapToUIFormat = (classSchedule, status, joiningTime, emergencyMap) => {
+    const emergency = emergencyMap[classSchedule.schedule_id];
+    return {
+        id: `class-${classSchedule.schedule_id}`,
+        live_class_id: classSchedule.schedule_id,
+        teacher_name: classSchedule.teacher_name,
+        teacher_email: classSchedule.teacher_email,
+        teacher_phone: classSchedule.teacher_phone,
+        slot_name: classSchedule.slot_name,
+        session_topic: classSchedule.session_topic,
+        class_subject: classSchedule.subject,
+        class_grade: classSchedule.grade,
+        class_time: classSchedule.time,
+        class_start_time: classSchedule.class_start_time,
+        class_end_time: classSchedule.class_end_time,
+        zoom_link: classSchedule.zoom_link,
+        status: status,
+        joining_time: joiningTime,
+        need_replacement: !!emergency,
+        replacement_reason: emergency?.reason || null,
+        replacement_requested_at: emergency?.requested_at || null,
+        replacement_requested_by: emergency?.requested_by || null,
+    };
 };
 
 const TeacherMonitoring = ({ user, onLogout }) => {
@@ -438,22 +439,50 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
-    // Ref to store emergency map for preserving emergency status during simulation
+    // Ref to store emergency map for preserving emergency status
     const emergencyMapRef = useRef({});
+    // Ref to store classes data for zoom event updates
+    const classesRef = useRef([]);
+    // Ref to store zoom events
+    const zoomEventsRef = useRef([]);
 
+    // Function to recalculate all statuses from current zoom events
+    const recalculateStatuses = (classes, zoomEvents, emergencyMap) => {
+        return classes.map(cls => {
+            const { status, joining_time } = calculateStatusFromEvents(
+                cls.schedule_id,
+                cls.teacher_email,
+                zoomEvents,
+                cls.class_end_time
+            );
+            return mapToUIFormat(cls, status, joining_time, emergencyMap);
+        });
+    };
+
+    // Load real data from database
     useEffect(() => {
-        const loadDataWithEmergencies = async () => {
+        const loadRealData = async () => {
             setLoading(true);
             try {
-                // Fetch pending emergencies from database
-                const { data: emergencies, error } = await supabase
+                // 1. Load today's classes
+                const classes = await loadTodayClasses(supabase);
+                classesRef.current = classes;
+
+                if (classes.length === 0) {
+                    setData([]);
+                    setLoading(false);
+                    setLastRefresh(new Date());
+                    return;
+                }
+
+                // 2. Fetch pending emergencies
+                const { data: emergencies, error: emergencyError } = await supabase
                     .from('emergency_replacements')
                     .select('live_class_id, reason, requested_by_name, created_at')
                     .eq('status', 'pending');
 
-                // Create a map of emergency class IDs
                 const emergencyMap = {};
-                if (!error && emergencies) {
+                if (!emergencyError && emergencies) {
                     emergencies.forEach(e => {
                         emergencyMap[e.live_class_id] = {
                             reason: e.reason,
@@ -464,78 +493,130 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 }
                 emergencyMapRef.current = emergencyMap;
 
-                // Generate initial data with emergency status
-                const initialData = generateInitialData().map(item => {
-                    const emergency = emergencyMap[item.live_class_id];
-                    if (emergency) {
-                        return {
-                            ...item,
-                            need_replacement: true,
-                            replacement_reason: emergency.reason,
-                            replacement_requested_by: emergency.requested_by,
-                            replacement_requested_at: emergency.requested_at
-                        };
-                    }
-                    return item;
-                });
+                // 3. Load zoom events for today's classes
+                const scheduleIds = classes.map(c => c.schedule_id);
+                const zoomEvents = await loadZoomEvents(supabase, scheduleIds);
+                zoomEventsRef.current = zoomEvents;
 
-                setData(initialData);
+                // 4. Calculate statuses and map to UI format
+                const dataWithStatuses = recalculateStatuses(classes, zoomEvents, emergencyMap);
+                setData(dataWithStatuses);
+
             } catch (err) {
-                console.error('Error:', err);
-                setData(generateInitialData());
+                console.error('Error loading real data:', err);
+                setData([]);
             } finally {
                 setLoading(false);
                 setLastRefresh(new Date());
             }
         };
 
-        loadDataWithEmergencies();
-
-        // Dynamic simulation: update statuses every 3 seconds for demo
-        const simulationInterval = setInterval(() => {
-            setData(prevData => {
-                // Simulate status changes
-                const simulatedData = simulateStatusChange(prevData);
-
-                // Preserve emergency status from database
-                return simulatedData.map(item => {
-                    const emergency = emergencyMapRef.current[item.live_class_id];
-                    if (emergency) {
-                        return {
-                            ...item,
-                            need_replacement: true,
-                            replacement_reason: emergency.reason,
-                            replacement_requested_by: emergency.requested_by,
-                            replacement_requested_at: emergency.requested_at
-                        };
-                    }
-                    return item;
-                });
-            });
-            setLastRefresh(new Date());
-        }, 3000);
-
-        return () => clearInterval(simulationInterval);
+        loadRealData();
     }, []);
+
+    // Real-time subscription to zoom_event_logs
+    useEffect(() => {
+        const subscription = supabase
+            .channel('zoom_events_live')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'zoom_event_logs',
+            }, (payload) => {
+                console.log('Zoom event received:', payload);
+                const newEvent = payload.new;
+
+                // Check if this event is for one of our classes
+                const scheduleIds = classesRef.current.map(c => c.schedule_id);
+                if (!scheduleIds.includes(newEvent.live_class_id)) {
+                    return; // Not for our classes
+                }
+
+                // Add new event to our events list
+                zoomEventsRef.current = [...zoomEventsRef.current, newEvent];
+
+                // Recalculate statuses
+                const updatedData = recalculateStatuses(
+                    classesRef.current,
+                    zoomEventsRef.current,
+                    emergencyMapRef.current
+                );
+                setData(updatedData);
+                setLastRefresh(new Date());
+            })
+            .subscribe((status) => {
+                console.log('Zoom subscription status:', status);
+            });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    // Polling - refresh zoom events every 5 seconds
+    useEffect(() => {
+        const refreshZoomEvents = async () => {
+            if (classesRef.current.length === 0) {
+                setLastRefresh(new Date());
+                return;
+            }
+
+            try {
+                const scheduleIds = classesRef.current.map(c => c.schedule_id);
+                const zoomEvents = await loadZoomEvents(supabase, scheduleIds);
+                zoomEventsRef.current = zoomEvents;
+
+                const updatedData = recalculateStatuses(
+                    classesRef.current,
+                    zoomEvents,
+                    emergencyMapRef.current
+                );
+                setData(updatedData);
+            } catch (err) {
+                console.error('Error refreshing zoom events:', err);
+            }
+
+            setLastRefresh(new Date());
+        };
+
+        // Poll every 5 seconds
+        const pollInterval = setInterval(refreshZoomEvents, 5000);
+
+        return () => clearInterval(pollInterval);
+    }, []);
+
+    // Filter out classes that ended more than 15 minutes ago
+    const activeData = useMemo(() => {
+        const now = new Date();
+        const fifteenMinutes = 15 * 60 * 1000;
+
+        return data.filter(item => {
+            const endTime = new Date(item.class_end_time);
+            const timeSinceEnd = now - endTime;
+
+            // Keep classes that haven't ended yet OR ended less than 15 minutes ago
+            return timeSinceEnd <= fifteenMinutes;
+        });
+    }, [data, lastRefresh]); // lastRefresh ensures recalculation every poll
 
     const filteredData = useMemo(() => {
         if (activeTab === 'need_replacement') {
-            return data.filter(item => item.need_replacement);
+            return activeData.filter(item => item.need_replacement);
         }
-        return data.filter(item => item.status === activeTab && !item.need_replacement);
-    }, [data, activeTab]);
+        return activeData.filter(item => item.status === activeTab && !item.need_replacement);
+    }, [activeData, activeTab]);
 
     const statusCounts = useMemo(() => {
         const counts = {};
         TABS.forEach(tab => {
             if (tab.key === 'need_replacement') {
-                counts[tab.key] = data.filter(item => item.need_replacement).length;
+                counts[tab.key] = activeData.filter(item => item.need_replacement).length;
             } else {
-                counts[tab.key] = data.filter(item => item.status === tab.key && !item.need_replacement).length;
+                counts[tab.key] = activeData.filter(item => item.status === tab.key && !item.need_replacement).length;
             }
         });
         return counts;
-    }, [data]);
+    }, [activeData]);
 
     // Calculate duration for stuck detection
     const getDuration = (timestamp) => {
@@ -1129,7 +1210,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 {/* Footer info */}
                 <div className="tm-footer">
                     <p className="tm-note">
-                        <strong>Jangan terkejut</strong>. Cuma data dummy yummy Mr DIY jangan lupa bersyukur ini. Mas Anthony dkk lagi sibuk.
+                        Data kelas diambil dari <strong>class_schedules</strong> dan status dari <strong>zoom_event_logs</strong> secara real-time.
                     </p>
                 </div>
             </div>
