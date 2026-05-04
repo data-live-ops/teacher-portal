@@ -44,7 +44,7 @@ const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEn
     // 1. Check meeting.started
     const meetingStarted = classEvents.find(e => e.event_name === 'meeting.started');
     if (!meetingStarted) {
-        return { status: 'not_started', joining_time: null };
+        return { status: 'not_started', joining_time: null, rejoined_after_left: false };
     }
 
     // 2. Check teacher participant_joined (latest)
@@ -52,29 +52,37 @@ const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEn
         .filter(e => e.event_name === 'meeting.participant_joined' && e.participant_email === teacherEmail)
         .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
 
-    // 3. Check teacher participant_left (latest)
-    const teacherLeft = classEvents
-        .filter(e => e.event_name === 'meeting.participant_left' && e.participant_email === teacherEmail)
+    // 3. Check if there was ANY left event DURING class time
+    const endTime = new Date(classEndTime);
+    const teacherLeftDuringClass = classEvents
+        .filter(e =>
+            e.event_name === 'meeting.participant_left' &&
+            e.participant_email === teacherEmail &&
+            new Date(e.event_timestamp) < endTime
+        )
         .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
 
     // 4. Determine status
     if (!teacherJoined) {
-        return { status: 'joining', joining_time: meetingStarted.event_timestamp };
+        return { status: 'joining', joining_time: meetingStarted.event_timestamp, rejoined_after_left: false };
     }
 
-    // Check if teacher left DURING class time (before class end time)
-    // If teacher left AFTER class end time, it's normal (class finished)
-    if (teacherLeft && new Date(teacherLeft.event_timestamp) > new Date(teacherJoined.event_timestamp)) {
-        const leftTime = new Date(teacherLeft.event_timestamp);
-        const endTime = new Date(classEndTime);
+    // 5. If teacher left during class time, status = 'left' (even if they rejoined)
+    if (teacherLeftDuringClass) {
+        const leftTime = new Date(teacherLeftDuringClass.event_timestamp);
+        const latestJoinTime = new Date(teacherJoined.event_timestamp);
 
-        // Only mark as 'left' if teacher left BEFORE class was supposed to end
-        if (leftTime < endTime) {
-            return { status: 'left', joining_time: teacherJoined.event_timestamp };
-        }
+        // Check if teacher rejoined after leaving (latest join is after latest left during class)
+        const rejoinedAfterLeft = latestJoinTime > leftTime;
+
+        return {
+            status: 'left',
+            joining_time: teacherJoined.event_timestamp,
+            rejoined_after_left: rejoinedAfterLeft
+        };
     }
 
-    return { status: 'joined', joining_time: teacherJoined.event_timestamp };
+    return { status: 'joined', joining_time: teacherJoined.event_timestamp, rejoined_after_left: false };
 };
 
 // Load today's classes from class_schedules
@@ -177,7 +185,7 @@ const loadZoomEvents = async (supabaseClient, scheduleIds) => {
 };
 
 // Map class data to UI format with status
-const mapToUIFormat = (classSchedule, status, joiningTime, emergencyMap) => {
+const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, emergencyMap) => {
     const emergency = emergencyMap[classSchedule.schedule_id];
     return {
         id: `class-${classSchedule.schedule_id}`,
@@ -195,6 +203,7 @@ const mapToUIFormat = (classSchedule, status, joiningTime, emergencyMap) => {
         zoom_link: classSchedule.zoom_link,
         status: status,
         joining_time: joiningTime,
+        rejoined_after_left: rejoinedAfterLeft,
         need_replacement: !!emergency,
         replacement_reason: emergency?.reason || null,
         replacement_requested_at: emergency?.requested_at || null,
@@ -516,13 +525,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     // Function to recalculate all statuses from current zoom events
     const recalculateStatuses = (classes, zoomEvents, emergencyMap) => {
         return classes.map(cls => {
-            const { status, joining_time } = calculateStatusFromEvents(
+            const { status, joining_time, rejoined_after_left } = calculateStatusFromEvents(
                 cls.schedule_id,
                 cls.teacher_email,
                 zoomEvents,
                 cls.class_end_time
             );
-            return mapToUIFormat(cls, status, joining_time, emergencyMap);
+            return mapToUIFormat(cls, status, joining_time, rejoined_after_left, emergencyMap);
         });
     };
 
@@ -1219,18 +1228,25 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                             {formatTime(item.class_start_time)} - {formatTime(item.class_end_time)}
                                         </td>
                                         <td>
-                                            <span
-                                                className={`tm-status-badge ${item.status} ${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'replacement' : ''} ${isUrgentNotStarted(item) ? 'urgent' : ''}`}
-                                            >
-                                                {item.need_replacement
-                                                    ? 'Need Replacement'
-                                                    : isStuck(item)
-                                                        ? 'Stuck Join'
-                                                        : isUrgentNotStarted(item)
-                                                            ? 'Urgent - Not Started'
-                                                            : item.status.replace('_', ' ')
-                                                }
-                                            </span>
+                                            <div className="tm-status-cell">
+                                                <span
+                                                    className={`tm-status-badge ${item.status} ${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'replacement' : ''} ${isUrgentNotStarted(item) ? 'urgent' : ''}`}
+                                                >
+                                                    {item.need_replacement
+                                                        ? 'Need Replacement'
+                                                        : isStuck(item)
+                                                            ? 'Stuck Join'
+                                                            : isUrgentNotStarted(item)
+                                                                ? 'Urgent - Not Started'
+                                                                : item.status.replace('_', ' ')
+                                                    }
+                                                </span>
+                                                {item.status === 'left' && (
+                                                    <span className={`tm-joinback-badge ${item.rejoined_after_left ? 'yes' : 'no'}`}>
+                                                        Join Back: {item.rejoined_after_left ? 'Yes' : 'Not Yet'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td>
                                             {item.status === 'not_started'
