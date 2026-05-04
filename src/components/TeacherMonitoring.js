@@ -19,8 +19,7 @@ const TABS = [
     { key: 'need_replacement', label: 'Need Replacement', color: '#7C3AED', bgColor: '#EDE9FE', icon: '🚨' },
     { key: 'not_started', label: 'Class Not Started', color: '#DC2626', bgColor: '#FEE2E2' },
     { key: 'left', label: 'Left', color: '#EA580C', bgColor: '#FFEDD5' },
-    { key: 'joining', label: 'Joining', color: '#CA8A04', bgColor: '#FEF9C3' },
-    { key: 'joined', label: 'Joined', color: '#16A34A', bgColor: '#DCFCE7' },
+    { key: 'ongoing', label: 'Ongoing Classes', color: '#16A34A', bgColor: '#DCFCE7' },
 ];
 
 // Helper function to parse class time string (e.g., "16:00-17:00") to start/end Date objects
@@ -671,6 +670,12 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         if (activeTab === 'need_replacement') {
             return activeData.filter(item => item.need_replacement);
         }
+        // "ongoing" tab includes: joined, joining (including stuck join)
+        if (activeTab === 'ongoing') {
+            return activeData.filter(item =>
+                (item.status === 'joined' || item.status === 'joining') && !item.need_replacement
+            );
+        }
         return activeData.filter(item => item.status === activeTab && !item.need_replacement);
     }, [activeData, activeTab]);
 
@@ -679,6 +684,11 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         TABS.forEach(tab => {
             if (tab.key === 'need_replacement') {
                 counts[tab.key] = activeData.filter(item => item.need_replacement).length;
+            } else if (tab.key === 'ongoing') {
+                // Count joined + joining (including stuck join)
+                counts[tab.key] = activeData.filter(item =>
+                    (item.status === 'joined' || item.status === 'joining') && !item.need_replacement
+                ).length;
             } else {
                 counts[tab.key] = activeData.filter(item => item.status === tab.key && !item.need_replacement).length;
             }
