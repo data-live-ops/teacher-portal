@@ -38,6 +38,16 @@ const parseClassTime = (classDate, timeString) => {
 };
 
 // Calculate teacher status from zoom events
+// Helper to extract user_id from event payload (unique per connection/device)
+const getUserIdFromPayload = (event) => {
+    try {
+        const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+        return payload?.payload?.object?.participant?.user_id || null;
+    } catch {
+        return null;
+    }
+};
+
 const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEndTime) => {
     const classEvents = zoomEvents.filter(e => e.live_class_id === scheduleId);
 
@@ -47,42 +57,103 @@ const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEn
         return { status: 'not_started', joining_time: null, rejoined_after_left: false };
     }
 
-    // 2. Check teacher participant_joined (latest)
-    const teacherJoined = classEvents
-        .filter(e => e.event_name === 'meeting.participant_joined' && e.participant_email === teacherEmail)
-        .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
+    // 2. Get all join and left events for teacher (by email)
+    const teacherJoinEvents = classEvents
+        .filter(e => e.event_name === 'meeting.participant_joined' && e.participant_email === teacherEmail);
 
-    // 3. Check if there was ANY left event DURING class time
-    const endTime = new Date(classEndTime);
-    const teacherLeftDuringClass = classEvents
-        .filter(e =>
-            e.event_name === 'meeting.participant_left' &&
-            e.participant_email === teacherEmail &&
-            new Date(e.event_timestamp) < endTime
-        )
-        .sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp))[0];
+    const teacherLeftEvents = classEvents
+        .filter(e => e.event_name === 'meeting.participant_left' && e.participant_email === teacherEmail);
 
-    // 4. Determine status
-    if (!teacherJoined) {
+    if (teacherJoinEvents.length === 0) {
         return { status: 'joining', joining_time: meetingStarted.event_timestamp, rejoined_after_left: false };
     }
 
-    // 5. If teacher left during class time, status = 'left' (even if they rejoined)
-    if (teacherLeftDuringClass) {
-        const leftTime = new Date(teacherLeftDuringClass.event_timestamp);
-        const latestJoinTime = new Date(teacherJoined.event_timestamp);
+    // 3. Track sessions by user_id (handles multiple connections from same email)
+    const sessions = {}; // { user_id: { joinTime, leftTime } }
 
-        // Check if teacher rejoined after leaving (latest join is after latest left during class)
-        const rejoinedAfterLeft = latestJoinTime > leftTime;
+    for (const joinEvent of teacherJoinEvents) {
+        const userId = getUserIdFromPayload(joinEvent);
+        const key = userId || `join-${joinEvent.event_timestamp}`;
 
+        if (!sessions[key]) {
+            sessions[key] = { joinTime: null, leftTime: null };
+        }
+        const joinTime = new Date(joinEvent.event_timestamp);
+        if (!sessions[key].joinTime || joinTime > new Date(sessions[key].joinTime)) {
+            sessions[key].joinTime = joinEvent.event_timestamp;
+        }
+    }
+
+    for (const leftEvent of teacherLeftEvents) {
+        const userId = getUserIdFromPayload(leftEvent);
+        const key = userId || `left-${leftEvent.event_timestamp}`;
+
+        if (sessions[key]) {
+            const leftTime = new Date(leftEvent.event_timestamp);
+            if (!sessions[key].leftTime || leftTime > new Date(sessions[key].leftTime)) {
+                sessions[key].leftTime = leftEvent.event_timestamp;
+            }
+        }
+    }
+
+    // 4. Analyze all sessions
+    const endTime = new Date(classEndTime);
+    let hasActiveSession = false;
+    let latestJoinTime = null;
+    let hadLeftDuringClass = false;
+
+    for (const key in sessions) {
+        const session = sessions[key];
+        const joinTime = session.joinTime ? new Date(session.joinTime) : null;
+        const leftTime = session.leftTime ? new Date(session.leftTime) : null;
+
+        if (joinTime) {
+            // Track latest join time across all sessions
+            if (!latestJoinTime || joinTime > latestJoinTime) {
+                latestJoinTime = joinTime;
+            }
+
+            // Check if this session is still active
+            if (!leftTime) {
+                // No left event for this session = still active
+                hasActiveSession = true;
+            } else if (leftTime < joinTime) {
+                // Left before join (shouldn't happen, but treat as active)
+                hasActiveSession = true;
+            } else {
+                // Session has ended - check if it was during class time
+                if (leftTime < endTime) {
+                    hadLeftDuringClass = true;
+                }
+            }
+        }
+    }
+
+    // 5. Determine final status
+    // If any session left during class, show in Left tab
+    if (hadLeftDuringClass) {
         return {
             status: 'left',
-            joining_time: teacherJoined.event_timestamp,
-            rejoined_after_left: rejoinedAfterLeft
+            joining_time: latestJoinTime?.toISOString(),
+            rejoined_after_left: hasActiveSession // true if any session is still connected
         };
     }
 
-    return { status: 'joined', joining_time: teacherJoined.event_timestamp, rejoined_after_left: false };
+    // No left during class - check if currently connected
+    if (hasActiveSession) {
+        return {
+            status: 'joined',
+            joining_time: latestJoinTime?.toISOString(),
+            rejoined_after_left: false
+        };
+    }
+
+    // All sessions ended (but after class time = normal)
+    return {
+        status: 'joined',
+        joining_time: latestJoinTime?.toISOString(),
+        rejoined_after_left: false
+    };
 };
 
 // Load today's classes from class_schedules
@@ -590,26 +661,32 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         loadRealData();
     }, []);
 
-    // Real-time subscription to zoom_event_logs
+    // Real-time subscription to zoom_event_logs (event-based, no polling needed)
     useEffect(() => {
+        // Build filter for today's classes
+        const scheduleIds = classesRef.current.map(c => c.schedule_id);
+
         const subscription = supabase
-            .channel('zoom_events_live')
+            .channel('zoom_events_realtime')
             .on('postgres_changes', {
-                event: '*',
+                event: 'INSERT', // Only listen to new events
                 schema: 'public',
                 table: 'zoom_event_logs',
             }, (payload) => {
-                console.log('Zoom event received:', payload);
+                console.log('Zoom event received (realtime):', payload);
                 const newEvent = payload.new;
 
                 // Check if this event is for one of our classes
-                const scheduleIds = classesRef.current.map(c => c.schedule_id);
-                if (!scheduleIds.includes(newEvent.live_class_id)) {
+                const currentScheduleIds = classesRef.current.map(c => c.schedule_id);
+                if (!currentScheduleIds.includes(newEvent.live_class_id)) {
                     return; // Not for our classes
                 }
 
-                // Add new event to our events list
-                zoomEventsRef.current = [...zoomEventsRef.current, newEvent];
+                // Add new event to our events list (avoid duplicates)
+                const existingIds = new Set(zoomEventsRef.current.map(e => e.id));
+                if (!existingIds.has(newEvent.id)) {
+                    zoomEventsRef.current = [...zoomEventsRef.current, newEvent];
+                }
 
                 // Recalculate statuses
                 const updatedData = recalculateStatuses(
@@ -621,19 +698,18 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 setLastRefresh(new Date());
             })
             .subscribe((status) => {
-                console.log('Zoom subscription status:', status);
+                console.log('Zoom realtime subscription status:', status);
             });
 
         return () => {
-            subscription.unsubscribe();
+            supabase.removeChannel(subscription);
         };
     }, []);
 
-    // Polling - refresh zoom events every 5 seconds
+    // Fallback: refresh every 60 seconds (instead of 5s) as safety net
     useEffect(() => {
         const refreshZoomEvents = async () => {
             if (classesRef.current.length === 0) {
-                setLastRefresh(new Date());
                 return;
             }
 
@@ -648,15 +724,14 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     emergencyMapRef.current
                 );
                 setData(updatedData);
+                setLastRefresh(new Date());
             } catch (err) {
                 console.error('Error refreshing zoom events:', err);
             }
-
-            setLastRefresh(new Date());
         };
 
-        // Poll every 5 seconds
-        const pollInterval = setInterval(refreshZoomEvents, 5000);
+        // Fallback poll every 60 seconds (safety net if realtime misses something)
+        const pollInterval = setInterval(refreshZoomEvents, 60000);
 
         return () => clearInterval(pollInterval);
     }, []);
