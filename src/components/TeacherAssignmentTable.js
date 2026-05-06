@@ -5,7 +5,7 @@ import SortableFilterableHeader from './SortableFilterableHeader';
 import { supabase } from '../lib/supabaseClient.mjs';
 
 // Grade options (4-12)
-const GRADE_OPTIONS = ['4', '5', '6', '7', '8', '9', '10', '11', '12'];
+const GRADE_OPTIONS = ['0', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
 const DaysSelector = ({ selectedDays, onChange, disabled = false }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
