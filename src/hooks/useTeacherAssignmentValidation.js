@@ -29,7 +29,7 @@ export const useTeacherAssignmentValidation = () => {
     const gradeInt = grade ? parseInt(grade, 10) : null;
 
     // Validate grade before calling RPC
-    if (!gradeInt || gradeInt < 1 || gradeInt > 12) {
+    if (!gradeInt || gradeInt > 12) {
       console.error('Invalid grade value:', grade, '-> parsed as:', gradeInt);
       return {
         success: false,
