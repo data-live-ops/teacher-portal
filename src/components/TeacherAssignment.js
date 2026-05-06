@@ -288,6 +288,15 @@ const TeacherAssignment = ({ user, onLogout }) => {
 
             if (subjectError) throw new Error(subjectError);
 
+            // Load time ranges from database
+            const { data: timeRangesData, error: timeRangesError } = await supabase
+                .from('time_ranges')
+                .select('time_range')
+                .eq('is_active', true)
+                .order('start_time', { ascending: true });
+
+            if (timeRangesError) throw new Error(timeRangesError);
+
             const { data: allTeachersData, error: allTeachersError } = await supabase
                 .from('teachers_new')
                 .select('*')
@@ -396,14 +405,12 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 mentor_name: s.mentor?.name || teachers.find(t => t.id === s.mentor_id)?.name || null
             }));
 
-            const uniqueTimeRanges = [...new Set(slotData
-                .map(s => s.time_range)
-                .filter(time => time && time.trim() !== '')
-            )].sort();
+            // Extract time_range values from database
+            const timeRangesList = timeRangesData?.map(t => t.time_range) || [];
 
             setSubjects(subjectData);
             setTeachers(teachers);
-            setTimeRanges(uniqueTimeRanges);
+            setTimeRanges(timeRangesList);
             setAssignments(sortAssignments(assignments));
             setLoading(false);
         } catch (error) {
