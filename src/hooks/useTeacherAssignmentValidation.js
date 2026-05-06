@@ -25,6 +25,20 @@ export const useTeacherAssignmentValidation = () => {
       class_rule,
     } = assignmentData;
 
+    // Convert grade to integer properly
+    const gradeInt = grade ? parseInt(grade, 10) : null;
+
+    // Validate grade before calling RPC
+    if (!gradeInt || gradeInt < 1 || gradeInt > 12) {
+      console.error('Invalid grade value:', grade, '-> parsed as:', gradeInt);
+      return {
+        success: false,
+        errors: [`Invalid grade value: "${grade}". Grade must be between 1 and 12.`],
+        warnings: [],
+        matched_sessions: 0,
+      };
+    }
+
     setValidationState({
       isValidating: true,
       errors: [],
@@ -39,7 +53,7 @@ export const useTeacherAssignmentValidation = () => {
         'validate_teacher_assignment_for_frontend',
         {
           p_assignment_id: assignmentId,
-          p_grade: grade,
+          p_grade: gradeInt,
           p_slot_name: slot_name,
           p_days: days,
           p_time_range: time_range,
@@ -97,12 +111,13 @@ export const useTeacherAssignmentValidation = () => {
 
   const getExpectedTeacher = useCallback(async (slotConfig) => {
     const { grade, slot_name, days, time_range } = slotConfig;
+    const gradeInt = grade ? parseInt(grade, 10) : null;
 
     try {
       const { data, error } = await supabase.rpc(
         'get_expected_teacher_for_slot',
         {
-          p_grade: grade,
+          p_grade: gradeInt,
           p_slot_name: slot_name,
           p_days: days,
           p_time_range: time_range,
@@ -123,12 +138,13 @@ export const useTeacherAssignmentValidation = () => {
 
   const checkSlotExists = useCallback(async (slotConfig) => {
     const { grade, slot_name, days, time_range } = slotConfig;
+    const gradeInt = grade ? parseInt(grade, 10) : null;
 
     try {
       const { data, error } = await supabase.rpc(
         'check_slot_exists_in_raw_sessions',
         {
-          p_grade: grade,
+          p_grade: gradeInt,
           p_slot_name: slot_name,
           p_days: days,
           p_time_range: time_range,
