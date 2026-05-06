@@ -382,9 +382,16 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 return;
             }
 
-            const assignments = slotData.map(s => ({
+            const assignments = slotData.map(s => {
+                // Validate grade - treat 0 or invalid as null
+                const gradeValue = s.grade;
+                const validGrade = gradeValue && parseInt(gradeValue) >= 1 && parseInt(gradeValue) <= 12
+                    ? parseInt(gradeValue)
+                    : null;
+
+                return {
                 id: s.id,
-                grade: s.grade,
+                grade: validGrade,
                 subject: s.subject,
                 slot_name: s.slot_name,
                 rules: s.rules,
@@ -403,7 +410,8 @@ const TeacherAssignment = ({ user, onLogout }) => {
                 class_rule: s.class_rule,
                 guru_juara_name: s.guru_juara?.name || teachers.find(t => t.id === s.guru_juara_id)?.name || null,
                 mentor_name: s.mentor?.name || teachers.find(t => t.id === s.mentor_id)?.name || null
-            }));
+            };
+            });
 
             // Extract time_range values from database
             const timeRangesList = timeRangesData?.map(t => t.time_range) || [];

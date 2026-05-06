@@ -120,8 +120,14 @@ const AssignmentModal = ({
 
   useEffect(() => {
     if (assignment) {
+      // Treat grade 0 or invalid grades as empty (grade should be 4-12)
+      const gradeValue = assignment?.grade;
+      const validGrade = gradeValue && parseInt(gradeValue) >= 1 && parseInt(gradeValue) <= 12
+        ? gradeValue.toString()
+        : '';
+
       setFormData({
-        grade: assignment?.grade?.toString() || '',
+        grade: validGrade,
         subject: assignment?.subject || '',
         slot_name: assignment?.slot_name || '',
         rules: assignment?.rules || '',
