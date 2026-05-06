@@ -745,7 +745,6 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             const endTime = new Date(item.class_end_time);
             const timeSinceEnd = now - endTime;
 
-            // Keep classes that haven't ended yet OR ended less than 15 minutes ago
             return timeSinceEnd <= fifteenMinutes;
         });
     }, [data, lastRefresh]); // lastRefresh ensures recalculation every poll

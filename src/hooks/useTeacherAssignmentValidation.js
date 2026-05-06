@@ -28,14 +28,14 @@ export const useTeacherAssignmentValidation = () => {
     // Convert grade to integer properly
     const gradeInt = grade ? parseInt(grade, 10) : null;
 
-    // Validate grade before calling RPC
-    if (!gradeInt || gradeInt > 12) {
-      console.error('Invalid grade value:', grade, '-> parsed as:', gradeInt);
+    // If grade is invalid, skip RPC validation but allow update (so user can fix the grade)
+    if (!gradeInt || gradeInt < 1 || gradeInt > 12) {
+      console.warn('Invalid grade value:', grade, '-> parsed as:', gradeInt, '- skipping RPC validation');
       return {
-        success: false,
-        errors: [`Invalid grade value: "${grade}". Grade must be between 1 and 12.`],
-        warnings: [],
+        success: true,
+        warnings: [`Grade "${grade || 'empty'}" is invalid (should be 1-12). Please select a valid grade.`],
         matched_sessions: 0,
+        skipped_validation: true,
       };
     }
 
