@@ -118,8 +118,12 @@ const calculateStatusFromEvents = (scheduleId, teacherEmail, zoomEvents, classEn
                 // No left event for this session = still active
                 hasActiveSession = true;
             } else if (leftTime < joinTime) {
-                // Left before join (shouldn't happen, but treat as active)
+                // Left before current join = teacher rejoined after leaving
                 hasActiveSession = true;
+                // Still mark as had left during class (this is the key fix!)
+                if (leftTime < endTime) {
+                    hadLeftDuringClass = true;
+                }
             } else {
                 // Session has ended - check if it was during class time
                 if (leftTime < endTime) {
