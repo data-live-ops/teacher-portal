@@ -788,14 +788,23 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         return () => clearInterval(pollInterval);
     }, []);
 
+    // Helper: filter only active classes (not ended > 15 min ago)
+    const getActiveItems = (items) => {
+        const now = new Date();
+        const fifteenMinutes = 15 * 60 * 1000;
+        return items.filter(item => now - new Date(item.class_end_time) <= fifteenMinutes);
+    };
+
     // Detect new "left" entries and play alert sound
     useEffect(() => {
+        const activeItems = getActiveItems(data);
+
         const currentLeftIds = new Set(
-            data.filter(item => item.status === 'left').map(item => item.live_class_id)
+            activeItems.filter(item => item.status === 'left').map(item => item.live_class_id)
         );
 
-        // Only count left classes where teacher has NOT rejoined (Join Back: Not Yet)
-        leftCountRef.current = data.filter(
+        // Only count active left classes where teacher has NOT rejoined
+        leftCountRef.current = activeItems.filter(
             item => item.status === 'left' && !item.rejoined_after_left
         ).length;
 
@@ -812,11 +821,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
     // Detect new "not_started" entries and play alert sound
     useEffect(() => {
+        const activeItems = getActiveItems(data);
+
         const currentNotStartedIds = new Set(
-            data.filter(item => item.status === 'not_started').map(item => item.live_class_id)
+            activeItems.filter(item => item.status === 'not_started').map(item => item.live_class_id)
         );
 
-        // Update count ref for the repeat interval
+        // Only count active not_started classes
         notStartedCountRef.current = currentNotStartedIds.size;
 
         if (notStartedClassIdsRef.current === null) {
@@ -848,6 +859,33 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }, 5 * 1000);
 
         return () => clearInterval(interval);
+    }, []);
+
+    // Reload zoom events when tab becomes visible again (handles laptop wake / tab switch)
+    useEffect(() => {
+        const handleVisibilityChange = async () => {
+            if (document.visibilityState !== 'visible') return;
+            if (classesRef.current.length === 0) return;
+
+            try {
+                const scheduleIds = classesRef.current.map(c => c.schedule_id);
+                const zoomEvents = await loadZoomEvents(supabase, scheduleIds);
+                zoomEventsRef.current = zoomEvents;
+
+                const updatedData = recalculateStatuses(
+                    classesRef.current,
+                    zoomEvents,
+                    emergencyMapRef.current
+                );
+                setData(updatedData);
+                setLastRefresh(new Date());
+            } catch (err) {
+                console.error('Error reloading on visibility change:', err);
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
     // Filter out classes that ended more than 15 minutes ago
