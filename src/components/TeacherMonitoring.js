@@ -794,7 +794,10 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             data.filter(item => item.status === 'left').map(item => item.live_class_id)
         );
 
-        leftCountRef.current = currentLeftIds.size;
+        // Only count left classes where teacher has NOT rejoined (Join Back: Not Yet)
+        leftCountRef.current = data.filter(
+            item => item.status === 'left' && !item.rejoined_after_left
+        ).length;
 
         if (leftClassIdsRef.current === null) {
             leftClassIdsRef.current = currentLeftIds;
@@ -842,7 +845,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             if (leftCountRef.current > 0) {
                 playLeftAlert();
             }
-        }, 10 * 1000);
+        }, 5 * 1000);
 
         return () => clearInterval(interval);
     }, []);
