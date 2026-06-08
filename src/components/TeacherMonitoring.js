@@ -202,7 +202,6 @@ const loadTodayClasses = async (supabaseClient) => {
         return [];
     }
 
-    // Load session_topic from raw_sessions
     const scheduleIds = classes.map(c => c.schedule_id);
     const { data: sessions } = await supabaseClient
         .from('raw_sessions')
@@ -222,7 +221,6 @@ const loadTodayClasses = async (supabaseClient) => {
         }
     }
 
-    // Create lookup maps
     const sessionsMap = sessions ? Object.fromEntries(sessions.map(s => [s.session_id, s.session_topic])) : {};
 
     // Map to UI format
@@ -232,7 +230,6 @@ const loadTodayClasses = async (supabaseClient) => {
             ...cls,
             session_topic: sessionsMap[cls.schedule_id] || cls.slot_name,
             teacher_phone: phonesMap[cls.teacher_email] || null,
-            zoom_link: `https://zoom.us/j/${cls.schedule_id}`, // Dummy link for now
             class_start_time: start.toISOString(),
             class_end_time: end.toISOString(),
         };
@@ -597,6 +594,57 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     // Ref to store zoom events
     const zoomEventsRef = useRef([]);
 
+    // Track "left" class IDs to detect new entries and play alert sound
+    const leftClassIdsRef = useRef(null); // null = initial load, skip sound
+    // Track "not_started" class IDs to detect new entries and play alert sound
+    const notStartedClassIdsRef = useRef(null);
+    // Track current not_started count for the repeat interval
+    const notStartedCountRef = useRef(0);
+    // Track current left count for the repeat interval
+    const leftCountRef = useRef(0);
+    // Track active audio to prevent overlapping playback
+    const notStartedAudioRef = useRef(null);
+    const leftAudioRef = useRef(null);
+
+    const playLeftAlert = () => {
+        if (leftAudioRef.current !== null) return;
+
+        try {
+            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_left_escalation.wav');
+            audio.volume = 1.0;
+            leftAudioRef.current = audio;
+            audio.onended = () => { leftAudioRef.current = null; };
+            audio.onerror = () => { leftAudioRef.current = null; };
+            audio.play().catch(e => {
+                leftAudioRef.current = null;
+                console.warn('Could not play left alert sound:', e);
+            });
+        } catch (e) {
+            leftAudioRef.current = null;
+            console.warn('Could not play left alert sound:', e);
+        }
+    };
+
+    const playNotStartedAlert = () => {
+        // Skip if previous audio is still playing
+        if (notStartedAudioRef.current !== null) return;
+
+        try {
+            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started_option_2_ding_dong.wav');
+            audio.volume = 1.0;
+            notStartedAudioRef.current = audio;
+            audio.onended = () => { notStartedAudioRef.current = null; };
+            audio.onerror = () => { notStartedAudioRef.current = null; };
+            audio.play().catch(e => {
+                notStartedAudioRef.current = null;
+                console.warn('Could not play not_started alert sound:', e);
+            });
+        } catch (e) {
+            notStartedAudioRef.current = null;
+            console.warn('Could not play not_started alert sound:', e);
+        }
+    };
+
     // Function to recalculate all statuses from current zoom events
     const recalculateStatuses = (classes, zoomEvents, emergencyMap) => {
         return classes.map(cls => {
@@ -740,6 +788,65 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         return () => clearInterval(pollInterval);
     }, []);
 
+    // Detect new "left" entries and play alert sound
+    useEffect(() => {
+        const currentLeftIds = new Set(
+            data.filter(item => item.status === 'left').map(item => item.live_class_id)
+        );
+
+        leftCountRef.current = currentLeftIds.size;
+
+        if (leftClassIdsRef.current === null) {
+            leftClassIdsRef.current = currentLeftIds;
+            return;
+        }
+
+        const hasNew = [...currentLeftIds].some(id => !leftClassIdsRef.current.has(id));
+        if (hasNew) playLeftAlert();
+
+        leftClassIdsRef.current = currentLeftIds;
+    }, [data]);
+
+    // Detect new "not_started" entries and play alert sound
+    useEffect(() => {
+        const currentNotStartedIds = new Set(
+            data.filter(item => item.status === 'not_started').map(item => item.live_class_id)
+        );
+
+        // Update count ref for the repeat interval
+        notStartedCountRef.current = currentNotStartedIds.size;
+
+        if (notStartedClassIdsRef.current === null) {
+            notStartedClassIdsRef.current = currentNotStartedIds;
+            return;
+        }
+
+        const hasNew = [...currentNotStartedIds].some(id => !notStartedClassIdsRef.current.has(id));
+        if (hasNew) playNotStartedAlert();
+
+        notStartedClassIdsRef.current = currentNotStartedIds;
+    }, [data]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (notStartedCountRef.current > 0) {
+                playNotStartedAlert();
+            }
+        }, 10 * 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (leftCountRef.current > 0) {
+                playLeftAlert();
+            }
+        }, 10 * 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
     // Filter out classes that ended more than 15 minutes ago
     const activeData = useMemo(() => {
         const now = new Date();
@@ -754,16 +861,24 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     }, [data, lastRefresh]); // lastRefresh ensures recalculation every poll
 
     const filteredData = useMemo(() => {
+        let result;
         if (activeTab === 'need_replacement') {
-            return activeData.filter(item => item.need_replacement);
-        }
-        // "ongoing" tab includes: joined, joining (including stuck join)
-        if (activeTab === 'ongoing') {
-            return activeData.filter(item =>
+            result = activeData.filter(item => item.need_replacement);
+        } else if (activeTab === 'ongoing') {
+            result = activeData.filter(item =>
                 (item.status === 'joined' || item.status === 'joining') && !item.need_replacement
             );
+        } else {
+            result = activeData.filter(item => item.status === activeTab && !item.need_replacement);
         }
-        return activeData.filter(item => item.status === activeTab && !item.need_replacement);
+
+        // Sort: not_started rows first, then by class start time ascending
+        return [...result].sort((a, b) => {
+            const aNotStarted = a.status === 'not_started' ? 0 : 1;
+            const bNotStarted = b.status === 'not_started' ? 0 : 1;
+            if (aNotStarted !== bNotStarted) return aNotStarted - bNotStarted;
+            return new Date(a.class_start_time) - new Date(b.class_start_time);
+        });
     }, [activeData, activeTab]);
 
     const statusCounts = useMemo(() => {
@@ -915,11 +1030,26 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     visited_by_name: userName,
                     pic_number: currentPIC,
                     visit_reason: visitReason,
-                    zoom_link: item.zoom_link,
                 });
+            
+            let zoomLink = null;
+            const { data: mapping } = await supabase
+                .from('platform_meeting_live_class')
+                .select('id')
+                .eq('live_class_id', item.live_class_id)
+                .single();
+
+            if (mapping) {
+                const { data: joinUrlData } = await supabase
+                    .from('zoom_meeting_join_url')
+                    .select('join_url')
+                    .eq('meeting_id', mapping.id)
+                    .single();
+                zoomLink = joinUrlData?.join_url || null;
+            }
 
             // Open Zoom link in new tab
-            window.open(item.zoom_link, '_blank');
+            window.open(zoomLink || `https://zoom.us/j/${item.live_class_id}`, '_blank');
 
         } catch (error) {
             console.error('Error:', error);
