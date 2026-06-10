@@ -578,6 +578,16 @@
     font-size: 16px;
 }
 
+/* Slack Emergency Row — highlighted red, pinned to top */
+.tm-table tbody tr.slack-emergency {
+    background: #FEE2E2;
+    border-left: 3px solid #DC2626;
+}
+
+.tm-table tbody tr.slack-emergency:hover {
+    background: #FECACA;
+}
+
 /* Need Replacement Row */
 .tm-table tbody tr.need-replacement {
     background: #F3E8FF;
@@ -660,6 +670,17 @@
 
 .tm-action-btn.resolve:hover {
     background: #16A34A;
+    color: white;
+}
+
+.tm-action-btn.take-action {
+    background: #FEE2E2;
+    color: #DC2626;
+    border: 1px solid #FCA5A5;
+}
+
+.tm-action-btn.take-action:hover {
+    background: #DC2626;
     color: white;
 }
 

@@ -276,7 +276,9 @@ const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, em
         status: status,
         joining_time: joiningTime,
         rejoined_after_left: rejoinedAfterLeft,
-        need_replacement: !!emergency,
+        has_slack_emergency: !!emergency,
+        escalated: !!(emergency?.escalated),
+        need_replacement: !!(emergency?.escalated),
         replacement_reason: emergency?.reason || null,
         replacement_requested_at: emergency?.requested_at || null,
         replacement_requested_by: emergency?.requested_by || null,
@@ -294,9 +296,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const [checkingPIC, setCheckingPIC] = useState(true);
 
     // Modal states
-    const [showEmergencyModal, setShowEmergencyModal] = useState(false);
     const [selectedClass, setSelectedClass] = useState(null);
-    const [emergencyReason, setEmergencyReason] = useState('');
     const [showPiketModal, setShowPiketModal] = useState(false);
     const [piketTeachers, setPiketTeachers] = useState([]);
     const [loadingPiket, setLoadingPiket] = useState(false);
@@ -476,6 +476,45 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         };
     }, []);
 
+    // Real-time subscription to emergency_replacements (Slack emergencies)
+    useEffect(() => {
+        const subscription = supabase
+            .channel('emergency_replacements_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'emergency_replacements',
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    const e = payload.new;
+                    if (e.status === 'pending') {
+                        emergencyMapRef.current[e.live_class_id] = {
+                            reason: e.reason,
+                            requested_by: e.requested_by_name,
+                            requested_at: e.created_at,
+                            escalated: e.escalated || false,
+                            slack_ts: e.slack_ts || null,
+                        };
+                    } else {
+                        delete emergencyMapRef.current[e.live_class_id];
+                    }
+                } else if (payload.eventType === 'DELETE') {
+                    delete emergencyMapRef.current[payload.old.live_class_id];
+                }
+
+                const updatedData = recalculateStatuses(
+                    classesRef.current,
+                    zoomEventsRef.current,
+                    emergencyMapRef.current
+                );
+                setData(updatedData);
+                setLastRefresh(new Date());
+            })
+            .subscribe();
+
+        return () => supabase.removeChannel(subscription);
+    }, []);
+
     const checkPICSession = async () => {
         if (!userEmail) return;
 
@@ -598,10 +637,8 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const leftClassIdsRef = useRef(null); // null = initial load, skip sound
     // Track "not_started" class IDs to detect new entries and play alert sound
     const notStartedClassIdsRef = useRef(null);
-    // Track current not_started count for the repeat interval
-    const notStartedCountRef = useRef(0);
-    // Track current left count for the repeat interval
-    const leftCountRef = useRef(0);
+    // Mirror of latest data state — always current, readable inside intervals
+    const dataRef = useRef([]);
     // Track active audio to prevent overlapping playback
     const notStartedAudioRef = useRef(null);
     const leftAudioRef = useRef(null);
@@ -677,7 +714,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 // 2. Fetch pending emergencies
                 const { data: emergencies, error: emergencyError } = await supabase
                     .from('emergency_replacements')
-                    .select('live_class_id, reason, requested_by_name, created_at')
+                    .select('live_class_id, reason, requested_by_name, created_at, escalated, slack_ts')
                     .eq('status', 'pending');
 
                 const emergencyMap = {};
@@ -686,7 +723,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                         emergencyMap[e.live_class_id] = {
                             reason: e.reason,
                             requested_by: e.requested_by_name,
-                            requested_at: e.created_at
+                            requested_at: e.created_at,
+                            escalated: e.escalated || false,
+                            slack_ts: e.slack_ts || null,
                         };
                     });
                 }
@@ -789,24 +828,20 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     }, []);
 
     // Helper: filter only active classes (not ended > 15 min ago)
-    const getActiveItems = (items) => {
-        const now = new Date();
-        const fifteenMinutes = 15 * 60 * 1000;
-        return items.filter(item => now - new Date(item.class_end_time) <= fifteenMinutes);
-    };
+    // Keep dataRef always in sync with latest data state
+    useEffect(() => {
+        dataRef.current = data;
+    }, [data]);
 
     // Detect new "left" entries and play alert sound
     useEffect(() => {
-        const activeItems = getActiveItems(data);
-
-        const currentLeftIds = new Set(
-            activeItems.filter(item => item.status === 'left').map(item => item.live_class_id)
+        const now = new Date();
+        const fifteenMinutes = 15 * 60 * 1000;
+        const activeLeft = data.filter(item =>
+            item.status === 'left' &&
+            now - new Date(item.class_end_time) <= fifteenMinutes
         );
-
-        // Only count active left classes where teacher has NOT rejoined
-        leftCountRef.current = activeItems.filter(
-            item => item.status === 'left' && !item.rejoined_after_left
-        ).length;
+        const currentLeftIds = new Set(activeLeft.map(item => item.live_class_id));
 
         if (leftClassIdsRef.current === null) {
             leftClassIdsRef.current = currentLeftIds;
@@ -821,14 +856,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
     // Detect new "not_started" entries and play alert sound
     useEffect(() => {
-        const activeItems = getActiveItems(data);
-
-        const currentNotStartedIds = new Set(
-            activeItems.filter(item => item.status === 'not_started').map(item => item.live_class_id)
+        const now = new Date();
+        const fifteenMinutes = 15 * 60 * 1000;
+        const activeNotStarted = data.filter(item =>
+            item.status === 'not_started' &&
+            now - new Date(item.class_end_time) <= fifteenMinutes
         );
-
-        // Only count active not_started classes
-        notStartedCountRef.current = currentNotStartedIds.size;
+        const currentNotStartedIds = new Set(activeNotStarted.map(item => item.live_class_id));
 
         if (notStartedClassIdsRef.current === null) {
             notStartedClassIdsRef.current = currentNotStartedIds;
@@ -841,21 +875,32 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         notStartedClassIdsRef.current = currentNotStartedIds;
     }, [data]);
 
+    // Repeat not_started alert — recompute live from dataRef each tick
     useEffect(() => {
         const interval = setInterval(() => {
-            if (notStartedCountRef.current > 0) {
-                playNotStartedAlert();
-            }
+            const now = new Date();
+            const fifteenMinutes = 15 * 60 * 1000;
+            const count = dataRef.current.filter(item =>
+                item.status === 'not_started' &&
+                now - new Date(item.class_end_time) <= fifteenMinutes
+            ).length;
+            if (count > 0) playNotStartedAlert();
         }, 10 * 1000);
 
         return () => clearInterval(interval);
     }, []);
 
+    // Repeat left alert — only if Join Back: Not Yet, recompute live from dataRef each tick
     useEffect(() => {
         const interval = setInterval(() => {
-            if (leftCountRef.current > 0) {
-                playLeftAlert();
-            }
+            const now = new Date();
+            const fifteenMinutes = 15 * 60 * 1000;
+            const count = dataRef.current.filter(item =>
+                item.status === 'left' &&
+                !item.rejoined_after_left &&
+                now - new Date(item.class_end_time) <= fifteenMinutes
+            ).length;
+            if (count > 0) playLeftAlert();
         }, 5 * 1000);
 
         return () => clearInterval(interval);
@@ -904,17 +949,20 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const filteredData = useMemo(() => {
         let result;
         if (activeTab === 'need_replacement') {
-            result = activeData.filter(item => item.need_replacement);
+            result = activeData.filter(item => item.escalated);
         } else if (activeTab === 'ongoing') {
             result = activeData.filter(item =>
-                (item.status === 'joined' || item.status === 'joining') && !item.need_replacement
+                (item.status === 'joined' || item.status === 'joining') && !item.escalated
             );
         } else {
-            result = activeData.filter(item => item.status === activeTab && !item.need_replacement);
+            result = activeData.filter(item => item.status === activeTab && !item.escalated);
         }
 
-        // Sort: not_started rows first, then by class start time ascending
+        // Sort: Slack emergency (not escalated) first, then not_started, then by start time
         return [...result].sort((a, b) => {
+            const aEmergency = (a.has_slack_emergency && !a.escalated) ? 0 : 1;
+            const bEmergency = (b.has_slack_emergency && !b.escalated) ? 0 : 1;
+            if (aEmergency !== bEmergency) return aEmergency - bEmergency;
             const aNotStarted = a.status === 'not_started' ? 0 : 1;
             const bNotStarted = b.status === 'not_started' ? 0 : 1;
             if (aNotStarted !== bNotStarted) return aNotStarted - bNotStarted;
@@ -926,14 +974,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         const counts = {};
         TABS.forEach(tab => {
             if (tab.key === 'need_replacement') {
-                counts[tab.key] = activeData.filter(item => item.need_replacement).length;
+                counts[tab.key] = activeData.filter(item => item.escalated).length;
             } else if (tab.key === 'ongoing') {
-                // Count joined + joining (including stuck join)
                 counts[tab.key] = activeData.filter(item =>
-                    (item.status === 'joined' || item.status === 'joining') && !item.need_replacement
+                    (item.status === 'joined' || item.status === 'joining') && !item.escalated
                 ).length;
             } else {
-                counts[tab.key] = activeData.filter(item => item.status === tab.key && !item.need_replacement).length;
+                counts[tab.key] = activeData.filter(item => item.status === tab.key && !item.escalated).length;
             }
         });
         return counts;
@@ -1124,72 +1171,31 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
-    const handleEmergencyClick = (item) => {
-        setSelectedClass(item);
-        setEmergencyReason('');
-        setShowEmergencyModal(true);
-    };
-
-    const handleEmergencySubmit = async () => {
-        if (!selectedClass || !emergencyReason.trim()) return;
+    const handleTakeAction = async (item) => {
         try {
             const { error } = await supabase
                 .from('emergency_replacements')
-                .insert({
-                    live_class_id: selectedClass.live_class_id,
-                    slot_name: selectedClass.slot_name,
-                    session_topic: selectedClass.session_topic,
-                    class_subject: selectedClass.class_subject,
-                    class_grade: selectedClass.class_grade,
-                    class_start_time: selectedClass.class_start_time,
-                    class_end_time: selectedClass.class_end_time,
-                    class_time: selectedClass.class_time,
-                    teacher_name: selectedClass.teacher_name,
-                    teacher_email: selectedClass.teacher_email,
-                    teacher_phone: selectedClass.teacher_phone,
-                    reason: emergencyReason,
-                    requested_by_email: userEmail,
-                    requested_by_name: userName,
-                    pic_number: currentPIC,
-                    status: 'pending',
-                    zoom_link: selectedClass.zoom_link,
-                });
+                .update({ escalated: true })
+                .eq('live_class_id', item.live_class_id)
+                .eq('status', 'pending');
 
             if (error) {
-                console.error('Error logging emergency:', error);
-                alert('Gagal menyimpan data emergency. Silakan coba lagi.');
+                console.error('Error escalating emergency:', error);
                 return;
             }
 
-            // Update emergencyMapRef to preserve status during simulation
-            emergencyMapRef.current[selectedClass.live_class_id] = {
-                reason: emergencyReason,
-                requested_by: userName,
-                requested_at: new Date().toISOString()
+            emergencyMapRef.current[item.live_class_id] = {
+                ...emergencyMapRef.current[item.live_class_id],
+                escalated: true,
             };
 
-            // Update local data to mark as need_replacement
-            setData(prevData => prevData.map(item =>
-                item.id === selectedClass.id
-                    ? {
-                        ...item,
-                        need_replacement: true,
-                        replacement_reason: emergencyReason,
-                        replacement_requested_at: new Date().toISOString(),
-                        replacement_requested_by: userName,
-                    }
-                    : item
+            setData(prevData => prevData.map(d =>
+                d.id === item.id ? { ...d, escalated: true, need_replacement: true } : d
             ));
 
-            setShowEmergencyModal(false);
-            setSelectedClass(null);
-            setEmergencyReason('');
-
             setActiveTab('need_replacement');
-
         } catch (error) {
             console.error('Error:', error);
-            alert('Terjadi kesalahan. Silakan coba lagi.');
         }
     };
 
@@ -1229,12 +1235,11 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
-    // Resolve emergency (mark as resolved)
+    // Resolve emergency (mark as resolved) — works from both Slack emergency & Need Replacement
     const handleResolveEmergency = async (item) => {
         if (!window.confirm('Apakah Anda yakin kelas ini sudah ditangani?')) return;
 
         try {
-            // Update emergency status in database
             const { error } = await supabase
                 .from('emergency_replacements')
                 .update({
@@ -1248,15 +1253,14 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
             if (error) {
                 console.error('Error resolving emergency:', error);
+                return;
             }
 
-            // Remove from emergencyMapRef
             delete emergencyMapRef.current[item.live_class_id];
 
-            // Update local data
             setData(prevData => prevData.map(d =>
                 d.id === item.id
-                    ? { ...d, need_replacement: false, replacement_reason: null, replacement_requested_by: null, replacement_requested_at: null }
+                    ? { ...d, has_slack_emergency: false, escalated: false, need_replacement: false, replacement_reason: null, replacement_requested_by: null, replacement_requested_at: null }
                     : d
             ));
 
@@ -1446,7 +1450,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                 </tr>
                             ) : (
                                 filteredData.map(item => (
-                                    <tr key={item.id} className={`${isStuck(item) ? 'stuck' : ''} ${item.need_replacement ? 'need-replacement' : ''} ${isUrgentNotStarted(item) ? 'urgent-not-started' : ''}`}>
+                                    <tr key={item.id} className={`${isStuck(item) ? 'stuck' : ''} ${item.escalated ? 'need-replacement' : ''} ${(item.has_slack_emergency && !item.escalated) ? 'slack-emergency' : ''} ${isUrgentNotStarted(item) ? 'urgent-not-started' : ''}`}>
                                         <td>
                                             <div className="tm-teacher-info">
                                                 <span className="tm-teacher-name">{item.teacher_name}</span>
@@ -1565,7 +1569,30 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                     }
 
                                                     // Normal actions
-                                                    if (item.need_replacement) {
+                                                    if (item.has_slack_emergency && !item.escalated) {
+                                                        // Slack emergency: Resolve or escalate to Need Replacement
+                                                        return (
+                                                            <>
+                                                                <button
+                                                                    className="tm-action-btn resolve"
+                                                                    onClick={() => handleResolveEmergency(item)}
+                                                                    title="Mark as Resolved"
+                                                                >
+                                                                    <CheckCircle size={14} />
+                                                                    Resolve
+                                                                </button>
+                                                                <button
+                                                                    className="tm-action-btn take-action"
+                                                                    onClick={() => handleTakeAction(item)}
+                                                                    title="Eskalasi ke Need Replacement"
+                                                                >
+                                                                    <AlertTriangle size={14} />
+                                                                    Take an Action
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    } else if (item.escalated) {
+                                                        // Need Replacement tab actions
                                                         return (
                                                             <>
                                                                 <button
@@ -1640,14 +1667,6 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                                     {isClaimingThis ? <Loader size={14} className="spinning" /> : <ExternalLink size={14} />}
                                                                     {isClaimingThis ? 'Claiming...' : 'Visit'}
                                                                 </button>
-                                                                <button
-                                                                    className="tm-action-btn emergency"
-                                                                    onClick={() => handleEmergencyClick(item)}
-                                                                    title="Request Replacement"
-                                                                >
-                                                                    <AlertTriangle size={14} />
-                                                                    Emergency
-                                                                </button>
                                                             </>
                                                         );
                                                     } else {
@@ -1681,56 +1700,6 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     </p>
                 </div>
             </div>
-
-            {/* Emergency Modal */}
-            {showEmergencyModal && selectedClass && (
-                <div className="tm-modal-overlay" onClick={() => setShowEmergencyModal(false)}>
-                    <div className="tm-modal" onClick={e => e.stopPropagation()}>
-                        <div className="tm-modal-header">
-                            <h3>
-                                <AlertTriangle size={20} />
-                                Request Replacement
-                            </h3>
-                            <button className="tm-modal-close" onClick={() => setShowEmergencyModal(false)}>
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="tm-modal-body">
-                            <div className="tm-modal-info">
-                                <p><strong>Teacher:</strong> {selectedClass.teacher_name}</p>
-                                <p><strong>Slot:</strong> {selectedClass.slot_name} (Grade {selectedClass.class_grade})</p>
-                                <p><strong>Topic:</strong> {selectedClass.session_topic}</p>
-                                <p><strong>Time:</strong> {formatTime(selectedClass.class_start_time)} - {formatTime(selectedClass.class_end_time)}</p>
-                            </div>
-                            <div className="tm-form-group">
-                                <label>Alasan Emergency *</label>
-                                <textarea
-                                    value={emergencyReason}
-                                    onChange={(e) => setEmergencyReason(e.target.value)}
-                                    placeholder="Contoh: Teacher mati lampu, tidak bisa dihubungi"
-                                    rows={3}
-                                />
-                            </div>
-                        </div>
-                        <div className="tm-modal-footer">
-                            <button
-                                className="tm-btn secondary"
-                                onClick={() => setShowEmergencyModal(false)}
-                            >
-                                Batal
-                            </button>
-                            <button
-                                className="tm-btn primary emergency"
-                                onClick={handleEmergencySubmit}
-                                disabled={!emergencyReason.trim()}
-                            >
-                                <AlertTriangle size={16} />
-                                Butuh Pengganti
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Piket Teachers Modal */}
             {showPiketModal && selectedClass && (
