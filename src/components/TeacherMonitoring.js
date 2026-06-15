@@ -485,6 +485,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 schema: 'public',
                 table: 'emergency_replacements',
             }, (payload) => {
+                console.log('Emergency payload received:', payload.eventType, payload);
                 if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                     const e = payload.new;
                     if (e.status === 'pending') {
@@ -510,7 +511,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 setData(updatedData);
                 setLastRefresh(new Date());
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log('Emergency replacements realtime status:', status);
+            });
 
         return () => supabase.removeChannel(subscription);
     }, []);

@@ -579,13 +579,21 @@
 }
 
 /* Slack Emergency Row — highlighted red, pinned to top */
+@keyframes slack-emergency-blink {
+    0%, 100% { background-color: #FEE2E2; }
+    50% { background-color: #FECACA; }
+}
+
 .tm-table tbody tr.slack-emergency {
     background: #FEE2E2;
+    border-top: 3px solid #DC2626;
     border-left: 3px solid #DC2626;
+    animation: slack-emergency-blink 1.2s ease-in-out infinite;
 }
 
 .tm-table tbody tr.slack-emergency:hover {
     background: #FECACA;
+    animation: none;
 }
 
 /* Need Replacement Row */
