@@ -861,11 +861,12 @@ const PiketSchedule = ({ user, onLogout }) => {
         return '#FFED76';
     };
 
-    const getTeachersForSlot = (time, day, gradeSubject) => {
+    const getTeachersForSlot = (time, day, grade, subject) => {
         const teachers = piketData.filter(item =>
             item.time === time &&
             item.day === day &&
-            gradeSubject === item.grade
+            grade === item.grade &&
+            (subject || null) === (item.subject || null)
         );
 
         return teachers.map(item => ({
@@ -1108,8 +1109,8 @@ const PiketSchedule = ({ user, onLogout }) => {
                                                 {time}
                                             </td>
                                             {dayNames.map((day, index) => {
-                                                const teachers = getTeachersForSlot(time, day, gradeSubject.grade);
-                                                const cellId = `${time}-${day}-${gradeSubject.grade}`;
+                                                const teachers = getTeachersForSlot(time, day, gradeSubject.grade, gradeSubject.subject);
+                                                const cellId = `${time}-${day}-${gradeSubject.grade}-${gradeSubject.subject}`;
 
                                                 return (
                                                     <td
