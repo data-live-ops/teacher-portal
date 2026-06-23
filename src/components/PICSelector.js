@@ -6,7 +6,7 @@ const PICSelector = ({ onSelect, userEmail, activePICs }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
-        if (!selectedPIC) return;
+        if (selectedPIC === null) return;
 
         setIsSubmitting(true);
         await onSelect(selectedPIC);
