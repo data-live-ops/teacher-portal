@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil, MessageCircle, Send } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
 
 // Helper function to get local date in YYYY-MM-DD format
@@ -282,6 +282,7 @@ const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, em
         replacement_reason: emergency?.reason || null,
         replacement_requested_at: emergency?.requested_at || null,
         replacement_requested_by: emergency?.requested_by || null,
+        slack_ts: emergency?.slack_ts || null,
     };
 };
 
@@ -309,6 +310,14 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const [classNotes, setClassNotes] = useState({});
     const [showNotesModal, setShowNotesModal] = useState(false);
     const [noteText, setNoteText] = useState('');
+
+    // Chat state
+    const [showChat, setShowChat] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState('');
+    const [chatUnread, setChatUnread] = useState(0);
+    const chatBottomRef = useRef(null);
+    const showChatRef = useRef(false);
 
     const userEmail = user?.email;
     const userName = user?.displayName || userEmail;
@@ -476,6 +485,54 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         };
     }, []);
 
+    // Chat: keep showChatRef in sync for use inside subscription callback
+    useEffect(() => {
+        showChatRef.current = showChat;
+        if (showChat) setChatUnread(0);
+    }, [showChat]);
+
+    // Chat: auto-scroll to bottom when new messages arrive or panel opens
+    useEffect(() => {
+        if (showChat) {
+            chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [chatMessages, showChat]);
+
+    // Chat: load history + real-time subscription
+    useEffect(() => {
+        const today = getLocalDateString();
+
+        const loadChatMessages = async () => {
+            const { data, error } = await supabase
+                .from('monitoring_chat')
+                .select('*')
+                .eq('session_date', today)
+                .order('created_at', { ascending: true });
+            if (!error && data) setChatMessages(data);
+        };
+        loadChatMessages();
+
+        const subscription = supabase
+            .channel('monitoring_chat_changes')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'monitoring_chat',
+                filter: `session_date=eq.${today}`,
+            }, (payload) => {
+                const incoming = payload.new;
+                setChatMessages(prev => {
+                    // Skip if already in list (own message added via optimistic update)
+                    if (prev.some(m => m.id === incoming.id)) return prev;
+                    return [...prev, incoming];
+                });
+                if (!showChatRef.current) setChatUnread(prev => prev + 1);
+            })
+            .subscribe();
+
+        return () => supabase.removeChannel(subscription);
+    }, []);
+
     // Real-time subscription to emergency_replacements (Slack emergencies)
     useEffect(() => {
         const subscription = supabase
@@ -573,6 +630,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const handlePICSelect = async (picNumber) => {
         if (!userEmail) return;
 
+        // Observer (0) is not persisted — DB constraint only allows 1,2,3
+        if (picNumber === 0) {
+            setCurrentPIC(0);
+            setShowPICSelector(false);
+            return;
+        }
+
         try {
             const today = getLocalDateString();
 
@@ -605,6 +669,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         if (!userEmail) return;
         if (!window.confirm('Apakah Anda yakin ingin mengakhiri sesi PIC?')) return;
 
+        // Observer has no DB row to delete
+        if (currentPIC === 0) {
+            setCurrentPIC(null);
+            setShowPICSelector(true);
+            return;
+        }
+
         try {
             const today = getLocalDateString();
 
@@ -629,31 +700,31 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
     };
 
-    // Ref to store emergency map for preserving emergency status
     const emergencyMapRef = useRef({});
-    // Ref to store classes data for zoom event updates
     const classesRef = useRef([]);
-    // Ref to store zoom events
     const zoomEventsRef = useRef([]);
 
-    // Track "left" class IDs to detect new entries and play alert sound
-    const leftClassIdsRef = useRef(null); // null = initial load, skip sound
-    // Track "not_started" class IDs to detect new entries and play alert sound
+    const leftClassIdsRef = useRef(null);
     const notStartedClassIdsRef = useRef(null);
-    // Mirror of latest data state — always current, readable inside intervals
     const dataRef = useRef([]);
-    // Track active audio to prevent overlapping playback
     const notStartedAudioRef = useRef(null);
     const leftAudioRef = useRef(null);
+    const emergencyAudioRef = useRef(null);
+    const emergencyClassIdsRef = useRef(null);
+    const pendingNotStartedPlayRef = useRef(false);
 
-    const playLeftAlert = () => {
+    const playLeftAlertNTimes = (remaining) => {
+        if (remaining <= 0) return;
         if (leftAudioRef.current !== null) return;
 
         try {
-            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_left_escalation.wav');
+            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_just_left.wav');
             audio.volume = 1.0;
             leftAudioRef.current = audio;
-            audio.onended = () => { leftAudioRef.current = null; };
+            audio.onended = () => {
+                leftAudioRef.current = null;
+                playLeftAlertNTimes(remaining - 1);
+            };
             audio.onerror = () => { leftAudioRef.current = null; };
             audio.play().catch(e => {
                 leftAudioRef.current = null;
@@ -666,22 +737,43 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     };
 
     const playNotStartedAlert = () => {
-        // Skip if previous audio is still playing
         if (notStartedAudioRef.current !== null) return;
 
         try {
-            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started_option_2_ding_dong.wav');
+            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started.mp3');
             audio.volume = 1.0;
             notStartedAudioRef.current = audio;
             audio.onended = () => { notStartedAudioRef.current = null; };
             audio.onerror = () => { notStartedAudioRef.current = null; };
             audio.play().catch(e => {
                 notStartedAudioRef.current = null;
+                if (e.name === 'NotAllowedError') {
+                    pendingNotStartedPlayRef.current = true;
+                }
                 console.warn('Could not play not_started alert sound:', e);
             });
         } catch (e) {
             notStartedAudioRef.current = null;
             console.warn('Could not play not_started alert sound:', e);
+        }
+    };
+
+    const playEmergencyAlert = () => {
+        if (emergencyAudioRef.current !== null) return;
+
+        try {
+            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/emerhency.wav');
+            audio.volume = 1.0;
+            emergencyAudioRef.current = audio;
+            audio.onended = () => { emergencyAudioRef.current = null; };
+            audio.onerror = () => { emergencyAudioRef.current = null; };
+            audio.play().catch(e => {
+                emergencyAudioRef.current = null;
+                console.warn('Could not play emergency alert sound:', e);
+            });
+        } catch (e) {
+            emergencyAudioRef.current = null;
+            console.warn('Could not play emergency alert sound:', e);
         }
     };
 
@@ -852,7 +944,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         }
 
         const hasNew = [...currentLeftIds].some(id => !leftClassIdsRef.current.has(id));
-        if (hasNew) playLeftAlert();
+        if (hasNew) playLeftAlertNTimes(3);
 
         leftClassIdsRef.current = currentLeftIds;
     }, [data]);
@@ -869,6 +961,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
         if (notStartedClassIdsRef.current === null) {
             notStartedClassIdsRef.current = currentNotStartedIds;
+            if (currentNotStartedIds.size > 0) playNotStartedAlert();
             return;
         }
 
@@ -878,35 +971,56 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         notStartedClassIdsRef.current = currentNotStartedIds;
     }, [data]);
 
-    // Repeat not_started alert — recompute live from dataRef each tick
+    // Detect new emergency entries and start continuous alert
+    useEffect(() => {
+        const now = new Date();
+        const fifteenMinutes = 15 * 60 * 1000;
+        const activeEmergency = data.filter(item =>
+            item.has_slack_emergency && !item.escalated &&
+            now - new Date(item.class_end_time) <= fifteenMinutes
+        );
+        const currentEmergencyIds = new Set(activeEmergency.map(item => item.live_class_id));
+
+        if (emergencyClassIdsRef.current === null) {
+            emergencyClassIdsRef.current = currentEmergencyIds;
+            return;
+        }
+
+        const hasNew = [...currentEmergencyIds].some(id => !emergencyClassIdsRef.current.has(id));
+        if (hasNew) playEmergencyAlert();
+
+        emergencyClassIdsRef.current = currentEmergencyIds;
+    }, [data]);
+
+    // Emergency continuous alert — repeat every 5s until all resolved/escalated
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date();
             const fifteenMinutes = 15 * 60 * 1000;
             const count = dataRef.current.filter(item =>
-                item.status === 'not_started' &&
+                item.has_slack_emergency && !item.escalated &&
                 now - new Date(item.class_end_time) <= fifteenMinutes
             ).length;
-            if (count > 0) playNotStartedAlert();
-        }, 10 * 1000);
+            if (count > 0) playEmergencyAlert();
+        }, 5 * 1000);
 
         return () => clearInterval(interval);
     }, []);
 
-    // Repeat left alert — only if Join Back: Not Yet, recompute live from dataRef each tick
+    // Play pending not_started audio on first user interaction (bypasses autoplay policy)
     useEffect(() => {
-        const interval = setInterval(() => {
-            const now = new Date();
-            const fifteenMinutes = 15 * 60 * 1000;
-            const count = dataRef.current.filter(item =>
-                item.status === 'left' &&
-                !item.rejoined_after_left &&
-                now - new Date(item.class_end_time) <= fifteenMinutes
-            ).length;
-            if (count > 0) playLeftAlert();
-        }, 5 * 1000);
-
-        return () => clearInterval(interval);
+        const handleFirstInteraction = () => {
+            if (pendingNotStartedPlayRef.current) {
+                pendingNotStartedPlayRef.current = false;
+                playNotStartedAlert();
+            }
+        };
+        document.addEventListener('click', handleFirstInteraction, { once: true });
+        document.addEventListener('keydown', handleFirstInteraction, { once: true });
+        return () => {
+            document.removeEventListener('click', handleFirstInteraction);
+            document.removeEventListener('keydown', handleFirstInteraction);
+        };
     }, []);
 
     // Reload zoom events when tab becomes visible again (handles laptop wake / tab switch)
@@ -1340,6 +1454,48 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         return classNotes[liveClassId] || null;
     };
 
+    const handleSendChat = async () => {
+        const text = chatInput.trim();
+        if (!text) return;
+
+        setChatInput('');
+
+        const tempId = `temp-${Date.now()}`;
+        const tempMsg = {
+            id: tempId,
+            session_date: getLocalDateString(),
+            sender_email: userEmail,
+            sender_name: userName,
+            pic_number: currentPIC,
+            message: text,
+            created_at: new Date().toISOString(),
+        };
+
+        // Optimistic update — sender sees message immediately
+        setChatMessages(prev => [...prev, tempMsg]);
+
+        const { data, error } = await supabase
+            .from('monitoring_chat')
+            .insert({
+                session_date: tempMsg.session_date,
+                sender_email: userEmail,
+                sender_name: userName,
+                pic_number: currentPIC,
+                message: text,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error sending chat:', error);
+            // Rollback optimistic update
+            setChatMessages(prev => prev.filter(m => m.id !== tempId));
+        } else if (data) {
+            // Replace temp entry with real DB row (has real id)
+            setChatMessages(prev => prev.map(m => m.id === tempId ? data : m));
+        }
+    };
+
     if (checkingPIC) {
         return (
             <div className="tm-page">
@@ -1374,6 +1530,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 <div className="tm-header">
                     <div className="tm-header-left">
                         <h1>Teacher Monitoring</h1>
+                        <div className="tm-session-date">
+                            {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        </div>
                         <div className="tm-pic-info">
                             <span className="tm-pic-badge">PIC {currentPIC}</span>
                             <button
@@ -1828,6 +1987,81 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     </div>
                 </div>
             )}
+
+            {/* Floating Chat */}
+            <div className="tm-chat-fab-wrapper">
+                {showChat && (
+                    <div className="tm-chat-panel">
+                        <div className="tm-chat-header">
+                            <div className="tm-chat-header-title">
+                                <Users size={16} />
+                                <span>PIC Chat</span>
+                            </div>
+                            <button className="tm-chat-close" onClick={() => setShowChat(false)}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="tm-chat-messages">
+                            {chatMessages.length === 0 ? (
+                                <div className="tm-chat-empty">Belum ada pesan. Mulai percakapan!</div>
+                            ) : (
+                                chatMessages.map((msg, i) => {
+                                    const isMe = msg.sender_email === userEmail;
+                                    const picLabel = msg.pic_number === 0
+                                        ? 'Observer'
+                                        : msg.pic_number
+                                            ? `PIC ${msg.pic_number}`
+                                            : '';
+                                    const time = new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+                                    return (
+                                        <div key={msg.id || i} className={`tm-chat-msg ${isMe ? 'mine' : 'theirs'}`}>
+                                            {!isMe && (
+                                                <div className="tm-chat-sender">
+                                                    {msg.sender_name}
+                                                    {picLabel && <span className="tm-chat-pic-badge">{picLabel}</span>}
+                                                </div>
+                                            )}
+                                            <div className="tm-chat-bubble">{msg.message}</div>
+                                            <div className="tm-chat-time">{time}</div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                            <div ref={chatBottomRef} />
+                        </div>
+
+                        <div className="tm-chat-input-row">
+                            <input
+                                className="tm-chat-input"
+                                type="text"
+                                placeholder="Ketik pesan..."
+                                value={chatInput}
+                                onChange={e => setChatInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+                            />
+                            <button
+                                className="tm-chat-send"
+                                onClick={handleSendChat}
+                                disabled={!chatInput.trim()}
+                            >
+                                <Send size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <button
+                    className="tm-chat-fab"
+                    onClick={() => setShowChat(prev => !prev)}
+                    title="Chat PIC"
+                >
+                    <MessageCircle size={24} />
+                    {chatUnread > 0 && (
+                        <span className="tm-chat-unread">{chatUnread}</span>
+                    )}
+                </button>
+            </div>
         </div>
     );
 };
