@@ -104,6 +104,34 @@
     cursor: not-allowed;
 }
 
+.export-button {
+    height: 40px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    background-color: #16a34a;
+    color: #ffffff;
+    border: 1px solid #16a34a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.export-button:hover:not(:disabled) {
+    background-color: #15803d;
+    border-color: #15803d;
+}
+
+.export-button:disabled {
+    background-color: #86efac;
+    border-color: #86efac;
+    cursor: not-allowed;
+}
+
 .filter-select {
     height: 40px;
     padding: 0 12px;
@@ -125,6 +153,187 @@
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Multi-select checkbox filter dropdown (Grade/Slot/Guru Juara/Days/Times),
+   mirroring the "Select Teachers" pattern in IndividualSchedule.css. */
+.attendance-multiselect {
+    position: relative;
+}
+
+.attendance-multiselect-button {
+    height: 40px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #1f2937;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.attendance-multiselect-button:hover {
+    border-color: #3b82f6;
+}
+
+.attendance-multiselect-caret {
+    font-size: 11px;
+    color: #94a3b8;
+    transition: transform 0.2s;
+}
+
+.attendance-multiselect-caret.open {
+    transform: rotate(180deg);
+}
+
+.attendance-multiselect-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    min-width: 240px;
+    max-width: 320px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+}
+
+.attendance-multiselect-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.attendance-multiselect-search {
+    position: relative;
+}
+
+.attendance-multiselect-search input {
+    width: 100%;
+    height: 32px;
+    padding: 0 28px 0 10px;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.attendance-multiselect-search input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.attendance-multiselect-clear-search {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.attendance-multiselect-select-all {
+    align-self: flex-start;
+    border: none;
+    background: transparent;
+    color: #3b82f6;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.attendance-multiselect-select-all:hover {
+    text-decoration: underline;
+}
+
+.attendance-multiselect-list {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.attendance-multiselect-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #334155;
+    transition: background-color 0.15s;
+}
+
+.attendance-multiselect-item:hover {
+    background-color: #f1f5f9;
+}
+
+.attendance-multiselect-item input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.attendance-multiselect-checkmark {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: white;
+    position: relative;
+    transition: all 0.15s;
+}
+
+.attendance-multiselect-item input:checked ~ .attendance-multiselect-checkmark {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.attendance-multiselect-item input:checked ~ .attendance-multiselect-checkmark::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.attendance-multiselect-item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attendance-multiselect-empty {
+    padding: 16px 10px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13px;
 }
 
 .attendance-last-synced {

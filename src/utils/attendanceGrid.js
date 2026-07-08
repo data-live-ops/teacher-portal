@@ -127,3 +127,33 @@ export function formatCellValue(sheetConfig, value) {
   const rounded = sheetConfig.isPercent ? Math.round(value) : Math.round(value * 100) / 100;
   return `${rounded}${sheetConfig.isPercent ? '%' : sheetConfig.suffix}`;
 }
+
+/**
+ * Builds a 2D array (header + one row per grid row) matching what's on
+ * screen: sticky columns first, then one column per week using the same
+ * cell lookup/formatting as the grid itself.
+ */
+export function buildCsvRows(rows, weeks, statsIndexByDataset, sheetConfig) {
+  const header = ['Grade', 'Guru Juara', 'Slot', 'Days', 'Times', ...weeks.map((w) => w.dateLabel)];
+  const body = rows.map((row) => [
+    row.grade,
+    row.guruJuara,
+    row.slotName,
+    row.days,
+    row.timeRange,
+    ...weeks.map((week) => {
+      const value = getCellValue(sheetConfig, statsIndexByDataset, row.grade, row.slotName, week.date);
+      return formatCellValue(sheetConfig, value);
+    }),
+  ]);
+  return [header, ...body];
+}
+
+function csvEscapeCell(value) {
+  const str = String(value ?? '');
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+export function toCsvString(cellRows) {
+  return cellRows.map((row) => row.map(csvEscapeCell).join(',')).join('\r\n');
+}
