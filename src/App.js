@@ -16,6 +16,7 @@ import DataManagement from "./components/DataManagement";
 import TeacherUtilization from "./components/TeacherUtilization";
 import InClassAssessment from "./components/InClassAssessment";
 import TeacherMonitoring from "./components/TeacherMonitoring";
+import AttendancePortal from "./components/AttendancePortal";
 import PopupCampaignDisplay from "./components/PopupCampaignDisplay";
 
 const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
@@ -30,7 +31,8 @@ const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
       '/teacher-utilization': 'teacher_utilization',
       '/in-class-assessment': 'in_class_assessment',
       '/data-management': 'data_management',
-      '/teacher-monitoring': 'teacher_monitoring'
+      '/teacher-monitoring': 'teacher_monitoring',
+      '/attendance-portal': 'attendance_portal'
     };
     return routeMap[pathname] || null;
   };
@@ -225,6 +227,15 @@ function App() {
             element={
               <ProtectedRoute feature="teacher_monitoring" isLoggedIn={isLoggedIn}>
                 <TeacherMonitoring user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/attendance-portal"
+            element={
+              <ProtectedRoute feature="attendance_portal" isLoggedIn={isLoggedIn}>
+                <AttendancePortal user={user} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />
