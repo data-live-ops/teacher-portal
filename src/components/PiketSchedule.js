@@ -60,6 +60,27 @@ const styles = {
         transform: 'scale(1.05)',
         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
     },
+    subjectPopup: {
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        left: '0',
+        backgroundColor: 'white',
+        borderRadius: '10px',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+        zIndex: 200,
+        minWidth: '140px',
+        overflow: 'hidden',
+    },
+    subjectPopupItem: {
+        padding: '10px 16px',
+        fontSize: '13px',
+        fontWeight: '500',
+        color: '#333',
+        cursor: 'pointer',
+        backgroundColor: 'white',
+        whiteSpace: 'nowrap',
+        transition: 'background-color 0.15s ease',
+    },
     contentWithNav: {
         marginTop: '10vh',
         paddingTop: '2rem',
@@ -92,19 +113,17 @@ const styles = {
         alignItems: 'center',
     },
     gradeCircle: {
-        width: '40px',
-        height: '40px',
+        minWidth: '40px',
+        minHeight: '40px',
+        padding: '6px 12px',
         fontSize: '',
-        borderRadius: '50%',
+        borderRadius: '20px',
         backgroundColor: '#FEE643',
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         color: '#0F32B1',
         fontWeight: 'bold',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
         boxSizing: 'border-box',
     },
     tableContainer: {
@@ -609,8 +628,11 @@ const PiketSchedule = ({ user, onLogout }) => {
     const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
     const [hoveredActionsContainer, setHoveredActionsContainer] = useState(null);
 
+    const [showSubjectPopup, setShowSubjectPopup] = useState(null);
+
     const tableRefs = useRef({});
     const dropdownRef = useRef({});
+    const subjectPopupRef = useRef({});
 
     const userEmail = user?.email;
     const { canEdit } = usePermissions();
@@ -827,6 +849,20 @@ const PiketSchedule = ({ user, onLogout }) => {
         };
     }, [showDropdown]);
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showSubjectPopup && subjectPopupRef.current[showSubjectPopup] &&
+                !subjectPopupRef.current[showSubjectPopup].contains(event.target)) {
+                setShowSubjectPopup(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showSubjectPopup]);
+
     const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
     const getButtonColor = (grade) => {
@@ -878,12 +914,27 @@ const PiketSchedule = ({ user, onLogout }) => {
         }));
     };
 
-    const handleNavButtonClick = (grade) => {
-        const element = tableRefs.current[grade];
+    const getSubjectsForGrade = (grade) => {
+        return gradeSubjects.filter(gs => gs.grade === grade).map(gs => gs.subject);
+    };
+
+    const scrollToTable = (grade, subject) => {
+        const key = `${grade}|||${subject ?? ''}`;
+        const element = tableRefs.current[key];
         if (element) {
             const yOffset = -250;
             const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
             window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+    };
+
+    const handleNavButtonClick = (grade) => {
+        const subjects = getSubjectsForGrade(grade);
+        if (subjects.length > 1) {
+            setShowSubjectPopup(prev => prev === grade ? null : grade);
+        } else {
+            scrollToTable(grade, subjects[0]);
+            setShowSubjectPopup(null);
         }
     };
 
@@ -1038,23 +1089,57 @@ const PiketSchedule = ({ user, onLogout }) => {
             <div style={styles.navigationContainer}>
                 <span style={styles.jumpToLabel}>Jump to</span>
                 <div style={styles.navigationButtons}>
-                    {uniqueGrades.map((grade, index) => (
-                        <button
-                            key={index}
-                            onClick={() => handleNavButtonClick(grade)}
-                            style={{
-                                ...styles.navButton,
-                                backgroundColor: getButtonColor(grade),
-                                color: ['4', '5', '6', 'SMP', 'SMA', 'IPA'].some(type =>
-                                    grade.includes(type)) ? 'white' : '#333',
-                                ...(hoveredNavButton === index ? styles.navButtonHover : {})
-                            }}
-                            onMouseEnter={() => setHoveredNavButton(index)}
-                            onMouseLeave={() => setHoveredNavButton(null)}
-                        >
-                            {grade}
-                        </button>
-                    ))}
+                    {uniqueGrades.map((grade, index) => {
+                        const subjects = getSubjectsForGrade(grade);
+                        const hasMultipleSubjects = subjects.length > 1;
+                        const isPopupOpen = showSubjectPopup === grade;
+                        return (
+                            <div
+                                key={index}
+                                style={{ position: 'relative' }}
+                                ref={el => subjectPopupRef.current[grade] = el}
+                            >
+                                <button
+                                    onClick={() => handleNavButtonClick(grade)}
+                                    style={{
+                                        ...styles.navButton,
+                                        backgroundColor: getButtonColor(grade),
+                                        color: ['4', '5', '6', 'SMP', 'SMA', 'IPA'].some(type =>
+                                            grade.includes(type)) ? 'white' : '#333',
+                                        ...(hoveredNavButton === index ? styles.navButtonHover : {}),
+                                        ...(isPopupOpen ? { boxShadow: '0 0 0 2px rgba(0,0,0,0.3)' } : {}),
+                                    }}
+                                    onMouseEnter={() => setHoveredNavButton(index)}
+                                    onMouseLeave={() => setHoveredNavButton(null)}
+                                >
+                                    {grade}
+                                    {hasMultipleSubjects && (
+                                        <span style={{ marginLeft: '5px', fontSize: '10px' }}>
+                                            {isPopupOpen ? '▲' : '▼'}
+                                        </span>
+                                    )}
+                                </button>
+                                {isPopupOpen && (
+                                    <div style={styles.subjectPopup}>
+                                        {subjects.map((subject, sIndex) => (
+                                            <div
+                                                key={sIndex}
+                                                style={styles.subjectPopupItem}
+                                                onClick={() => {
+                                                    scrollToTable(grade, subject);
+                                                    setShowSubjectPopup(null);
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
+                                            >
+                                                {subject || '(Tanpa Subject)'}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -1062,7 +1147,7 @@ const PiketSchedule = ({ user, onLogout }) => {
                 {gradeSubjects.map((gradeSubject, gsIndex) => (
                     <div
                         key={gsIndex}
-                        ref={el => tableRefs.current[gradeSubject.grade] = el}
+                        ref={el => tableRefs.current[`${gradeSubject.grade}|||${gradeSubject.subject ?? ''}`] = el}
                         style={{ marginBottom: '4rem', marginTop: '75px' }}
                     >
                         <div style={styles.currentClassInfo}>
@@ -1071,15 +1156,8 @@ const PiketSchedule = ({ user, onLogout }) => {
                                 <span>Kelas</span>
                                 <div style={{
                                     ...styles.gradeCircle,
-                                    fontSize:
-                                        gradeSubject.grade.split(' ').length > 1
-                                            ? '12px'
-                                            : (gradeSubject.grade.length > 3 ? '10px' : '16px'),
-                                    lineHeight: '1.1',
-                                    wordBreak: 'break-word',
-                                    whiteSpace: 'pre-line',
-                                    textAlign: 'center',
-                                }}>{gradeSubject.grade.split(' ').join('\n')}
+                                    fontSize: gradeSubject.grade.length > 6 ? '11px' : (gradeSubject.grade.length > 3 ? '13px' : '16px'),
+                                }}>{gradeSubject.grade}
                                 </div>
                                 <span>{gradeSubject.subject}</span>
                             </h2>
