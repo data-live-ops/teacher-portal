@@ -12,7 +12,8 @@ const FEATURE_KEYS = [
     'teacher_utilization',
     'in_class_assessment',
     'data_management',
-    'teacher_monitoring'
+    'teacher_monitoring',
+    'attendance_portal'
 ];
 
 // Default permissions for users NOT in piket_editors
@@ -24,7 +25,22 @@ const DEFAULT_PERMISSIONS = {
     teacher_utilization: { view: false, edit: false },
     in_class_assessment: { view: false, edit: false },
     data_management: { view: false, edit: false },
-    teacher_monitoring: { view: false, edit: false }
+    teacher_monitoring: { view: false, edit: false },
+    attendance_portal: { view: true, edit: false }
+};
+
+// Fill in any feature key missing from a stored permissions JSON (e.g. a feature
+// added after the user's row was created) with its default, without touching keys
+// the user/admin already set explicitly - including explicit `false`.
+const applyDefaults = (stored) => {
+    const result = {};
+    for (const featureKey of FEATURE_KEYS) {
+        result[featureKey] = {
+            view: stored?.[featureKey]?.view ?? DEFAULT_PERMISSIONS[featureKey]?.view ?? false,
+            edit: stored?.[featureKey]?.edit ?? DEFAULT_PERMISSIONS[featureKey]?.edit ?? false
+        };
+    }
+    return result;
 };
 
 // Merge permissions using OR logic (MAX permissions from all sources)
@@ -83,8 +99,9 @@ export const PermissionProvider = ({ children, userEmail }) => {
                 setUserGroups([]);
                 setIsRegisteredUser(false);
             } else {
-                // User found - load individual permissions
-                const userIndividualPerms = userData.permissions || DEFAULT_PERMISSIONS;
+                // User found - load individual permissions, filling in defaults for any
+                // feature key added after this user's permissions were last saved
+                const userIndividualPerms = applyDefaults(userData.permissions);
                 setIndividualPermissions(userIndividualPerms);
                 setIsRegisteredUser(true);
 
