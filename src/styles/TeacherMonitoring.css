@@ -250,6 +250,81 @@
     color: #9CA3AF;
 }
 
+.tm-teacher-info-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.tm-contact-trigger {
+    position: absolute;
+    top: -6px;
+    right: -20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: #EFF6FF;
+    color: #1D4ED8;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.tm-contact-trigger:hover {
+    background: #1D4ED8;
+    color: white;
+}
+
+.tm-contact-popover {
+    position: absolute;
+    top: 22px;
+    right: -20px;
+    z-index: 50;
+    min-width: 180px;
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tm-contact-popover-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #1E3A5F;
+}
+
+.tm-contact-popover-row a {
+    color: #1E5AF6;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.tm-contact-popover-row a:hover {
+    text-decoration: underline;
+}
+
+.tm-contact-popover-slack {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: #F1F5F9;
+    color: #64748B;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: not-allowed;
+}
+
 .tm-phone {
     color: #1E5AF6;
     text-decoration: none;
@@ -694,6 +769,20 @@
 
 .tm-action-btn.take-action:hover {
     background: #DC2626;
+    color: white;
+}
+
+.tm-action-btn.icon-only {
+    padding: 6px;
+}
+
+.tm-action-btn.copy {
+    background: #F1F5F9;
+    color: #475569;
+}
+
+.tm-action-btn.copy:hover {
+    background: #475569;
     color: white;
 }
 

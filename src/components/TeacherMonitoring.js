@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { supabase } from '../lib/supabaseClient.mjs';
-import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil, MessageCircle, Send } from 'lucide-react';
+import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil, MessageCircle, Send, Copy, Check } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
 
 // Helper function to get local date in YYYY-MM-DD format
@@ -176,13 +176,13 @@ const loadTodayClasses = async (supabaseClient) => {
         return [];
     }
 
-    // Load classes for today
     const { data: classes, error: classError } = await supabaseClient
         .from('class_schedules')
         .select(`
             schedule_id,
             teacher_name,
             teacher_email,
+            mentor_name,
             slot_name,
             subject,
             grade,
@@ -191,7 +191,6 @@ const loadTodayClasses = async (supabaseClient) => {
         `)
         .eq('class_date', today)
         .eq('semester_id', semester.id)
-        .eq('is_available', true);
 
     if (classError) {
         console.error('Error loading classes:', classError);
@@ -265,6 +264,7 @@ const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, em
         teacher_name: classSchedule.teacher_name,
         teacher_email: classSchedule.teacher_email,
         teacher_phone: classSchedule.teacher_phone,
+        mentor_name: classSchedule.mentor_name,
         slot_name: classSchedule.slot_name,
         session_topic: classSchedule.session_topic,
         class_subject: classSchedule.subject,
@@ -306,6 +306,12 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const [activeVisits, setActiveVisits] = useState({});
     const [visitingClass, setVisitingClass] = useState(null); // Currently claiming visit
 
+    // Copy schedule_id feedback
+    const [copiedScheduleId, setCopiedScheduleId] = useState(null);
+
+    // Teacher contact popover (click-to-open, not hover)
+    const [openContactId, setOpenContactId] = useState(null);
+
     // Notes state
     const [classNotes, setClassNotes] = useState({});
     const [showNotesModal, setShowNotesModal] = useState(false);
@@ -328,6 +334,14 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         checkPICSession();
         loadActivePICs();
     }, [userEmail]);
+
+    // Close teacher contact popover when clicking anywhere outside it
+    useEffect(() => {
+        if (!openContactId) return;
+        const handleOutsideClick = () => setOpenContactId(null);
+        document.addEventListener('click', handleOutsideClick);
+        return () => document.removeEventListener('click', handleOutsideClick);
+    }, [openContactId]);
 
     // Auto-check for date change every minute (session expiry)
     useEffect(() => {
@@ -1265,6 +1279,16 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     };
 
     // End visit - release the claim
+    const handleCopyScheduleId = async (scheduleId) => {
+        try {
+            await navigator.clipboard.writeText(String(scheduleId));
+            setCopiedScheduleId(scheduleId);
+            setTimeout(() => setCopiedScheduleId(prev => (prev === scheduleId ? null : prev)), 1500);
+        } catch (error) {
+            console.error('Error copying schedule_id:', error);
+        }
+    };
+
     const handleEndVisit = async (liveClassId) => {
         try {
             const today = getLocalDateString();
@@ -1590,7 +1614,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                         <thead>
                             <tr>
                                 <th>Teacher Name</th>
-                                <th>Phone</th>
+                                <th>Mentor</th>
                                 <th>Grade</th>
                                 <th>Slot Name</th>
                                 <th>Class Time</th>
@@ -1614,15 +1638,41 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                 filteredData.map(item => (
                                     <tr key={item.id} className={`${isStuck(item) ? 'stuck' : ''} ${item.escalated ? 'need-replacement' : ''} ${(item.has_slack_emergency && !item.escalated) ? 'slack-emergency' : ''} ${isUrgentNotStarted(item) ? 'urgent-not-started' : ''}`}>
                                         <td>
-                                            <div className="tm-teacher-info">
-                                                <span className="tm-teacher-name">{item.teacher_name}</span>
-                                                <span className="tm-teacher-email">{item.teacher_email}</span>
+                                            <div className="tm-teacher-info-wrapper">
+                                                <div className="tm-teacher-info">
+                                                    <span className="tm-teacher-name">{item.teacher_name}</span>
+                                                    <span className="tm-teacher-email">{item.teacher_email}</span>
+                                                </div>
+                                                <button
+                                                    className="tm-contact-trigger"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenContactId(prev => prev === item.id ? null : item.id);
+                                                    }}
+                                                    title="Contact Info"
+                                                >
+                                                    <Phone size={12} />
+                                                </button>
+                                                {openContactId === item.id && (
+                                                    <div className="tm-contact-popover" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="tm-contact-popover-row">
+                                                            <Phone size={14} />
+                                                            <a href={`tel:${item.teacher_phone}`}>{item.teacher_phone || '-'}</a>
+                                                        </div>
+                                                        <button
+                                                            className="tm-contact-popover-slack"
+                                                            disabled
+                                                            title="Coming soon"
+                                                        >
+                                                            <MessageCircle size={14} />
+                                                            Nudge di Slack
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td>
-                                            <a href={`tel:${item.teacher_phone}`} className="tm-phone">
-                                                {item.teacher_phone}
-                                            </a>
+                                            <span className="tm-teacher-name">{item.mentor_name || '-'}</span>
                                         </td>
                                         <td className="tm-grade">
                                             <span className="tm-grade-badge">{item.class_grade}</span>
@@ -1846,6 +1896,13 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                         return <span className="tm-no-action">-</span>;
                                                     }
                                                 })()}
+                                                <button
+                                                    className="tm-action-btn copy icon-only"
+                                                    onClick={() => handleCopyScheduleId(item.live_class_id)}
+                                                    title={`Copy Schedule ID (${item.live_class_id})`}
+                                                >
+                                                    {copiedScheduleId === item.live_class_id ? <Check size={14} /> : <Copy size={14} />}
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
