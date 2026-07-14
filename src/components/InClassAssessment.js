@@ -1,28 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Search, RefreshCw, Download, Filter, BookOpen, Calendar, Copy, Check } from 'lucide-react';
+import { Users, Search, Download, Filter, BookOpen, Copy, Check, ListChecks } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/InClassAssessment.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import Navbar from './Navbar';
+import MandatoryQuestionManager from './MandatoryQuestionManager';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const InClassAssessment = ({ user, onLogout }) => {
+    const { canEdit } = usePermissions();
+
     // Filter states
     const [grades, setGrades] = useState([]);
     const [slots, setSlots] = useState([]);
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedSlot, setSelectedSlot] = useState('');
+    const [mandatoryFilter, setMandatoryFilter] = useState('all'); // 'all' | 'mandatory' | 'non_mandatory'
 
     // Data states
     const [assessmentData, setAssessmentData] = useState([]);
     const [studentsRoster, setStudentsRoster] = useState([]);
     const [questionsWithDates, setQuestionsWithDates] = useState([]);
+    const [questionMetadataMap, setQuestionMetadataMap] = useState(new Map());
     const [loading, setLoading] = useState(false);
     const [loadingFilters, setLoadingFilters] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Sync states
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [lastSyncTime, setLastSyncTime] = useState(null);
+    // Mandatory question manager modal
+    const [showQuestionManager, setShowQuestionManager] = useState(false);
 
     // Copy state
     const [copiedId, setCopiedId] = useState(null);
@@ -38,10 +43,30 @@ const InClassAssessment = ({ user, onLogout }) => {
         }
     };
 
-    // Load available grades on mount
+    // Load available grades and question mandatory-status map on mount
     useEffect(() => {
         loadGrades();
+        loadQuestionMetadata();
     }, []);
+
+    const loadQuestionMetadata = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('ica_question_metadata')
+                .select('reference_id, is_mandatory');
+
+            if (error) throw error;
+
+            const map = new Map();
+            (data || []).forEach(row => map.set(String(row.reference_id), row.is_mandatory));
+            setQuestionMetadataMap(map);
+        } catch (error) {
+            console.error('Error loading question metadata:', error);
+        }
+    };
+
+    // A reference_id with no row in ica_question_metadata is treated as Non-Mandatory
+    const isQuestionMandatory = (referenceId) => questionMetadataMap.get(String(referenceId)) === true;
 
     // Load slots when grade changes
     useEffect(() => {
@@ -204,6 +229,15 @@ const InClassAssessment = ({ user, onLogout }) => {
             .sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
     }, [assessmentData, studentsRoster]);
 
+    // Apply Mandatory/Non-Mandatory filter on top of the raw question list
+    const filteredQuestionsWithDates = useMemo(() => {
+        if (mandatoryFilter === 'all') return questionsWithDates;
+        return questionsWithDates.filter(q => {
+            const mandatory = isQuestionMandatory(q.reference_id);
+            return mandatoryFilter === 'mandatory' ? mandatory : !mandatory;
+        });
+    }, [questionsWithDates, questionMetadataMap, mandatoryFilter]);
+
     // Filter by search term
     const filteredData = useMemo(() => {
         if (!searchTerm) return tableData;
@@ -231,24 +265,25 @@ const InClassAssessment = ({ user, onLogout }) => {
         return status;
     };
 
-    // Calculate participation status for a student
+    // % Correctness = Full Understanding / (Full Understanding + No Understanding).
+    // No Attempt and ABSENT are excluded entirely (not just from the numerator),
+    // matching the ica-dashboard SQL definition of this metric.
     const getParticipationStatus = (student) => {
-        if (!questionsWithDates.length) return { percentage: 0, status: 'Below', participated: 0, eligible: 0 };
+        if (!filteredQuestionsWithDates.length) return { percentage: 0, status: 'Below', participated: 0, eligible: 0 };
 
-        let participated = 0; // Full Understanding + No Understanding
-        let eligible = 0; // Total questions where student is not ABSENT
+        let participated = 0; // Full Understanding (correct)
+        let eligible = 0; // Full Understanding + No Understanding (No Attempt/ABSENT excluded)
 
-        questionsWithDates.forEach(q => {
+        filteredQuestionsWithDates.forEach(q => {
             const status = getStatus(student, q.reference_id, q.session_date);
 
-            // Only count if student was not absent
-            if (status !== 'ABSENT') {
+            if (status === 'Full Understanding') {
                 eligible++;
-                // Count as participated if answered (Full Understanding or No Understanding)
-                if (status === 'Full Understanding' || status === 'No Understanding') {
-                    participated++;
-                }
+                participated++;
+            } else if (status === 'No Understanding') {
+                eligible++;
             }
+            // No Attempt and ABSENT: ignored entirely, not counted in eligible
         });
 
         const percentage = eligible > 0 ? (participated / eligible) * 100 : 0;
@@ -324,18 +359,18 @@ const InClassAssessment = ({ user, onLogout }) => {
 
     // Export to CSV
     const exportToCSV = () => {
-        if (!filteredData.length || !questionsWithDates.length) return;
+        if (!filteredData.length || !filteredQuestionsWithDates.length) return;
 
         // Headers
         let headers = ['Student ID', 'Student Name'];
-        questionsWithDates.forEach(q => {
+        filteredQuestionsWithDates.forEach(q => {
             headers.push(`${q.reference_id} (${formatDate(q.session_date)})`);
         });
 
         // Rows
         const rows = filteredData.map(student => {
             const row = [student.user_id, student.student_name];
-            questionsWithDates.forEach(q => {
+            filteredQuestionsWithDates.forEach(q => {
                 row.push(getStatus(student, q.reference_id, q.session_date));
             });
             return row;
@@ -355,7 +390,7 @@ const InClassAssessment = ({ user, onLogout }) => {
     };
 
     const stats = useMemo(() => {
-        if (!filteredData.length || !questionsWithDates.length) {
+        if (!filteredData.length || !filteredQuestionsWithDates.length) {
             return { total: 0, fullUnderstanding: 0, noUnderstanding: 0, noAttempt: 0, absent: 0 };
         }
 
@@ -366,7 +401,7 @@ const InClassAssessment = ({ user, onLogout }) => {
         let total = 0;
 
         filteredData.forEach(student => {
-            questionsWithDates.forEach(q => {
+            filteredQuestionsWithDates.forEach(q => {
                 const status = getStatus(student, q.reference_id, q.session_date);
                 total++;
                 switch (status) {
@@ -379,7 +414,7 @@ const InClassAssessment = ({ user, onLogout }) => {
         });
 
         return { total, fullUnderstanding, noUnderstanding, noAttempt, absent };
-    }, [filteredData, questionsWithDates]);
+    }, [filteredData, filteredQuestionsWithDates]);
 
     if (loadingFilters) {
         return (
@@ -435,6 +470,19 @@ const InClassAssessment = ({ user, onLogout }) => {
                             </select>
                         </div>
 
+                        {/* Mandatory Filter */}
+                        <div className="filter-group">
+                            <select
+                                value={mandatoryFilter}
+                                onChange={(e) => setMandatoryFilter(e.target.value)}
+                                className="filter-select"
+                            >
+                                <option value="all">All Questions</option>
+                                <option value="mandatory">Mandatory Only</option>
+                                <option value="non_mandatory">Non-Mandatory Only</option>
+                            </select>
+                        </div>
+
                         {/* Search */}
                         <div className="search-bar">
                             <Search className="search-icon" size={18} />
@@ -457,6 +505,18 @@ const InClassAssessment = ({ user, onLogout }) => {
                             <Download size={16} />
                             Export
                         </button>
+
+                        {/* Manage Mandatory Questions */}
+                        {canEdit('in_class_assessment') && (
+                            <button
+                                onClick={() => setShowQuestionManager(true)}
+                                className="dropdown-button"
+                                title="Kelola status Mandatory/Non-Mandatory per soal"
+                            >
+                                <ListChecks size={16} />
+                                Kelola Soal Wajib
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -533,7 +593,7 @@ const InClassAssessment = ({ user, onLogout }) => {
                     <div className="table-container">
                         <div className="table-header">
                             <h3>Assessment Results - {selectedGrade} / {selectedSlot}</h3>
-                            <p>{filteredData.length} students, {questionsWithDates.length} questions</p>
+                            <p>{filteredData.length} students, {filteredQuestionsWithDates.length} questions</p>
                         </div>
 
                         <div className="ica-table-scroll">
@@ -543,7 +603,7 @@ const InClassAssessment = ({ user, onLogout }) => {
                                         <th className="sticky-col sticky-col-1">Student ID</th>
                                         <th className="sticky-col sticky-col-2">Student Name</th>
                                         <th className="sticky-col sticky-col-3">Participation</th>
-                                        {questionsWithDates.map(q => (
+                                        {filteredQuestionsWithDates.map(q => (
                                             <th key={`${q.reference_id}-${q.session_date}`} className="question-header">
                                                 <div className="question-id">{q.reference_id}</div>
                                                 <div className="session-date">{formatDate(q.session_date)}</div>
@@ -584,7 +644,7 @@ const InClassAssessment = ({ user, onLogout }) => {
                                                     <td
                                                         className="sticky-col sticky-col-3 participation-cell"
                                                         style={getParticipationStyle(participation.status)}
-                                                        title={`${participation.participated}/${participation.eligible} questions (${participation.percentage.toFixed(1)}%)`}
+                                                        title={`${participation.participated}/${participation.eligible} correct (${participation.percentage.toFixed(1)}%)`}
                                                     >
                                                         <div className="participation-content">
                                                             <span className="participation-status">{participation.status}</span>
@@ -593,7 +653,7 @@ const InClassAssessment = ({ user, onLogout }) => {
                                                     </td>
                                                 );
                                             })()}
-                                            {questionsWithDates.map(q => {
+                                            {filteredQuestionsWithDates.map(q => {
                                                 const status = getStatus(student, q.reference_id, q.session_date);
                                                 return (
                                                     <td
@@ -643,6 +703,13 @@ const InClassAssessment = ({ user, onLogout }) => {
                     </div>
                 )}
             </div>
+
+            <MandatoryQuestionManager
+                isOpen={showQuestionManager}
+                onClose={() => setShowQuestionManager(false)}
+                userEmail={user}
+                onSaved={loadQuestionMetadata}
+            />
         </>
     );
 };

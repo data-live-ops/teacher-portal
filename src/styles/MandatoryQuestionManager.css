@@ -1,0 +1,419 @@
+/* Mandatory Question Manager Styles */
+
+/* Combined-class selector so this reliably beats .import-modal-content's
+   max-width regardless of CSS import order between the two stylesheets. */
+.import-modal-content.mqm-modal-content {
+    max-width: 960px;
+    width: 100%;
+    min-width: 0;
+}
+
+.mqm-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.mqm-hint {
+    margin: 0;
+    padding: 12px 14px;
+    background-color: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    color: #1e3a8a;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.mqm-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.mqm-add-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    background: white;
+    color: #3b82f6;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mqm-add-toggle-btn:hover {
+    background-color: #eff6ff;
+}
+
+.mqm-add-form {
+    padding: 14px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mqm-add-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    align-items: center;
+}
+
+.mqm-add-form-grid input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.mqm-add-form-grid .ica-combobox {
+    min-width: 0;
+}
+
+.mqm-add-form-grid .mqm-week-input {
+    width: 100%;
+    min-width: 0;
+}
+
+.mqm-add-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.mqm-manual-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 6px;
+    background-color: #fef3c7;
+    color: #92400e;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.mqm-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.mqm-pagination-info {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.mqm-pagination-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.mqm-pagination-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.mqm-pagination-buttons button:hover:not(:disabled) {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.mqm-pagination-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.mqm-search {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+}
+
+.mqm-search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+}
+
+.mqm-search input {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.mqm-search input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.mqm-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #374151;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mqm-loading,
+.mqm-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 16px;
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+}
+
+.mqm-spin {
+    animation: mqm-spin 1s linear infinite;
+}
+
+@keyframes mqm-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.mqm-table-scroll {
+    max-height: 65vh;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.mqm-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+}
+
+.mqm-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    text-align: left;
+    padding: 10px 10px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e2e8f0;
+    z-index: 1;
+}
+
+.mqm-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.mqm-table tbody tr.mqm-row-unset {
+    background-color: #fffbeb;
+}
+
+.mqm-mono {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 12px;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.mqm-center {
+    text-align: center;
+}
+
+.mqm-week-input {
+    width: 70px;
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.mqm-week-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.mqm-save-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background-color: #3b82f6;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    white-space: nowrap;
+}
+
+.mqm-save-btn:disabled {
+    background-color: #cbd5e1;
+    cursor: not-allowed;
+}
+
+.mqm-save-btn:hover:not(:disabled) {
+    background-color: #2563eb;
+}
+
+/* Reusable creatable combobox (Subject/Grade) */
+.ica-combobox {
+    position: relative;
+    min-width: 150px;
+}
+
+.ica-combobox-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.ica-combobox-trigger:hover {
+    border-color: #3b82f6;
+}
+
+.ica-combobox-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ica-combobox-placeholder {
+    color: #94a3b8;
+}
+
+.ica-combobox-caret {
+    font-size: 10px;
+    color: #94a3b8;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+
+.ica-combobox-caret.open {
+    transform: rotate(180deg);
+}
+
+/* Rendered via portal into document.body - position (top/left/minWidth) is
+   set inline from the trigger's getBoundingClientRect(), so it always floats
+   above any scrollable ancestor instead of getting clipped by it. */
+.ica-combobox-dropdown {
+    position: fixed;
+    z-index: 2000;
+    width: max-content;
+    max-width: 280px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.ica-combobox-search {
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.ica-combobox-search:focus {
+    outline: none;
+}
+
+.ica-combobox-list {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.ica-combobox-item {
+    padding: 8px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ica-combobox-item:hover {
+    background-color: #f1f5f9;
+}
+
+.ica-combobox-item.selected {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 500;
+}
+
+.ica-combobox-empty {
+    padding: 10px;
+    font-size: 12px;
+    color: #94a3b8;
+    text-align: center;
+}
+
+.ica-combobox-create {
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ica-combobox-create:hover {
+    background-color: #eff6ff;
+}
