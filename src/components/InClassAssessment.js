@@ -133,6 +133,26 @@ const InClassAssessment = ({ user, onLogout }) => {
         }
     };
 
+    // Supabase/PostgREST caps a single select() at db.max_rows (default 1000).
+    // A busy grade+slot can easily pass 1000 assessment rows over a semester
+    // (students x questions x weeks), so an unpaginated select() would
+    // silently drop rows past the cap instead of erroring - page through with
+    // .range() until a page comes back short.
+    const fetchAllRows = async (queryFactory) => {
+        const pageSize = 1000;
+        let from = 0;
+        let all = [];
+        while (true) {
+            const { data, error } = await queryFactory().range(from, from + pageSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            all = all.concat(data);
+            if (data.length < pageSize) break;
+            from += pageSize;
+        }
+        return all;
+    };
+
     const loadAssessmentData = async () => {
         if (!selectedGrade || !selectedSlot) return;
 
@@ -140,23 +160,23 @@ const InClassAssessment = ({ user, onLogout }) => {
             setLoading(true);
 
             // Fetch assessment data for selected grade and slot
-            const { data: assessments, error: assessError } = await supabase
-                .from('ica_student_assessments')
-                .select('*')
-                .eq('grade_list', selectedGrade)
-                .eq('slot_name', selectedSlot)
-                .order('student_name');
-
-            if (assessError) throw assessError;
+            const assessments = await fetchAllRows(() =>
+                supabase
+                    .from('ica_student_assessments')
+                    .select('*')
+                    .eq('grade_list', selectedGrade)
+                    .eq('slot_name', selectedSlot)
+                    .order('student_name')
+            );
 
             // Fetch students roster for ABSENT detection
-            const { data: roster, error: rosterError } = await supabase
-                .from('ica_students_roster')
-                .select('*')
-                .eq('grade_list', selectedGrade)
-                .eq('slot_name', selectedSlot);
-
-            if (rosterError) throw rosterError;
+            const roster = await fetchAllRows(() =>
+                supabase
+                    .from('ica_students_roster')
+                    .select('*')
+                    .eq('grade_list', selectedGrade)
+                    .eq('slot_name', selectedSlot)
+            );
 
             setStudentsRoster(roster || []);
             setAssessmentData(assessments || []);
