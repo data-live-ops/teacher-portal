@@ -1,0 +1,111 @@
+/* ICA Analytics tab - table + Section C breakdown styles.
+   Tab navigation itself reuses .tab-navigation/.tab-button from
+   TeacherAssignment.css (the app-wide underline-tab convention). */
+
+.ica-analytics-table th,
+.ica-analytics-table td {
+    text-align: left;
+}
+
+.ica-analytics-slot-cell {
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.ica-analytics-week-note {
+    margin: 0;
+    align-self: center;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.ica-analytics-no-data {
+    font-size: 12px;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* Below/Optimal/Above badges - same palette as the Participation cells on the
+   Dashboard tab (Below = red, Optimal = blue, Above = green) */
+.ica-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.ica-badge-below {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.ica-badge-optimal {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.ica-badge-above {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+/* Per-question chips in the Grade Breakdown table */
+.ica-question-chip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ica-question-chip {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    font-size: 12px;
+    color: #374151;
+    white-space: nowrap;
+}
+
+.ica-question-chip strong {
+    color: #1e293b;
+}
+
+/* Distribution mini-chart (Below/Optimal/Above 3-bar histogram) */
+.ica-distribution-legend {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: none;
+    color: #64748b;
+}
+
+.ica-distribution-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ica-distribution-legend i {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.ica-distribution-chart {
+    display: block;
+}
+
+.ica-distribution-dot {
+    cursor: default;
+}
+
+.ica-distribution-dot:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}

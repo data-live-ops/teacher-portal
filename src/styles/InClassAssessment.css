@@ -1,5 +1,30 @@
 /* In Class Assessment Styles */
 
+/* Dashboard/Analytics top-level tabs - sits above .teacher-assignment-container,
+   so it needs its own clearance for the fixed 75px navbar (see App.css .navbar).
+   padding-top, not margin-top: this wrapper is the first in-flow element on the
+   page (Navbar is position:fixed, out of flow), so a margin-top here would
+   collapse with the ancestor chain up to <body> and render as if it were 0. */
+.ica-page-tabs-clearance {
+    padding-top: 75px;
+}
+
+.ica-page-tabs-clearance .tab-navigation {
+    margin: 0 24px 20px;
+    position: sticky;
+    top: 75px; /* sticks right below the fixed 75px navbar */
+    z-index: 999; /* below the navbar (1000), above page content */
+}
+
+/* ICADashboardTab/ICAAnalyticsTab reuse .teacher-assignment-container, whose
+   own margin-top: 75px (in TeacherAssignment.css) exists to clear the fixed
+   navbar for pages that sit directly under it. Here they instead sit below
+   the sticky tab bar above, so that clearance is already handled - without
+   this override the two stack, leaving a large empty gap under the tabs. */
+.teacher-assignment-container.ica-tab-content {
+    margin-top: 0;
+}
+
 /* Filter Group */
 .filter-group {
     display: flex;
@@ -136,6 +161,13 @@ tbody .sticky-col {
     font-size: 11px;
     color: #64748b;
     font-weight: 400;
+}
+
+.question-attempt-count {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 400;
+    margin-top: 2px;
 }
 
 /* Student cells */
@@ -283,6 +315,67 @@ tbody .sticky-col {
 
 .stat-warning {
     border-left: 4px solid #eab308;
+}
+
+/* Question type banner - reflects the Mandatory Filter dropdown between the
+   stats cards and the table, so the active question-type scope is visible
+   without scrolling back up to the filter row. Color varies by filter value
+   so the state change itself is noticeable, not just the text. */
+.question-type-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0;
+    padding: 14px 20px;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    font-size: 15px;
+}
+
+.question-type-banner-text {
+    color: rgba(0, 0, 0, 0.55);
+    font-weight: 500;
+}
+
+.question-type-banner-pill {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
+    color: white;
+}
+
+.question-type-banner-count {
+    margin-left: auto;
+    font-weight: 500;
+    opacity: 0.75;
+}
+
+.question-type-banner-all {
+    background: #eef2ff;
+    border-color: #6366f1;
+    color: #3730a3;
+}
+.question-type-banner-all .question-type-banner-pill {
+    background: #4f46e5;
+}
+
+.question-type-banner-mandatory {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+.question-type-banner-mandatory .question-type-banner-pill {
+    background: #d97706;
+}
+
+.question-type-banner-non_mandatory {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #334155;
+}
+.question-type-banner-non_mandatory .question-type-banner-pill {
+    background: #64748b;
 }
 
 /* Empty state enhancement */
