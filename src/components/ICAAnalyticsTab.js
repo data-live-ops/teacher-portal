@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart3, Users, TrendingUp, Layers } from 'lucide-react';
+import { GitCompare, X } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -26,9 +26,9 @@ const formatDate = (dateStr) => {
 };
 
 const SUB_TABS = [
-    { key: 'historical', label: 'Historical (All Student)', icon: TrendingUp },
-    { key: 'active', label: 'Active Student', icon: Users },
-    { key: 'grade-breakdown', label: 'Grade Breakdown', icon: Layers },
+    { key: 'historical', label: 'Historical (All Student)' },
+    { key: 'active', label: 'Active Student' },
+    { key: 'grade-breakdown', label: 'Grade Breakdown'},
 ];
 
 const ICAAnalyticsTab = () => {
@@ -47,14 +47,12 @@ const ICAAnalyticsTab = () => {
 
             <div className="tab-navigation">
                 {SUB_TABS.map(tab => {
-                    const Icon = tab.icon;
                     return (
                         <button
                             key={tab.key}
                             className={`tab-button ${activeSubTab === tab.key ? 'active' : ''}`}
                             onClick={() => setActiveSubTab(tab.key)}
                         >
-                            <Icon size={16} />
                             {tab.label}
                         </button>
                     );
@@ -157,6 +155,18 @@ const ClassificationOverview = ({ mode }) => {
     const [availableWeeks, setAvailableWeeks] = useState([]);
     const [weekFilter, setWeekFilter] = useState('');
 
+    // Compare Weeks mode - same grade+slot, two different weeks side by side
+    const [compareMode, setCompareMode] = useState(false);
+    const [compareGrades, setCompareGrades] = useState([]);
+    const [compareGrade, setCompareGrade] = useState('');
+    const [compareSlots, setCompareSlots] = useState([]);
+    const [compareSlot, setCompareSlot] = useState('');
+    const [weekA, setWeekA] = useState('');
+    const [weekB, setWeekB] = useState('');
+    const [compareRows, setCompareRows] = useState([]);
+    const [compareLoading, setCompareLoading] = useState(false);
+    const [compareError, setCompareError] = useState(null);
+
     const baseTableName = mode === 'historical'
         ? 'mv_ica_classification_historical'
         : 'mv_ica_classification_active';
@@ -170,11 +180,90 @@ const ClassificationOverview = ({ mode }) => {
                 const weeks = (data || []).map(r => r.week_period);
                 setAvailableWeeks(weeks);
                 if (weeks.length) setWeekFilter(weeks[0]);
+                if (weeks.length) setWeekA(weeks[0]);
+                if (weeks.length > 1) setWeekB(weeks[1]);
             } catch (err) {
                 console.error('Error loading available weeks:', err);
             }
         })();
     }, []);
+
+    // Compare mode grade options - ica_grade_slots is the canonical grade/slot
+    // list (same source the Dashboard tab uses), independent of whichever
+    // single week is currently selected in the non-compare view above.
+    useEffect(() => {
+        if (!compareMode || compareGrades.length) return;
+        (async () => {
+            try {
+                const { data, error: err } = await supabase.from('ica_grade_slots').select('grade_list');
+                if (err) throw err;
+                const uniqueGrades = [...new Set((data || []).map(d => d.grade_list))]
+                    .filter(Boolean)
+                    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+                setCompareGrades(uniqueGrades);
+            } catch (err) {
+                console.error('Error loading compare grades:', err);
+            }
+        })();
+    }, [compareMode, compareGrades.length]);
+
+    useEffect(() => {
+        if (!compareGrade) {
+            setCompareSlots([]);
+            setCompareSlot('');
+            return;
+        }
+        (async () => {
+            try {
+                const { data, error: err } = await supabase
+                    .from('ica_grade_slots')
+                    .select('slot_name')
+                    .eq('grade_list', compareGrade);
+                if (err) throw err;
+                const uniqueSlots = [...new Set((data || []).map(d => d.slot_name))]
+                    .filter(Boolean)
+                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                setCompareSlots(uniqueSlots);
+                setCompareSlot('');
+            } catch (err) {
+                console.error('Error loading compare slots:', err);
+            }
+        })();
+    }, [compareGrade]);
+
+    // Fetch both weeks for the chosen grade+slot in one query
+    useEffect(() => {
+        if (!compareMode || !compareGrade || !compareSlot || !weekA || !weekB) {
+            setCompareRows([]);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                setCompareLoading(true);
+                setCompareError(null);
+                const gradeAsInt = parseInt(compareGrade, 10);
+                const { data, error: err } = await supabase
+                    .from(baseTableName)
+                    .select('*')
+                    .eq('grade', gradeAsInt)
+                    .eq('slot_name', compareSlot)
+                    .in('week_period', [weekA, weekB]);
+                if (err) throw err;
+                if (!cancelled) setCompareRows(data || []);
+            } catch (err) {
+                console.error(`Error loading comparison from ${baseTableName}:`, err);
+                if (!cancelled) setCompareError(err.message);
+            } finally {
+                if (!cancelled) setCompareLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [compareMode, compareGrade, compareSlot, weekA, weekB, baseTableName]);
+
+    const rowForWeek = (week) => compareRows.find(r => r.week_period === week) || null;
+    const rowA = rowForWeek(weekA);
+    const rowB = rowForWeek(weekB);
 
     useEffect(() => {
         if (!weekFilter) return;
@@ -213,29 +302,123 @@ const ClassificationOverview = ({ mode }) => {
     return (
         <div className="table-container">
             <div className="header-actions" style={{ marginBottom: 16 }}>
-                <div className="filter-group">
-                    <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className="filter-select">
-                        {availableWeeks.map(w => <option key={w} value={w}>Week of {formatDate(w)}</option>)}
-                    </select>
-                </div>
-                <div className="filter-group">
-                    <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="filter-select">
-                        <option value="">All Grades</option>
-                        {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                </div>
-                <div className="search-bar">
-                    <input
-                        type="text"
-                        placeholder="Search slot..."
-                        value={slotSearch}
-                        onChange={(e) => setSlotSearch(e.target.value)}
-                        className="search-input"
-                    />
-                </div>
+                {!compareMode && (
+                    <>
+                        <div className="filter-group">
+                            <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className="filter-select">
+                                {availableWeeks.map(w => <option key={w} value={w}>Week of {formatDate(w)}</option>)}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="filter-select">
+                                <option value="">All Grades</option>
+                                {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+                        <div className="search-bar">
+                            <input
+                                type="text"
+                                placeholder="Search slot..."
+                                value={slotSearch}
+                                onChange={(e) => setSlotSearch(e.target.value)}
+                                className="search-input"
+                            />
+                        </div>
+                    </>
+                )}
+                <button
+                    className={`dropdown-button ica-compare-toggle ${compareMode ? 'active' : ''}`}
+                    style={{ marginLeft: compareMode ? 0 : 'auto' }}
+                    onClick={() => setCompareMode(!compareMode)}
+                >
+                    {compareMode ? <X size={16} /> : <GitCompare size={16} />}
+                    {compareMode ? 'Close Comparison' : 'Compare Weeks'}
+                </button>
             </div>
 
-            {loading ? (
+            {compareMode ? (
+                <div className="ica-compare">
+                    <div className="header-actions" style={{ marginBottom: 16 }}>
+                        <div className="filter-group">
+                            <span className="filter-label">Grade</span>
+                            <select value={compareGrade} onChange={(e) => setCompareGrade(e.target.value)} className="filter-select">
+                                <option value="">Select Grade</option>
+                                {compareGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Slot</span>
+                            <select
+                                value={compareSlot}
+                                onChange={(e) => setCompareSlot(e.target.value)}
+                                className="filter-select"
+                                disabled={!compareGrade}
+                            >
+                                <option value="">Select Slot</option>
+                                {compareSlots.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Week A</span>
+                            <select value={weekA} onChange={(e) => setWeekA(e.target.value)} className="filter-select">
+                                {availableWeeks.map(w => <option key={w} value={w}>Week of {formatDate(w)}</option>)}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Week B</span>
+                            <select value={weekB} onChange={(e) => setWeekB(e.target.value)} className="filter-select">
+                                {availableWeeks.map(w => <option key={w} value={w}>Week of {formatDate(w)}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {!compareGrade || !compareSlot ? (
+                        <div className="empty-state"><p>Select a Grade and Slot to compare</p></div>
+                    ) : compareLoading ? (
+                        <div className="loading-container">
+                            <div className="loading-spinner"></div>
+                            <div className="loading-text">Loading comparison...</div>
+                        </div>
+                    ) : compareError ? (
+                        <div className="empty-state"><p>Failed to load: {compareError}</p></div>
+                    ) : (
+                        <div className="ica-compare-result">
+                            <div className="ica-compare-cards">
+                                <CompareStatCard
+                                    label="Total Student" accent="neutral"
+                                    a={rowA?.total_students} b={rowB?.total_students}
+                                />
+                                <CompareStatCard
+                                    label="Below" accent="below" colorRule="badIfUp"
+                                    a={rowA?.total_below} b={rowB?.total_below}
+                                    pctA={rowA?.pct_below} pctB={rowB?.pct_below}
+                                />
+                                <CompareStatCard
+                                    label="Optimal" accent="optimal" colorRule="neutral"
+                                    a={rowA?.total_optimal} b={rowB?.total_optimal}
+                                    pctA={rowA?.pct_optimal} pctB={rowB?.pct_optimal}
+                                />
+                                <CompareStatCard
+                                    label="Above" accent="above" colorRule="goodIfUp"
+                                    a={rowA?.total_above} b={rowB?.total_above}
+                                    pctA={rowA?.pct_above} pctB={rowB?.pct_above}
+                                />
+                            </div>
+
+                            <div className="ica-dumbbell-card">
+                                <div className="ica-dumbbell-header">
+                                    <h3>Below / Optimal / Above shift</h3>
+                                    <div className="ica-dumbbell-legend">
+                                        <span><i className="ica-dumbbell-swatch ica-dumbbell-swatch-a" />Week of {formatDate(weekA)}</span>
+                                        <span><i className="ica-dumbbell-swatch ica-dumbbell-swatch-b" />Week of {formatDate(weekB)}</span>
+                                    </div>
+                                </div>
+                                <DumbbellChart rowA={rowA} rowB={rowB} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ) : loading ? (
                 <div className="loading-container">
                     <div className="loading-spinner"></div>
                     <div className="loading-text">Loading analytics...</div>
@@ -297,6 +480,136 @@ const ClassificationOverview = ({ mode }) => {
                 </div>
             )}
         </div>
+    );
+};
+
+// One Compare Weeks stat card. colorRule decides which direction of change is
+// "good" (green) vs "bad" (red): 'goodIfUp' for Above (more students
+// excelling is good), 'badIfUp' for Below (more students struggling is bad),
+// 'neutral' for Optimal/Total Student, where a change isn't clearly good or
+// bad on its own (e.g. Optimal shrinking could mean students moved up to
+// Above, not down to Below).
+const CompareStatCard = ({ label, a, b, pctA, pctB, colorRule = 'neutral', accent = 'neutral' }) => {
+    const delta = (a != null && b != null) ? a - b : null;
+    const deltaPct = (pctA != null && pctB != null) ? pctA - pctB : null;
+
+    let deltaTone = 'neutral';
+    if (colorRule !== 'neutral' && delta) {
+        const isUp = delta > 0;
+        const isGood = colorRule === 'goodIfUp' ? isUp : !isUp;
+        deltaTone = isGood ? 'good' : 'bad';
+    }
+
+    const formatValue = (v, pct) => {
+        if (v == null) return '-';
+        return pct != null ? `${v} (${pct.toFixed(1)}%)` : v;
+    };
+
+    const arrow = delta == null ? '' : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    const deltaText = delta == null
+        ? 'No data to compare'
+        : `${arrow} ${delta > 0 ? '+' : ''}${delta}${deltaPct != null ? ` (${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1)}pp)` : ''}`;
+
+    return (
+        <div className={`ica-compare-card ica-compare-card-${accent}`}>
+            <p className="ica-compare-card-label">{label}</p>
+            <div className="ica-compare-card-values">
+                <span className="ica-compare-card-value">{formatValue(a, pctA)}</span>
+                <span className="ica-compare-card-vs">vs</span>
+                <span className="ica-compare-card-value ica-compare-card-value-muted">{formatValue(b, pctB)}</span>
+            </div>
+            <span className={`ica-compare-card-delta ica-compare-card-delta-${deltaTone}`}>{deltaText}</span>
+        </div>
+    );
+};
+
+// Dumbbell chart: for each of Below/Optimal/Above, a line connects the Week A
+// point to the Week B point on a 0-100% scale - the standard form for
+// "before -> after per item" (see the dataviz skill's choosing-a-form
+// reference). Week A takes the same blue as the "Compare Weeks"/"Close
+// Comparison" toggle button, Week B a neutral gray - identity here is "which
+// week", not "which bucket", so the 3 rows share one 2-color legend instead
+// of 3 categorical hues.
+const DUMBBELL_ROWS = [
+    { key: 'below', label: 'Below' },
+    { key: 'optimal', label: 'Optimal' },
+    { key: 'above', label: 'Above' },
+];
+const DUMBBELL_COLOR_A = '#3b82f6';
+const DUMBBELL_COLOR_B = '#64748b';
+
+const DumbbellChart = ({ rowA, rowB }) => {
+    const width = 560;
+    const height = 172;
+    const padLeft = 76;
+    const padRight = 32;
+    const padTop = 20;
+    const padBottom = 24;
+    const plotWidth = width - padLeft - padRight;
+    const rowHeight = (height - padTop - padBottom) / DUMBBELL_ROWS.length;
+    const xFor = (pct) => padLeft + (pct / 100) * plotWidth;
+
+    const hasAnyData = DUMBBELL_ROWS.some(r => rowA?.[`pct_${r.key}`] != null || rowB?.[`pct_${r.key}`] != null);
+    if (!hasAnyData) {
+        return <span className="ica-analytics-no-data">No data for either week</span>;
+    }
+
+    return (
+        <svg
+            width="100%"
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            className="ica-dumbbell-chart"
+            role="img"
+            aria-label={DUMBBELL_ROWS.map(r => {
+                const pctA = rowA?.[`pct_${r.key}`];
+                const pctB = rowB?.[`pct_${r.key}`];
+                return `${r.label}: ${pctA != null ? pctA.toFixed(1) : 'n/a'}% vs ${pctB != null ? pctB.toFixed(1) : 'n/a'}%`;
+            }).join(', ')}
+        >
+            {[0, 25, 50, 75, 100].map(g => (
+                <g key={g}>
+                    <line x1={xFor(g)} x2={xFor(g)} y1={padTop - 4} y2={height - padBottom} stroke="#e1e0d9" strokeWidth={1} />
+                    <text x={xFor(g)} y={height - padBottom + 16} textAnchor="middle" fontSize="10" fill="#898781">{g}%</text>
+                </g>
+            ))}
+            {DUMBBELL_ROWS.map((row, i) => {
+                const pctA = rowA?.[`pct_${row.key}`];
+                const pctB = rowB?.[`pct_${row.key}`];
+                if (pctA == null && pctB == null) return null;
+
+                const y = padTop + rowHeight * i + rowHeight / 2;
+                const xA = pctA != null ? xFor(pctA) : null;
+                const xB = pctB != null ? xFor(pctB) : null;
+
+                return (
+                    <g key={row.key}>
+                        <text x={padLeft - 12} y={y + 4} textAnchor="end" fontSize="12" fontWeight="600" fill="#334155">
+                            {row.label}
+                        </text>
+                        {xA != null && xB != null && (
+                            <line x1={xA} y1={y} x2={xB} y2={y} stroke="#cbd5e1" strokeWidth={2} />
+                        )}
+                        {xB != null && (
+                            <g>
+                                <circle cx={xB} cy={y} r={6} fill={DUMBBELL_COLOR_B} stroke="#fff" strokeWidth={2} tabIndex={0} className="ica-dumbbell-dot">
+                                    <title>{`Week B: ${pctB.toFixed(1)}%`}</title>
+                                </circle>
+                                <text x={xB} y={y + 19} textAnchor="middle" fontSize="10" fill="#64748b">{pctB.toFixed(0)}%</text>
+                            </g>
+                        )}
+                        {xA != null && (
+                            <g>
+                                <circle cx={xA} cy={y} r={6} fill={DUMBBELL_COLOR_A} stroke="#fff" strokeWidth={2} tabIndex={0} className="ica-dumbbell-dot">
+                                    <title>{`Week A: ${pctA.toFixed(1)}%`}</title>
+                                </circle>
+                                <text x={xA} y={y - 13} textAnchor="middle" fontSize="10" fontWeight="600" fill={DUMBBELL_COLOR_A}>{pctA.toFixed(0)}%</text>
+                            </g>
+                        )}
+                    </g>
+                );
+            })}
+        </svg>
     );
 };
 

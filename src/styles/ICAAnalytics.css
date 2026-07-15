@@ -109,3 +109,156 @@
     outline: 2px solid #6366f1;
     outline-offset: 2px;
 }
+
+/* Compare Weeks - "Close Comparison" (active) keeps the same blue as
+   "Compare Weeks" (.dropdown-button's own default), no separate override,
+   so the button doesn't change color on toggle. */
+
+.ica-compare-result {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Stat cards - same shape language as the Dashboard tab's .stat-card
+   (colored left border, white surface, boxed) so Analytics and Dashboard
+   feel like one product */
+.ica-compare-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.ica-compare-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 18px;
+    border-left: 4px solid #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.ica-compare-card-neutral { border-left-color: #94a3b8; }
+.ica-compare-card-below { border-left-color: #dc2626; }
+.ica-compare-card-optimal { border-left-color: #3b82f6; }
+.ica-compare-card-above { border-left-color: #16a34a; }
+
+.ica-compare-card-label {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+}
+
+.ica-compare-card-values {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ica-compare-card-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.ica-compare-card-value-muted {
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.ica-compare-card-vs {
+    font-size: 11px;
+    color: #cbd5e1;
+    text-transform: uppercase;
+}
+
+.ica-compare-card-delta {
+    display: block;
+    margin-top: 8px;
+    font-size: 13px;
+}
+
+.ica-compare-card-delta-good {
+    color: #166534;
+    font-weight: 700;
+}
+
+.ica-compare-card-delta-bad {
+    color: #991b1b;
+    font-weight: 700;
+}
+
+.ica-compare-card-delta-neutral {
+    color: #475569;
+    font-weight: 500;
+}
+
+/* Dumbbell chart card */
+.ica-dumbbell-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.ica-dumbbell-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ica-dumbbell-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.ica-dumbbell-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ica-dumbbell-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ica-dumbbell-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.ica-dumbbell-swatch-a { background: #3b82f6; }
+.ica-dumbbell-swatch-b { background: #64748b; }
+
+.ica-dumbbell-chart {
+    display: block;
+}
+
+.ica-dumbbell-dot {
+    cursor: default;
+}
+
+.ica-dumbbell-dot:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+    .ica-compare-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
