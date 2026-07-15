@@ -595,7 +595,7 @@ const ICADashboardTab = ({ user }) => {
                                 title="Kelola status Mandatory/Non-Mandatory per soal"
                             >
                                 <ListChecks size={16} />
-                                Kelola Soal Wajib
+                                Atur Soal Mandatory
                             </button>
                         )}
                     </div>
