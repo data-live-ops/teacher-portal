@@ -223,7 +223,7 @@ const MandatoryQuestionManager = ({ isOpen, onClose, userEmail, onSaved }) => {
 
                 <div className="import-modal-body mqm-body">
                     <p className="mqm-hint">
-                        Soal yang masih ada di daftar ini masih dianggap <strong>Non-Mandatory</strong>.
+                        Soal yang ada di daftar ini masih dianggap <strong>Non-Mandatory</strong>.
                         Segera isi record yang tersedia, jika checklist maka <strong>Mandatory</strong>. Jika questions tidak ada atau belum tersinkron dengan database, maka silakan klik button <strong>Tambah Soal Baru</strong>.
                     </p>
 
