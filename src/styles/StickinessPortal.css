@@ -1,0 +1,194 @@
+.stickiness-portal {
+  padding: 0 24px 32px;
+}
+
+.stickiness-type-tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+/* ── Weekly Grid ─────────────────────────────────────────────────── */
+.stickiness-weekly-table {
+  font-size: 13px;
+}
+
+.stickiness-sticky-col-6 {
+  position: sticky;
+  left: 650px;
+  z-index: 2;
+  background: #fff;
+  min-width: 110px;
+  border-right: 1px solid #e2e8f0;
+  will-change: transform;
+}
+
+.stickiness-overall-col {
+  min-width: 130px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stickiness-sparkline-col {
+  min-width: 100px;
+  text-align: center;
+}
+
+.stickiness-overall-cell {
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stickiness-sparkline-cell {
+  text-align: center;
+  padding: 4px 8px;
+}
+
+.stickiness-cell {
+  text-align: center;
+  min-width: 90px;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.stickiness-cell-holiday {
+  background: #f5f0e8 !important;
+  color: #92400e !important;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.stickiness-row-holiday td {
+  background: #fefce8;
+  font-style: italic;
+  color: #92400e;
+}
+
+/* ── Current Week ────────────────────────────────────────────────── */
+.stickiness-current-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stickiness-current-table th,
+.stickiness-current-table td {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.stickiness-current-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: center;
+}
+
+.stickiness-number-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stickiness-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Performance Distribution ────────────────────────────────────── */
+.stickiness-dist-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stickiness-dist-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.stickiness-dist-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #475569;
+}
+
+.stickiness-dist-section {
+  margin-bottom: 32px;
+}
+
+.stickiness-dist-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stickiness-dist-table th,
+.stickiness-dist-table td {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.stickiness-dist-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: center;
+}
+
+.stickiness-dist-total td {
+  font-weight: 700;
+  background: #f1f5f9;
+}
+
+.stickiness-dist-gap td {
+  font-style: italic;
+  font-size: 12px;
+  color: #475569;
+  background: #f8fafc;
+}
+
+.stickiness-jenjang-table th,
+.stickiness-jenjang-table td {
+  text-align: center;
+}
+
+/* ── Weekly Trend ────────────────────────────────────────────────── */
+.stickiness-trend-table {
+  font-size: 12px;
+}
+
+.stickiness-trendline-row td {
+  background: #f8fafc;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.stickiness-week-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── Generic ─────────────────────────────────────────────────────── */
+.stickiness-empty {
+  padding: 40px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.stickiness-error {
+  padding: 12px 16px;
+  background: #fde8e8;
+  color: #9b2c2c;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}

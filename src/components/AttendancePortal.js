@@ -4,6 +4,7 @@ import { usePermissions } from '../contexts/PermissionContext';
 import Navbar from './Navbar';
 import AttendanceMetricGrid from './AttendanceMetricGrid';
 import MultiSelectFilter from './MultiSelectFilter';
+import StickinessPortal from './StickinessPortal';
 import { SHEET_CONFIG, buildGridRows, getWeeks, buildStatsIndex, buildCsvRows, toCsvString } from '../utils/attendanceGrid';
 import '../styles/AttendancePortal.css';
 
@@ -302,14 +303,17 @@ const AttendancePortal = ({ user, onLogout }) => {
                     >
                         Attendance
                     </button>
-                    <button className="tab-button" disabled title="Coming soon">
+                    <button
+                        className={`tab-button ${mode === 'stickiness' ? 'active' : ''}`}
+                        onClick={() => setMode('stickiness')}
+                    >
                         Stickiness
                     </button>
                 </div>
             </div>
 
             {mode === 'stickiness' ? (
-                <div className="stickiness-placeholder">Stickiness belum tersedia.</div>
+                <StickinessPortal user={user} />
             ) : (
                 <>
                     <div className="action-bar">

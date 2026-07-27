@@ -18,6 +18,7 @@ import InClassAssessment from "./components/InClassAssessment";
 import TeacherMonitoring from "./components/TeacherMonitoring";
 import AttendancePortal from "./components/AttendancePortal";
 import PopupCampaignDisplay from "./components/PopupCampaignDisplay";
+import GlobalNotificationBanner from "./components/GlobalNotificationBanner";
 
 const PopupCampaignWrapper = ({ isLoggedIn, userEmail }) => {
   const location = useLocation();
@@ -117,12 +118,19 @@ function App() {
   }
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <>
+        <GlobalNotificationBanner />
+        <LoadingSpinner />
+      </>
+    );
   }
 
   return (
     <PermissionProvider userEmail={user?.email}>
       <Router>
+        <GlobalNotificationBanner />
+
         {/* Popup Campaign Display - renders based on current route */}
         <PopupCampaignWrapper isLoggedIn={isLoggedIn} userEmail={user?.email} />
 
