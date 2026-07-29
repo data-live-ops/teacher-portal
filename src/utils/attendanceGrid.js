@@ -36,47 +36,31 @@ const naturalCompare = (a, b) => {
   return 0;
 };
 
+const TEST_SLOT_NAME = /^test/i;
+
 /**
- * Union roster rows (from v_current_teacher_assignment_slots) with any
- * (grade, slot_name) pair that only exists in the weekly stats tables -
- * e.g. a slot that was discontinued mid-semester. Orphaned rows still show
- * their real weekly numbers, with '-' for teacher/days/times.
+ * Builds one row per (grade, slot_name) that is eligible for the Attendance
+ * Portal: currently Open in the roster (v_current_teacher_assignment_slots),
+ * grade 4-12, and not a Test slot. Slots that are Pending/Upcoming, outside
+ * the grade range, discontinued (no longer in the roster), or named "Test..."
+ * are excluded entirely, even if they still have weekly stats.
  */
-export function buildGridRows(rosterRows, attendanceStats, engagementStats) {
-  const rosterByKey = new Map();
-  for (const r of rosterRows) {
-    rosterByKey.set(getRowKey(r.grade, r.slot_name), r);
-  }
-
-  const allKeys = new Set(rosterByKey.keys());
-  for (const r of attendanceStats) allKeys.add(getRowKey(r.grade, r.slot_name));
-  for (const r of engagementStats) allKeys.add(getRowKey(r.grade, r.slot_name));
-
+export function buildGridRows(rosterRows) {
   const rows = [];
-  for (const key of allKeys) {
-    const roster = rosterByKey.get(key);
-    const [gradeStr, slotName] = key.split('|');
-    if (roster) {
-      rows.push({
-        key,
-        grade: roster.grade,
-        slotName: roster.slot_name,
-        guruJuara: roster.guru_juara_name || '—',
-        days: (roster.days || []).join(', ') || '—',
-        timeRange: roster.time_range || '—',
-        isOrphaned: false,
-      });
-    } else {
-      rows.push({
-        key,
-        grade: Number(gradeStr),
-        slotName,
-        guruJuara: '—',
-        days: '—',
-        timeRange: '—',
-        isOrphaned: true,
-      });
-    }
+  for (const roster of rosterRows) {
+    const grade = roster.grade;
+    if (!Number.isInteger(grade) || grade < 4 || grade > 12) continue;
+    if (roster.status !== 'Open') continue;
+    if (TEST_SLOT_NAME.test(roster.slot_name || '')) continue;
+
+    rows.push({
+      key: getRowKey(roster.grade, roster.slot_name),
+      grade: roster.grade,
+      slotName: roster.slot_name,
+      guruJuara: roster.guru_juara_name || '—',
+      days: (roster.days || []).join(', ') || '—',
+      timeRange: roster.time_range || '—',
+    });
   }
 
   rows.sort((a, b) => {

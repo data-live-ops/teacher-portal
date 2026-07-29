@@ -87,7 +87,7 @@ function AttendanceMetricGrid({ rows, weeks, statsIndexByDataset, sheetConfig })
                     {virtualRows.map((virtualRow) => {
                         const row = rows[virtualRow.index];
                         return (
-                            <tr key={row.key} className={row.isOrphaned ? 'attendance-row-orphaned' : ''}>
+                            <tr key={row.key}>
                                 {STICKY_COLUMNS.map((col, index) => (
                                     <td key={col.key} className={`attendance-sticky-col attendance-sticky-col-${index + 1}`}>
                                         {row[col.key]}

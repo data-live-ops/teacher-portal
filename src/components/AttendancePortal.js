@@ -110,8 +110,8 @@ const AttendancePortal = ({ user, onLogout }) => {
     }, [selectedSemesterId, loadGridData]);
 
     const rows = useMemo(
-        () => buildGridRows(rosterRows, attendanceStats, engagementStats),
-        [rosterRows, attendanceStats, engagementStats]
+        () => buildGridRows(rosterRows),
+        [rosterRows]
     );
 
     // Each filter's own selection is excluded from its own option list, so picking
