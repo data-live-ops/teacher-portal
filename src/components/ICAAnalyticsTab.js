@@ -702,10 +702,11 @@ const GradeBreakdown = () => {
                 const gradeAsInt = parseInt(selectedGrade, 10);
 
                 // Total active students per slot: distinct registrants across the range
+                // Also track per-session present count for per-question participation denominator
                 const participants = await fetchAllRows(() =>
                     supabase
                         .from('participants_per_batch')
-                        .select('slot_name, user_id, teacher_name')
+                        .select('slot_name, user_id, teacher_name, session_date, participated')
                         .eq('grade', gradeAsInt)
                         .gte('session_date', dateFrom)
                         .lte('session_date', dateTo)
@@ -716,11 +717,16 @@ const GradeBreakdown = () => {
                 const bySlotParticipants = new Map();
                 participants.forEach(p => {
                     if (!bySlotParticipants.has(p.slot_name)) {
-                        bySlotParticipants.set(p.slot_name, { userIds: new Set(), teacher_name: p.teacher_name });
+                        bySlotParticipants.set(p.slot_name, { userIds: new Set(), teacher_name: p.teacher_name, sessionPresent: new Map() });
                     }
                     const entry = bySlotParticipants.get(p.slot_name);
                     entry.userIds.add(p.user_id);
                     if (p.teacher_name) entry.teacher_name = p.teacher_name;
+                    // Count present students per session for per-question participation denominator
+                    if (p.participated) {
+                        const prev = entry.sessionPresent.get(p.session_date) ?? 0;
+                        entry.sessionPresent.set(p.session_date, prev + 1);
+                    }
                 });
 
                 const assessments = await fetchAllRows(() =>
@@ -743,9 +749,10 @@ const GradeBreakdown = () => {
                     else if (a.understanding_types === 'No Understanding') bucket.noUnd++;
 
                     if (a.understanding_types === 'Full Understanding' || a.understanding_types === 'No Understanding') {
-                        if (!bucket.byQuestion.has(a.reference_id)) bucket.byQuestion.set(a.reference_id, { full: 0, attempted: 0 });
+                        if (!bucket.byQuestion.has(a.reference_id)) bucket.byQuestion.set(a.reference_id, { full: 0, attempted: 0, sessions: new Set() });
                         const qBucket = bucket.byQuestion.get(a.reference_id);
                         qBucket.attempted++;
+                        qBucket.sessions.add(a.session_date);
                         if (a.understanding_types === 'Full Understanding') qBucket.full++;
                     }
                 });
@@ -764,14 +771,19 @@ const GradeBreakdown = () => {
                     const pctFull = attempted > 0 ? (bucket.full / attempted) * 100 : null;
                     const pctNoUnd = attempted > 0 ? (bucket.noUnd / attempted) * 100 : null;
 
+                    const sessionPresent = participantsEntry?.sessionPresent ?? new Map();
                     const questions = bucket
-                        ? Array.from(bucket.byQuestion.entries()).map(([referenceId, q]) => ({
-                            reference_id: referenceId,
-                            pctFull: q.attempted > 0 ? (q.full / q.attempted) * 100 : null,
-                            pctParticipation: totalActiveStudents > 0
-                                ? (q.attempted / totalActiveStudents) * 100
-                                : null,
-                        })).sort((a, b) => a.reference_id.localeCompare(b.reference_id))
+                        ? Array.from(bucket.byQuestion.entries()).map(([referenceId, q]) => {
+                            // Denominator = students present in the sessions where this question was launched
+                            const totalPresent = Array.from(q.sessions).reduce((sum, sessionDate) => {
+                                return sum + (sessionPresent.get(sessionDate) ?? 0);
+                            }, 0);
+                            return {
+                                reference_id: referenceId,
+                                pctFull: q.attempted > 0 ? (q.full / q.attempted) * 100 : null,
+                                pctParticipation: totalPresent > 0 ? (q.attempted / totalPresent) * 100 : null,
+                            };
+                        }).sort((a, b) => a.reference_id.localeCompare(b.reference_id))
                         : [];
 
                     return {
