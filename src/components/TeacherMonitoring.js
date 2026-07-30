@@ -14,6 +14,12 @@ const getLocalDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
+const AUDIO_URLS = {
+    left: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_just_left.wav',
+    notStarted: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started.mp3',
+    emergency: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/emerhency.wav',
+};
+
 // Status tabs configuration
 const TABS = [
     { key: 'need_replacement', label: 'Need Replacement', color: '#7C3AED', bgColor: '#EDE9FE', icon: '🚨' },
@@ -727,13 +733,31 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const emergencyClassIdsRef = useRef(null);
     const pendingNotStartedPlayRef = useRef(false);
 
+    // Preloaded audio instances — created once at mount so files are buffered before any event fires
+    const preloadedLeftRef = useRef(null);
+    const preloadedNotStartedRef = useRef(null);
+    const preloadedEmergencyRef = useRef(null);
+
+    useEffect(() => {
+        const preload = (url) => {
+            const a = new Audio(url);
+            a.preload = 'auto';
+            a.load();
+            return a;
+        };
+        preloadedLeftRef.current = preload(AUDIO_URLS.left);
+        preloadedNotStartedRef.current = preload(AUDIO_URLS.notStarted);
+        preloadedEmergencyRef.current = preload(AUDIO_URLS.emergency);
+    }, []);
+
     const playLeftAlertNTimes = (remaining) => {
         if (remaining <= 0) return;
         if (leftAudioRef.current !== null) return;
 
         try {
-            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_just_left.wav');
+            const audio = preloadedLeftRef.current || new Audio(AUDIO_URLS.left);
             audio.volume = 1.0;
+            audio.currentTime = 0;
             leftAudioRef.current = audio;
             audio.onended = () => {
                 leftAudioRef.current = null;
@@ -754,8 +778,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         if (notStartedAudioRef.current !== null) return;
 
         try {
-            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started.mp3');
+            const audio = preloadedNotStartedRef.current || new Audio(AUDIO_URLS.notStarted);
             audio.volume = 1.0;
+            audio.currentTime = 0;
             notStartedAudioRef.current = audio;
             audio.onended = () => { notStartedAudioRef.current = null; };
             audio.onerror = () => { notStartedAudioRef.current = null; };
@@ -776,8 +801,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         if (emergencyAudioRef.current !== null) return;
 
         try {
-            const audio = new Audio('https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/emerhency.wav');
+            const audio = preloadedEmergencyRef.current || new Audio(AUDIO_URLS.emergency);
             audio.volume = 1.0;
+            audio.currentTime = 0;
             emergencyAudioRef.current = audio;
             audio.onended = () => { emergencyAudioRef.current = null; };
             audio.onerror = () => { emergencyAudioRef.current = null; };
