@@ -1951,18 +1951,28 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                             </>
                                                         );
                                                     } else {
-                                                        // For joined status, show note if exists
+                                                        // Ongoing (joined/joining) — always show Visit button
                                                         const note = getClassNote(item.live_class_id);
-                                                        if (note) {
-                                                            return (
-                                                                <div className="tm-note-display">
-                                                                    <MessageSquare size={12} />
-                                                                    <span className="tm-note-text">{note.note_text}</span>
-                                                                    <span className="tm-note-author">- PIC {note.pic_number}</span>
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return <span className="tm-no-action">-</span>;
+                                                        return (
+                                                            <>
+                                                                {note && (
+                                                                    <div className="tm-note-display">
+                                                                        <MessageSquare size={12} />
+                                                                        <span className="tm-note-text">{note.note_text}</span>
+                                                                        <span className="tm-note-author">- PIC {note.pic_number}</span>
+                                                                    </div>
+                                                                )}
+                                                                <button
+                                                                    className="tm-action-btn visit"
+                                                                    onClick={() => handleVisitClass(item)}
+                                                                    disabled={isClaimingThis}
+                                                                    title="Visit Class"
+                                                                >
+                                                                    {isClaimingThis ? <Loader size={14} className="spinning" /> : <ExternalLink size={14} />}
+                                                                    {isClaimingThis ? 'Claiming...' : 'Visit'}
+                                                                </button>
+                                                            </>
+                                                        );
                                                     }
                                                 })()}
                                                 <button
