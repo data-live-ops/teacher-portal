@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { GitCompare, X } from 'lucide-react';
+import { GitCompare, X, SlidersHorizontal } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -19,6 +19,20 @@ const fetchAllRows = async (queryFactory) => {
     return all;
 };
 
+// Sort slot names by frequency index (1x < 2x < 3x) then by slot number numerically.
+// e.g. "Matematika 1 (1x)", "Matematika 10 (1x)", "Matematika 1 (2x)"
+const parseSlotForSort = (name) => {
+    const m = name.match(/(\d+)\s*\((\d+)x\)/);
+    return m ? { slotNum: parseInt(m[1], 10), freq: parseInt(m[2], 10) } : { slotNum: 0, freq: 0 };
+};
+
+const compareSlotNames = (a, b) => {
+    const pa = parseSlotForSort(a);
+    const pb = parseSlotForSort(b);
+    if (pa.freq !== pb.freq) return pa.freq - pb.freq;
+    return pa.slotNum - pb.slotNum;
+};
+
 const formatDate = (dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -28,7 +42,8 @@ const formatDate = (dateStr) => {
 const SUB_TABS = [
     { key: 'historical', label: 'Historical (All Student)' },
     { key: 'active', label: 'Active Student' },
-    { key: 'grade-breakdown', label: 'Grade Breakdown'},
+    { key: 'grade-breakdown', label: 'Grade Breakdown' },
+    { key: 'questions-breakdown', label: 'Questions Breakdown' },
 ];
 
 const ICAAnalyticsTab = () => {
@@ -62,6 +77,7 @@ const ICAAnalyticsTab = () => {
             {activeSubTab === 'historical' && <ClassificationOverview mode="historical" />}
             {activeSubTab === 'active' && <ClassificationOverview mode="active" />}
             {activeSubTab === 'grade-breakdown' && <GradeBreakdown />}
+            {activeSubTab === 'questions-breakdown' && <QuestionsBreakdown />}
         </div>
     );
 };
@@ -138,6 +154,19 @@ const DistributionChart = ({ pctBelow, pctOptimal, pctAbove, totalBelow, totalOp
     );
 };
 
+const JENJANG_DEFAULTS = {
+    SD:  { below: 50, above: 85 },
+    SMP: { below: 50, above: 85 },
+    SMA: { below: 50, above: 85 },
+};
+
+const getJenjang = (grade) => {
+    const g = parseInt(grade, 10);
+    if (g <= 6) return 'SD';
+    if (g <= 9) return 'SMP';
+    return 'SMA';
+};
+
 // ============================================================================
 // Sections A & B: Historical / Active classification overview.
 // "Period of Week" selects one week_period and queries mv_ica_classification_*
@@ -154,6 +183,11 @@ const ClassificationOverview = ({ mode }) => {
     const [slotSearch, setSlotSearch] = useState('');
     const [availableWeeks, setAvailableWeeks] = useState([]);
     const [weekFilter, setWeekFilter] = useState('');
+    const [questionTypeFilter, setQuestionTypeFilter] = useState('all');
+    const [jenjangThresholds, setJenjangThresholds] = useState(JENJANG_DEFAULTS);
+    const [showThresholdPanel, setShowThresholdPanel] = useState(false);
+    const [pctRows, setPctRows] = useState([]);
+    const [pctLoading, setPctLoading] = useState(false);
 
     // Compare Weeks mode - same grade+slot, two different weeks side by side
     const [compareMode, setCompareMode] = useState(false);
@@ -167,26 +201,41 @@ const ClassificationOverview = ({ mode }) => {
     const [compareLoading, setCompareLoading] = useState(false);
     const [compareError, setCompareError] = useState(null);
 
+    const isMandatory = questionTypeFilter === 'mandatory';
     const baseTableName = mode === 'historical'
-        ? 'mv_ica_classification_historical'
-        : 'mv_ica_classification_active';
+        ? (isMandatory ? 'mv_ica_classification_historical_mandatory' : 'mv_ica_classification_historical')
+        : (isMandatory ? 'mv_ica_classification_active_mandatory' : 'mv_ica_classification_active');
+    const weeksViewName = isMandatory ? 'vw_ica_available_weeks_mandatory' : 'vw_ica_available_weeks';
+    const pctTableName = isMandatory ? 'mv_student_pct_per_week_mandatory' : 'mv_student_pct_per_week';
+    const isDefaultThresholds = ['SD', 'SMP', 'SMA'].every(
+        j => jenjangThresholds[j].below === JENJANG_DEFAULTS[j].below &&
+             jenjangThresholds[j].above === JENJANG_DEFAULTS[j].above
+    );
 
-    // Available weeks to pick from (same set for historical and active) -
-    // ordered newest first, so default the selection to the most recent one.
+    const updateJenjangThreshold = (jenjang, field, rawValue) => {
+        const value = Number(rawValue);
+        setJenjangThresholds(prev => {
+            const cur = prev[jenjang];
+            if (field === 'below') return { ...prev, [jenjang]: { ...cur, below: Math.max(1, Math.min(value, cur.above - 1)) } };
+            return { ...prev, [jenjang]: { ...cur, above: Math.max(cur.below + 1, Math.min(value, 99)) } };
+        });
+    };
+
+    // Available weeks to pick from - ordered newest first, reload when question type changes.
     useEffect(() => {
         (async () => {
             try {
-                const data = await fetchAllRows(() => supabase.from('vw_ica_available_weeks').select('week_period'));
+                const data = await fetchAllRows(() => supabase.from(weeksViewName).select('week_period'));
                 const weeks = (data || []).map(r => r.week_period);
                 setAvailableWeeks(weeks);
-                if (weeks.length) setWeekFilter(weeks[0]);
-                if (weeks.length) setWeekA(weeks[0]);
-                if (weeks.length > 1) setWeekB(weeks[1]);
+                setWeekFilter(weeks.length ? weeks[0] : '');
+                setWeekA(weeks.length ? weeks[0] : '');
+                setWeekB(weeks.length > 1 ? weeks[1] : '');
             } catch (err) {
                 console.error('Error loading available weeks:', err);
             }
         })();
-    }, []);
+    }, [weeksViewName]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Compare mode grade options - ica_grade_slots is the canonical grade/slot
     // list (same source the Dashboard tab uses), independent of whichever
@@ -222,7 +271,7 @@ const ClassificationOverview = ({ mode }) => {
                 if (err) throw err;
                 const uniqueSlots = [...new Set((data || []).map(d => d.slot_name))]
                     .filter(Boolean)
-                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                    .sort(compareSlotNames);
                 setCompareSlots(uniqueSlots);
                 setCompareSlot('');
             } catch (err) {
@@ -287,23 +336,94 @@ const ClassificationOverview = ({ mode }) => {
         return () => { cancelled = true; };
     }, [baseTableName, weekFilter]);
 
+    // Always fetch per-student pct_correctness — used for client-side reclassification
+    // with per-jenjang thresholds. mv_student_pct_per_week is a materialized view so it's fast.
+    useEffect(() => {
+        if (!weekFilter) {
+            setPctRows([]);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                setPctLoading(true);
+                const data = await fetchAllRows(() =>
+                    supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_date', weekFilter)
+                );
+                if (!cancelled) setPctRows(data || []);
+            } catch (err) {
+                console.error('Error fetching pct data:', err);
+                if (!cancelled) setPctRows([]);
+            } finally {
+                if (!cancelled) setPctLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [weekFilter, pctTableName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Reclassify rows using per-jenjang thresholds against per-student pct data
+    const displayRows = useMemo(() => {
+        if (pctRows.length === 0) return rows;
+        const slotMap = {};
+        pctRows.forEach(r => {
+            const key = `${r.grade}-${r.slot_name}`;
+            if (!slotMap[key]) slotMap[key] = [];
+            slotMap[key].push(r.pct_correctness);
+        });
+        return rows.map(r => {
+            const jenjang = getJenjang(r.grade);
+            const { below: belowT, above: aboveT } = jenjangThresholds[jenjang];
+            const students = slotMap[`${r.grade}-${r.slot_name}`] || [];
+            const below   = students.filter(p => p < belowT).length;
+            const above   = students.filter(p => p > aboveT).length;
+            const optimal = students.filter(p => p >= belowT && p <= aboveT).length;
+            const total   = r.total_students;
+            return {
+                ...r,
+                total_below:   below,
+                total_optimal: optimal,
+                total_above:   above,
+                pct_below:   total ? below   / total * 100 : 0,
+                pct_optimal: total ? optimal / total * 100 : 0,
+                pct_above:   total ? above   / total * 100 : 0,
+            };
+        });
+    }, [pctRows, rows, jenjangThresholds]);
+
     const grades = useMemo(() => {
         return [...new Set(rows.map(r => r.grade))].sort((a, b) => a - b);
     }, [rows]);
 
     const filteredRows = useMemo(() => {
-        return rows.filter(r => {
-            if (gradeFilter && String(r.grade) !== String(gradeFilter)) return false;
-            if (slotSearch && !r.slot_name?.toLowerCase().includes(slotSearch.toLowerCase())) return false;
-            return true;
-        });
-    }, [rows, gradeFilter, slotSearch]);
+        return displayRows
+            .filter(r => {
+                if (gradeFilter && String(r.grade) !== String(gradeFilter)) return false;
+                if (slotSearch && !r.slot_name?.toLowerCase().includes(slotSearch.toLowerCase())) return false;
+                return true;
+            })
+            .sort((a, b) => {
+                if (a.grade !== b.grade) return a.grade - b.grade;
+                return compareSlotNames(a.slot_name, b.slot_name);
+            });
+    }, [displayRows, gradeFilter, slotSearch]);
 
     return (
         <div className="table-container">
             <div className="header-actions" style={{ marginBottom: 16 }}>
                 {!compareMode && (
                     <>
+                        <div className="filter-group">
+                            <div className="ica-view-toggle">
+                                <button
+                                    className={`ica-view-toggle-btn${questionTypeFilter === 'all' ? ' active' : ''}`}
+                                    onClick={() => setQuestionTypeFilter('all')}
+                                >All Questions</button>
+                                <button
+                                    className={`ica-view-toggle-btn${questionTypeFilter === 'mandatory' ? ' active' : ''}`}
+                                    onClick={() => setQuestionTypeFilter('mandatory')}
+                                >Mandatory Only</button>
+                            </div>
+                        </div>
                         <div className="filter-group">
                             <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className="filter-select">
                                 {availableWeeks.map(w => <option key={w} value={w}>Week of {formatDate(w)}</option>)}
@@ -324,6 +444,15 @@ const ClassificationOverview = ({ mode }) => {
                                 className="search-input"
                             />
                         </div>
+                        <button
+                            className={`dropdown-button ica-threshold-toggle${showThresholdPanel ? ' active' : ''}${!isDefaultThresholds ? ' modified' : ''}`}
+                            onClick={() => setShowThresholdPanel(v => !v)}
+                        >
+                            <SlidersHorizontal size={14} />
+                            Ambang Batas
+                            {!isDefaultThresholds && <span className="ica-threshold-dot" />}
+                            {pctLoading && <span className="ica-threshold-loading">↻</span>}
+                        </button>
                     </>
                 )}
                 <button
@@ -335,6 +464,57 @@ const ClassificationOverview = ({ mode }) => {
                     {compareMode ? 'Close Comparison' : 'Compare Weeks'}
                 </button>
             </div>
+
+            {showThresholdPanel && !compareMode && (
+                <div className="ica-threshold-panel">
+                    <div className="ica-threshold-panel-header">
+                        <span className="ica-threshold-panel-title">Ambang Batas per Jenjang</span>
+                        {!isDefaultThresholds && (
+                            <button className="ica-threshold-reset" onClick={() => setJenjangThresholds(JENJANG_DEFAULTS)}>
+                                Reset ke default
+                            </button>
+                        )}
+                    </div>
+                    <table className="ica-threshold-table">
+                        <thead>
+                            <tr>
+                                <th>Jenjang</th>
+                                <th>Below (&lt;)</th>
+                                <th>Above (&gt;)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {['SD', 'SMP', 'SMA'].map(j => (
+                                <tr key={j}>
+                                    <td className="ica-threshold-jenjang">{j}</td>
+                                    <td>
+                                        <div className="ica-threshold-cell">
+                                            <input
+                                                type="number" min="1" max={jenjangThresholds[j].above - 1}
+                                                value={jenjangThresholds[j].below}
+                                                onChange={e => updateJenjangThreshold(j, 'below', e.target.value)}
+                                                className="ica-threshold-input"
+                                            />
+                                            <span className="ica-threshold-pct">%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="ica-threshold-cell">
+                                            <input
+                                                type="number" min={jenjangThresholds[j].below + 1} max="99"
+                                                value={jenjangThresholds[j].above}
+                                                onChange={e => updateJenjangThreshold(j, 'above', e.target.value)}
+                                                className="ica-threshold-input"
+                                            />
+                                            <span className="ica-threshold-pct">%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {compareMode ? (
                 <div className="ica-compare">
@@ -794,7 +974,7 @@ const GradeBreakdown = () => {
                         pctNoUnd,
                         questions,
                     };
-                }).sort((a, b) => a.slot_name.localeCompare(b.slot_name, undefined, { numeric: true, sensitivity: 'base' }));
+                }).sort((a, b) => compareSlotNames(a.slot_name, b.slot_name));
 
                 setSlotRows(combined);
             } catch (err) {
@@ -911,6 +1091,563 @@ const GradeBreakdown = () => {
                         </tbody>
                     </table>
                 </div>
+            )}
+        </div>
+    );
+};
+
+// Sparkline showing % Full Understanding trend week-over-week for a question.
+// Color reflects the latest week's value: green ≥ 80%, blue ≥ 50%, red below.
+const QuestionTrendChart = ({ weeks }) => {
+    if (!weeks || weeks.length === 0) return <span className="ica-analytics-no-data">—</span>;
+
+    const validWeeks = weeks.filter(w => w.pctFull != null);
+    if (validWeeks.length === 0) return <span className="ica-analytics-no-data">—</span>;
+
+    if (validWeeks.length === 1) {
+        const pct = validWeeks[0].pctFull;
+        const color = pct >= 80 ? '#16a34a' : pct >= 50 ? '#3b82f6' : '#dc2626';
+        return (
+            <div className="ica-trend-bar-wrap" title={`${formatDate(validWeeks[0].week)}: ${pct.toFixed(1)}%`}>
+                <div className="ica-trend-bar-track">
+                    <div className="ica-trend-bar-fill" style={{ width: `${pct}%`, background: color }} />
+                </div>
+                <span className="ica-trend-bar-label" style={{ color }}>{pct.toFixed(0)}%</span>
+            </div>
+        );
+    }
+
+    const width = 120;
+    const height = 36;
+    const padX = 6;
+    const padY = 5;
+    const plotW = width - padX * 2;
+    const plotH = height - padY * 2;
+
+    const values = validWeeks.map(w => w.pctFull);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = maxV - minV;
+
+    const xFor = (i) => padX + (i / (validWeeks.length - 1)) * plotW;
+    const yFor = (v) => range === 0 ? height / 2 : padY + plotH - ((v - minV) / range) * plotH;
+
+    const lastPct = validWeeks[validWeeks.length - 1].pctFull;
+    const lineColor = lastPct >= 80 ? '#16a34a' : lastPct >= 50 ? '#3b82f6' : '#dc2626';
+
+    const pts = validWeeks.map((w, i) => ({ x: xFor(i), y: yFor(w.pctFull), pct: w.pctFull, week: w.week }));
+
+    return (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="ica-trend-chart" aria-hidden="true">
+            <polyline
+                points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                fill="none"
+                stroke={lineColor}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+            />
+            {pts.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={3} fill={lineColor} stroke="#fff" strokeWidth={1}>
+                    <title>{`${formatDate(p.week)}: ${p.pct.toFixed(1)}%`}</title>
+                </circle>
+            ))}
+        </svg>
+    );
+};
+
+// ============================================================================
+// Section D: Per-question breakdown.
+// Primary filter: question (reference_id) — searchable combobox loaded from
+// ica_question_metadata. Once a question is selected, shows its performance
+// across every grade-slot that has assessment data for it. Secondary grade
+// filter narrows the table client-side. Each row = one grade×slot; expanding
+// it reveals the per-week breakdown for that slot.
+// ============================================================================
+const QuestionsBreakdown = () => {
+    const [allQuestions, setAllQuestions] = useState([]);
+    const [loadingQuestions, setLoadingQuestions] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [selectedQuestion, setSelectedQuestion] = useState(null);
+    const [gradeFilter, setGradeFilter] = useState('');
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [expandedSlot, setExpandedSlot] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await fetchAllRows(() =>
+                    supabase.from('ica_question_metadata').select('reference_id, subject, grade, is_mandatory, week_launched')
+                );
+                setAllQuestions(data || []);
+            } catch (err) {
+                console.error('Error loading questions list:', err);
+            } finally {
+                setLoadingQuestions(false);
+            }
+        })();
+    }, []);
+
+    const dropdownOptions = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return allQuestions.slice(0, 25);
+        return allQuestions.filter(q =>
+            q.reference_id.toLowerCase().includes(term) ||
+            (q.subject && q.subject.toLowerCase().includes(term))
+        ).slice(0, 30);
+    }, [allQuestions, searchTerm]);
+
+    useEffect(() => {
+        if (!selectedQuestion) {
+            setRows([]);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const assessments = await fetchAllRows(() =>
+                    supabase
+                        .from('ica_student_assessments')
+                        .select('grade_list, slot_name, session_date, understanding_types')
+                        .eq('reference_id', selectedQuestion)
+                );
+
+                if (cancelled) return;
+
+                // Build grade (int) → Set<slot_name> from assessments that have answers
+                const gradeToSlots = new Map();
+                assessments.forEach(a => {
+                    if (a.understanding_types !== 'Full Understanding' && a.understanding_types !== 'No Understanding') return;
+                    const g = parseInt(a.grade_list, 10);
+                    if (!gradeToSlots.has(g)) gradeToSlots.set(g, new Set());
+                    gradeToSlots.get(g).add(a.slot_name);
+                });
+
+                if (gradeToSlots.size === 0) {
+                    if (!cancelled) setRows([]);
+                    return;
+                }
+
+                // Fetch participants per grade, filtered to only relevant slots
+                // sessionPresent key: "gradeInt||slot_name||session_date"
+                const sessionPresent = new Map();
+                const teacherMap = new Map(); // "gradeInt||slot_name" → teacher_name
+
+                await Promise.all(Array.from(gradeToSlots.entries()).map(async ([gradeInt, slotSet]) => {
+                    const parts = await fetchAllRows(() =>
+                        supabase
+                            .from('participants_per_batch')
+                            .select('slot_name, session_date, participated, teacher_name')
+                            .eq('grade', gradeInt)
+                            .in('slot_name', Array.from(slotSet))
+                    );
+                    parts.forEach(p => {
+                        const gsKey = `${gradeInt}||${p.slot_name}`;
+                        if (p.teacher_name && !teacherMap.has(gsKey)) teacherMap.set(gsKey, p.teacher_name);
+                        if (p.participated) {
+                            const sdKey = `${gsKey}||${p.session_date}`;
+                            sessionPresent.set(sdKey, (sessionPresent.get(sdKey) ?? 0) + 1);
+                        }
+                    });
+                }));
+
+                if (cancelled) return;
+
+                const toWeekMonday = (dateStr) => {
+                    const d = new Date(dateStr);
+                    const day = d.getUTCDay();
+                    d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
+                    return d.toISOString().split('T')[0];
+                };
+
+                // Group by grade+slot → week → { full, attempted, sessions }
+                const byGradeSlot = new Map();
+                assessments.forEach(a => {
+                    if (a.understanding_types !== 'Full Understanding' && a.understanding_types !== 'No Understanding') return;
+                    const gradeInt = parseInt(a.grade_list, 10);
+                    const gsKey = `${gradeInt}||${a.slot_name}`;
+                    if (!byGradeSlot.has(gsKey)) byGradeSlot.set(gsKey, { grade: a.grade_list, gradeInt, slot_name: a.slot_name, weeks: new Map() });
+                    const entry = byGradeSlot.get(gsKey);
+                    const week = toWeekMonday(a.session_date);
+                    if (!entry.weeks.has(week)) entry.weeks.set(week, { full: 0, attempted: 0, sessions: new Set() });
+                    const b = entry.weeks.get(week);
+                    b.attempted++;
+                    b.sessions.add(a.session_date);
+                    if (a.understanding_types === 'Full Understanding') b.full++;
+                });
+
+                const result = Array.from(byGradeSlot.entries())
+                    .map(([gsKey, { grade, gradeInt, slot_name, weeks: weekMap }]) => {
+                        const weeklyData = Array.from(weekMap.entries())
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([week, b]) => {
+                                const present = Array.from(b.sessions).reduce((sum, sd) => {
+                                    return sum + (sessionPresent.get(`${gradeInt}||${slot_name}||${sd}`) ?? 0);
+                                }, 0);
+                                return {
+                                    week,
+                                    attempted: b.attempted,
+                                    full: b.full,
+                                    present,
+                                    pctFull: b.attempted > 0 ? (b.full / b.attempted) * 100 : null,
+                                    pctParticipation: present > 0 ? (b.attempted / present) * 100 : null,
+                                };
+                            });
+
+                        const totalAttempted = weeklyData.reduce((s, w) => s + w.attempted, 0);
+                        const totalFull = weeklyData.reduce((s, w) => s + w.full, 0);
+                        const totalPresent = weeklyData.reduce((s, w) => s + w.present, 0);
+
+                        return {
+                            grade,
+                            gradeInt,
+                            slot_name,
+                            teacher_name: teacherMap.get(gsKey) ?? null,
+                            totalAttempted,
+                            overallPctFull: totalAttempted > 0 ? (totalFull / totalAttempted) * 100 : null,
+                            overallPctParticipation: totalPresent > 0 ? (totalAttempted / totalPresent) * 100 : null,
+                            weeks: weeklyData,
+                        };
+                    })
+                    .sort((a, b) => {
+                        if (a.gradeInt !== b.gradeInt) return a.gradeInt - b.gradeInt;
+                        return compareSlotNames(a.slot_name, b.slot_name);
+                    });
+
+                if (!cancelled) setRows(result);
+            } catch (err) {
+                console.error('Error loading question performance:', err);
+                if (!cancelled) setError(err.message);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [selectedQuestion]);
+
+    const [viewMode, setViewMode] = useState('per-week');
+
+    const filteredRows = useMemo(() => {
+        if (!gradeFilter) return rows;
+        return rows.filter(r => String(r.grade) === String(gradeFilter));
+    }, [rows, gradeFilter]);
+
+    const availableGrades = useMemo(() =>
+        [...new Set(rows.map(r => r.grade))].sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0)),
+        [rows]
+    );
+
+    // Aggregate across ALL grade-slots for overall stats
+    const overallStats = useMemo(() => {
+        const totalAttempted = rows.reduce((s, r) => s + r.totalAttempted, 0);
+        const totalFull = rows.reduce((s, r) => s + r.weeks.reduce((ws, w) => ws + w.full, 0), 0);
+        const totalPresent = rows.reduce((s, r) => s + r.weeks.reduce((ws, w) => ws + w.present, 0), 0);
+        return {
+            slotCount: rows.length,
+            totalAttempted,
+            pctFull: totalAttempted > 0 ? (totalFull / totalAttempted) * 100 : null,
+            pctParticipation: totalPresent > 0 ? (totalAttempted / totalPresent) * 100 : null,
+        };
+    }, [rows]);
+
+    // Per-week aggregate across all grade-slots
+    const weeklyAggregate = useMemo(() => {
+        const byWeek = new Map();
+        rows.forEach(r => {
+            r.weeks.forEach(w => {
+                if (!byWeek.has(w.week)) byWeek.set(w.week, { attempted: 0, full: 0, present: 0 });
+                const b = byWeek.get(w.week);
+                b.attempted += w.attempted;
+                b.full += w.full;
+                b.present += w.present;
+            });
+        });
+        return Array.from(byWeek.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([week, b]) => ({
+                week,
+                attempted: b.attempted,
+                pctFull: b.attempted > 0 ? (b.full / b.attempted) * 100 : null,
+                pctParticipation: b.present > 0 ? (b.attempted / b.present) * 100 : null,
+            }));
+    }, [rows]);
+
+    const handleSelectQuestion = (refId) => {
+        setSelectedQuestion(refId);
+        setSearchTerm(refId);
+        setShowDropdown(false);
+        setGradeFilter('');
+        setExpandedSlot(null);
+    };
+
+    const handleClearQuestion = () => {
+        setSelectedQuestion(null);
+        setSearchTerm('');
+        setShowDropdown(false);
+        setRows([]);
+        setGradeFilter('');
+        setExpandedSlot(null);
+        setViewMode('per-week');
+    };
+
+    const selectedMeta = useMemo(() =>
+        allQuestions.find(q => q.reference_id === selectedQuestion) ?? null,
+        [allQuestions, selectedQuestion]
+    );
+
+    return (
+        <div className="table-container">
+            {/* ── Question search ── */}
+            <div className="header-actions" style={{ marginBottom: 16 }}>
+                <div className="filter-group ica-question-search-group">
+                    <span className="filter-label">Question</span>
+                    <div className="ica-question-search-wrap">
+                        <input
+                            type="text"
+                            className="search-input ica-question-search-input"
+                            placeholder={loadingQuestions ? 'Loading questions...' : 'Type reference ID or subject...'}
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setShowDropdown(true);
+                                if (selectedQuestion && e.target.value !== selectedQuestion) setSelectedQuestion(null);
+                            }}
+                            onFocus={() => setShowDropdown(true)}
+                            onBlur={() => setTimeout(() => setShowDropdown(false), 180)}
+                            disabled={loadingQuestions}
+                        />
+                        {searchTerm && (
+                            <button className="ica-question-search-clear" onClick={handleClearQuestion} aria-label="Clear">✕</button>
+                        )}
+                        {showDropdown && dropdownOptions.length > 0 && (
+                            <ul className="ica-question-dropdown">
+                                {dropdownOptions.map(q => (
+                                    <li
+                                        key={q.reference_id}
+                                        className={`ica-question-dropdown-item${selectedQuestion === q.reference_id ? ' ica-question-dropdown-item-selected' : ''}`}
+                                        onMouseDown={() => handleSelectQuestion(q.reference_id)}
+                                    >
+                                        <code className="ica-ref-id">{q.reference_id}</code>
+                                        {q.subject && <span className="ica-question-dropdown-subject">{q.subject}</span>}
+                                        {q.grade && <span className="ica-question-dropdown-grade">Grade {q.grade}</span>}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {!selectedQuestion ? (
+                <div className="empty-state"><p>Search and select a question to see its performance across grade-slots</p></div>
+            ) : loading ? (
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <div className="loading-text">Loading performance data...</div>
+                </div>
+            ) : error ? (
+                <div className="empty-state"><p>Failed to load: {error}</p></div>
+            ) : rows.length === 0 ? (
+                <div className="empty-state"><p>No assessment data found for this question.</p></div>
+            ) : (
+                <>
+                    {/* ── Question info + overall stats ── */}
+                    {selectedMeta && (
+                        <div className="ica-question-summary">
+                            <span className="ica-question-summary-label">Question</span>
+                            <code className="ica-ref-id">{selectedQuestion}</code>
+                            {selectedMeta.subject && <span className="ica-question-summary-subject">{selectedMeta.subject}</span>}
+                            {selectedMeta.is_mandatory != null && (
+                                selectedMeta.is_mandatory
+                                    ? <span className="ica-badge ica-badge-mandatory">Mandatory</span>
+                                    : <span className="ica-badge ica-badge-optional">Optional</span>
+                            )}
+                            {selectedMeta.week_launched && <span className="ica-question-summary-meta">Week {selectedMeta.week_launched}</span>}
+                        </div>
+                    )}
+
+                    <div className="ica-overall-cards">
+                        <div className="ica-overall-card">
+                            <p className="ica-overall-card-label">Slots</p>
+                            <p className="ica-overall-card-value">{overallStats.slotCount}</p>
+                        </div>
+                        <div className="ica-overall-card">
+                            <p className="ica-overall-card-label">Total Attempted</p>
+                            <p className="ica-overall-card-value">{overallStats.totalAttempted}</p>
+                        </div>
+                        <div className="ica-overall-card">
+                            <p className="ica-overall-card-label">Overall % Full</p>
+                            <p className={`ica-overall-card-value ica-pct-value ${overallStats.pctFull != null ? (overallStats.pctFull >= 80 ? 'ica-pct-high' : overallStats.pctFull >= 50 ? 'ica-pct-mid' : 'ica-pct-low') : ''}`}>
+                                {overallStats.pctFull != null ? `${overallStats.pctFull.toFixed(1)}%` : '—'}
+                            </p>
+                        </div>
+                        <div className="ica-overall-card">
+                            <p className="ica-overall-card-label">Overall % Participation</p>
+                            <p className="ica-overall-card-value">
+                                {overallStats.pctParticipation != null ? `${overallStats.pctParticipation.toFixed(1)}%` : '—'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* ── View toggle ── */}
+                    <div className="ica-view-toggle">
+                        <button
+                            className={`ica-view-toggle-btn${viewMode === 'per-week' ? ' active' : ''}`}
+                            onClick={() => setViewMode('per-week')}
+                        >
+                            Per Week
+                        </button>
+                        <button
+                            className={`ica-view-toggle-btn${viewMode === 'per-slot' ? ' active' : ''}`}
+                            onClick={() => setViewMode('per-slot')}
+                        >
+                            Per Slot
+                        </button>
+                    </div>
+
+                    {/* ── Per Week view ── */}
+                    {viewMode === 'per-week' && (
+                        <div className="ica-table-scroll">
+                            <table className="assignment-table ica-analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Week</th>
+                                        <th>Total Attempted</th>
+                                        <th>% Full Understanding</th>
+                                        <th>% Participation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {weeklyAggregate.map(w => (
+                                        <tr key={w.week}>
+                                            <td>{formatDate(w.week)}</td>
+                                            <td>{w.attempted}</td>
+                                            <td>
+                                                {w.pctFull != null ? (
+                                                    <span className={`ica-pct-value ${w.pctFull >= 80 ? 'ica-pct-high' : w.pctFull >= 50 ? 'ica-pct-mid' : 'ica-pct-low'}`}>
+                                                        {w.pctFull.toFixed(1)}%
+                                                    </span>
+                                                ) : '—'}
+                                            </td>
+                                            <td>{w.pctParticipation != null ? `${w.pctParticipation.toFixed(1)}%` : '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* ── Per Slot view ── */}
+                    {viewMode === 'per-slot' && (
+                        <>
+                            {availableGrades.length > 1 && (
+                                <div className="header-actions" style={{ marginBottom: 12 }}>
+                                    <div className="filter-group">
+                                        <span className="filter-label">Grade</span>
+                                        <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="filter-select">
+                                            <option value="">All Grades</option>
+                                            {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="ica-table-scroll">
+                                <table className="assignment-table ica-analytics-table ica-questions-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="ica-expand-th"></th>
+                                            <th>Grade</th>
+                                            <th>Slot</th>
+                                            <th>Teacher</th>
+                                            <th>Total Attempted</th>
+                                            <th>% Full</th>
+                                            <th>% Participation</th>
+                                            <th>Weekly Trend</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredRows.map(row => {
+                                            const rowKey = `${row.gradeInt}||${row.slot_name}`;
+                                            const isExpanded = expandedSlot === rowKey;
+                                            return (
+                                                <React.Fragment key={rowKey}>
+                                                    <tr
+                                                        className={`ica-question-row${isExpanded ? ' ica-question-row-expanded' : ''}`}
+                                                        onClick={() => setExpandedSlot(prev => prev === rowKey ? null : rowKey)}
+                                                    >
+                                                        <td className="ica-expand-cell">
+                                                            <span className="ica-expand-icon">{isExpanded ? '▾' : '▸'}</span>
+                                                        </td>
+                                                        <td>{row.grade}</td>
+                                                        <td className="ica-analytics-slot-cell">{row.slot_name}</td>
+                                                        <td>{row.teacher_name ?? <span className="ica-analytics-no-data">—</span>}</td>
+                                                        <td>{row.totalAttempted}</td>
+                                                        <td>
+                                                            {row.overallPctFull != null ? (
+                                                                <span className={`ica-pct-value ${row.overallPctFull >= 80 ? 'ica-pct-high' : row.overallPctFull >= 50 ? 'ica-pct-mid' : 'ica-pct-low'}`}>
+                                                                    {row.overallPctFull.toFixed(1)}%
+                                                                </span>
+                                                            ) : '—'}
+                                                        </td>
+                                                        <td>{row.overallPctParticipation != null ? `${row.overallPctParticipation.toFixed(1)}%` : '—'}</td>
+                                                        <td onClick={(e) => e.stopPropagation()}>
+                                                            <QuestionTrendChart weeks={row.weeks} />
+                                                        </td>
+                                                    </tr>
+                                                    {isExpanded && (
+                                                        <tr className="ica-question-expanded-row">
+                                                            <td colSpan={8}>
+                                                                <div className="ica-week-breakdown">
+                                                                    <p className="ica-week-breakdown-title">Weekly breakdown — Grade {row.grade} · {row.slot_name}</p>
+                                                                    <table className="ica-week-table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>Week</th>
+                                                                                <th>Attempted</th>
+                                                                                <th>Present</th>
+                                                                                <th>% Full Understanding</th>
+                                                                                <th>% Participation</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {row.weeks.map(w => (
+                                                                                <tr key={w.week}>
+                                                                                    <td>{formatDate(w.week)}</td>
+                                                                                    <td>{w.attempted}</td>
+                                                                                    <td>{w.present > 0 ? w.present : <span className="ica-analytics-no-data">—</span>}</td>
+                                                                                    <td>
+                                                                                        {w.pctFull != null ? (
+                                                                                            <span className={`ica-pct-value ${w.pctFull >= 80 ? 'ica-pct-high' : w.pctFull >= 50 ? 'ica-pct-mid' : 'ica-pct-low'}`}>
+                                                                                                {w.pctFull.toFixed(1)}%
+                                                                                            </span>
+                                                                                        ) : '—'}
+                                                                                    </td>
+                                                                                    <td>{w.pctParticipation != null ? `${w.pctParticipation.toFixed(1)}%` : '—'}</td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
+                </>
             )}
         </div>
     );
