@@ -188,6 +188,7 @@ const ClassificationOverview = ({ mode }) => {
     const [showThresholdPanel, setShowThresholdPanel] = useState(false);
     const [pctRows, setPctRows] = useState([]);
     const [pctLoading, setPctLoading] = useState(false);
+    const [pctError, setPctError] = useState(null);
 
     // Compare Weeks mode - same grade+slot, two different weeks side by side
     const [compareMode, setCompareMode] = useState(false);
@@ -214,10 +215,23 @@ const ClassificationOverview = ({ mode }) => {
 
     const updateJenjangThreshold = (jenjang, field, rawValue) => {
         const value = Number(rawValue);
+        if (rawValue === '' || isNaN(value)) return;
         setJenjangThresholds(prev => {
             const cur = prev[jenjang];
-            if (field === 'below') return { ...prev, [jenjang]: { ...cur, below: Math.max(1, Math.min(value, cur.above - 1)) } };
-            return { ...prev, [jenjang]: { ...cur, above: Math.max(cur.below + 1, Math.min(value, 99)) } };
+            if (field === 'below') return { ...prev, [jenjang]: { ...cur, below: value } };
+            return { ...prev, [jenjang]: { ...cur, above: value } };
+        });
+    };
+
+    const clampJenjangThreshold = (jenjang, field) => {
+        setJenjangThresholds(prev => {
+            const cur = prev[jenjang];
+            if (field === 'below') {
+                const clamped = Math.max(1, Math.min(Math.round(cur.below) || 1, cur.above - 1));
+                return { ...prev, [jenjang]: { ...cur, below: clamped } };
+            }
+            const clamped = Math.max(cur.below + 1, Math.min(Math.round(cur.above) || 99, 99));
+            return { ...prev, [jenjang]: { ...cur, above: clamped } };
         });
     };
 
@@ -347,13 +361,23 @@ const ClassificationOverview = ({ mode }) => {
         (async () => {
             try {
                 setPctLoading(true);
-                const data = await fetchAllRows(() =>
+                setPctError(null);
+                // Try week_date first, then week_period as fallback (column name may differ by version)
+                let data = await fetchAllRows(() =>
                     supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_date', weekFilter)
                 );
+                if ((!data || data.length === 0)) {
+                    data = await fetchAllRows(() =>
+                        supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_period', weekFilter)
+                    );
+                }
                 if (!cancelled) setPctRows(data || []);
             } catch (err) {
                 console.error('Error fetching pct data:', err);
-                if (!cancelled) setPctRows([]);
+                if (!cancelled) {
+                    setPctRows([]);
+                    setPctError(err.message || String(err));
+                }
             } finally {
                 if (!cancelled) setPctLoading(false);
             }
@@ -490,9 +514,10 @@ const ClassificationOverview = ({ mode }) => {
                                     <td>
                                         <div className="ica-threshold-cell">
                                             <input
-                                                type="number" min="1" max={jenjangThresholds[j].above - 1}
+                                                type="number" min="1" max="99"
                                                 value={jenjangThresholds[j].below}
                                                 onChange={e => updateJenjangThreshold(j, 'below', e.target.value)}
+                                                onBlur={() => clampJenjangThreshold(j, 'below')}
                                                 className="ica-threshold-input"
                                             />
                                             <span className="ica-threshold-pct">%</span>
@@ -501,9 +526,10 @@ const ClassificationOverview = ({ mode }) => {
                                     <td>
                                         <div className="ica-threshold-cell">
                                             <input
-                                                type="number" min={jenjangThresholds[j].below + 1} max="99"
+                                                type="number" min="1" max="99"
                                                 value={jenjangThresholds[j].above}
                                                 onChange={e => updateJenjangThreshold(j, 'above', e.target.value)}
+                                                onBlur={() => clampJenjangThreshold(j, 'above')}
                                                 className="ica-threshold-input"
                                             />
                                             <span className="ica-threshold-pct">%</span>
@@ -513,6 +539,16 @@ const ClassificationOverview = ({ mode }) => {
                             ))}
                         </tbody>
                     </table>
+                    <div className="ica-threshold-footer">
+                        {pctLoading
+                            ? <span className="ica-threshold-loading-text">Memuat data siswa…</span>
+                            : pctError
+                                ? <span className="ica-threshold-footer-error" title={pctError}>Error: {pctError}</span>
+                                : pctRows.length > 0
+                                    ? <span className="ica-threshold-footer-info">{pctRows.length} data siswa dimuat (week: {weekFilter})</span>
+                                    : <span className="ica-threshold-footer-warn">Belum ada data — week: {weekFilter}, tabel: {pctTableName}</span>
+                        }
+                    </div>
                 </div>
             )}
 

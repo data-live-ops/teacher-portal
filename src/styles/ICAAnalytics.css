@@ -636,6 +636,34 @@
     font-weight: 500;
 }
 
+/* Panel footer / debug info */
+.ica-threshold-footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.ica-threshold-footer-info {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.ica-threshold-loading-text {
+    font-size: 11px;
+    color: #3b82f6;
+}
+
+.ica-threshold-footer-warn {
+    font-size: 11px;
+    color: #b45309;
+}
+
+.ica-threshold-footer-error {
+    font-size: 11px;
+    color: #dc2626;
+    cursor: help;
+}
+
 /* Loading spinner (inside toggle button) */
 .ica-threshold-loading {
     font-size: 13px;
