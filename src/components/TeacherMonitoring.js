@@ -18,6 +18,7 @@ const AUDIO_URLS = {
     left: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/teacher_just_left.wav',
     notStarted: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/class_not_started.mp3',
     emergency: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/emerhency.wav',
+    chat: 'https://vqhaeqcorxsizfiswphs.supabase.co/storage/v1/object/public/live_class/live_chat_portal.mp3',
 };
 
 // Status tabs configuration
@@ -546,7 +547,10 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                     if (prev.some(m => m.id === incoming.id)) return prev;
                     return [...prev, incoming];
                 });
-                if (!showChatRef.current) setChatUnread(prev => prev + 1);
+                if (!showChatRef.current) {
+                    setChatUnread(prev => prev + 1);
+                    if (incoming.sender_email !== userEmail) playChatAlert();
+                }
             })
             .subscribe();
 
@@ -737,6 +741,8 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     const preloadedLeftRef = useRef(null);
     const preloadedNotStartedRef = useRef(null);
     const preloadedEmergencyRef = useRef(null);
+    const preloadedChatRef = useRef(null);
+    const chatAudioRef = useRef(null);
 
     useEffect(() => {
         const preload = (url) => {
@@ -748,6 +754,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         preloadedLeftRef.current = preload(AUDIO_URLS.left);
         preloadedNotStartedRef.current = preload(AUDIO_URLS.notStarted);
         preloadedEmergencyRef.current = preload(AUDIO_URLS.emergency);
+        preloadedChatRef.current = preload(AUDIO_URLS.chat);
     }, []);
 
     const playLeftAlertNTimes = (remaining) => {
@@ -814,6 +821,26 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         } catch (e) {
             emergencyAudioRef.current = null;
             console.warn('Could not play emergency alert sound:', e);
+        }
+    };
+
+    const playChatAlert = () => {
+        if (chatAudioRef.current !== null) return;
+
+        try {
+            const audio = preloadedChatRef.current || new Audio(AUDIO_URLS.chat);
+            audio.volume = 1.0;
+            audio.currentTime = 0;
+            chatAudioRef.current = audio;
+            audio.onended = () => { chatAudioRef.current = null; };
+            audio.onerror = () => { chatAudioRef.current = null; };
+            audio.play().catch(e => {
+                chatAudioRef.current = null;
+                console.warn('Could not play chat alert sound:', e);
+            });
+        } catch (e) {
+            chatAudioRef.current = null;
+            console.warn('Could not play chat alert sound:', e);
         }
     };
 
