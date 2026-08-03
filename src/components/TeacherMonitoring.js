@@ -1108,22 +1108,10 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 );
                 setData(updatedData);
                 setLastRefresh(new Date());
-
-                // Play pending alerts immediately on tab focus — browser throttles intervals
-                // when tab is hidden, so alerts may not have fired while away
-                const now = new Date();
-                const fifteenMinutes = 15 * 60 * 1000;
-                const isActive = (item) => now - new Date(item.class_end_time) <= fifteenMinutes;
-
-                if (updatedData.some(item => item.has_slack_emergency && !item.escalated && isActive(item))) {
-                    playEmergencyAlert();
-                }
-                if (updatedData.some(item => item.status === 'left' && isActive(item))) {
-                    playLeftAlertNTimes(3);
-                }
-                if (updatedData.some(item => item.status === 'not_started' && isActive(item))) {
-                    playNotStartedAlert();
-                }
+                // Note: this setData triggers the "detect new left/not_started/emergency"
+                // effects below via the [data] dependency, so alerts for genuinely new
+                // events (missed while the tab was hidden) already fire from there —
+                // no need to re-check and replay here for already-known conditions.
             } catch (err) {
                 console.error('Error reloading on visibility change:', err);
             }
