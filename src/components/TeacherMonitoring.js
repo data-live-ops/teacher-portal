@@ -27,6 +27,7 @@ const TABS = [
     { key: 'not_started', label: 'Class Not Started', color: '#DC2626', bgColor: '#FEE2E2' },
     { key: 'left', label: 'Left', color: '#EA580C', bgColor: '#FFEDD5' },
     { key: 'ongoing', label: 'Ongoing Classes', color: '#16A34A', bgColor: '#DCFCE7' },
+    { key: 'past', label: 'Past', color: '#6B7280', bgColor: '#F3F4F6' },
 ];
 
 // Helper function to parse class time string (e.g., "16:00-17:00") to start/end Date objects
@@ -360,6 +361,8 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                 setCurrentPIC(null);
                 setShowPICSelector(true);
                 loadActivePICs();
+                // Reload classes for the new day — clears out yesterday's Past tab entries
+                loadRealData();
             }
         };
 
@@ -857,60 +860,61 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         });
     };
 
-    // Load real data from database
-    useEffect(() => {
-        const loadRealData = async () => {
-            setLoading(true);
-            try {
-                // 1. Load today's classes
-                const classes = await loadTodayClasses(supabase);
-                classesRef.current = classes;
+    // Load (or reload, e.g. on day change) today's classes + emergencies + zoom events
+    const loadRealData = async () => {
+        setLoading(true);
+        try {
+            // 1. Load today's classes
+            const classes = await loadTodayClasses(supabase);
+            classesRef.current = classes;
 
-                if (classes.length === 0) {
-                    setData([]);
-                    setLoading(false);
-                    setLastRefresh(new Date());
-                    return;
-                }
-
-                // 2. Fetch pending emergencies
-                const { data: emergencies, error: emergencyError } = await supabase
-                    .from('emergency_replacements')
-                    .select('live_class_id, reason, requested_by_name, created_at, escalated, slack_ts')
-                    .eq('status', 'pending');
-
-                const emergencyMap = {};
-                if (!emergencyError && emergencies) {
-                    emergencies.forEach(e => {
-                        emergencyMap[e.live_class_id] = {
-                            reason: e.reason,
-                            requested_by: e.requested_by_name,
-                            requested_at: e.created_at,
-                            escalated: e.escalated || false,
-                            slack_ts: e.slack_ts || null,
-                        };
-                    });
-                }
-                emergencyMapRef.current = emergencyMap;
-
-                // 3. Load zoom events for today's classes
-                const scheduleIds = classes.map(c => c.schedule_id);
-                const zoomEvents = await loadZoomEvents(supabase, scheduleIds);
-                zoomEventsRef.current = zoomEvents;
-
-                // 4. Calculate statuses and map to UI format
-                const dataWithStatuses = recalculateStatuses(classes, zoomEvents, emergencyMap);
-                setData(dataWithStatuses);
-
-            } catch (err) {
-                console.error('Error loading real data:', err);
+            if (classes.length === 0) {
                 setData([]);
-            } finally {
                 setLoading(false);
                 setLastRefresh(new Date());
+                return;
             }
-        };
 
+            // 2. Fetch pending emergencies
+            const { data: emergencies, error: emergencyError } = await supabase
+                .from('emergency_replacements')
+                .select('live_class_id, reason, requested_by_name, created_at, escalated, slack_ts')
+                .eq('status', 'pending');
+
+            const emergencyMap = {};
+            if (!emergencyError && emergencies) {
+                emergencies.forEach(e => {
+                    emergencyMap[e.live_class_id] = {
+                        reason: e.reason,
+                        requested_by: e.requested_by_name,
+                        requested_at: e.created_at,
+                        escalated: e.escalated || false,
+                        slack_ts: e.slack_ts || null,
+                    };
+                });
+            }
+            emergencyMapRef.current = emergencyMap;
+
+            // 3. Load zoom events for today's classes
+            const scheduleIds = classes.map(c => c.schedule_id);
+            const zoomEvents = await loadZoomEvents(supabase, scheduleIds);
+            zoomEventsRef.current = zoomEvents;
+
+            // 4. Calculate statuses and map to UI format
+            const dataWithStatuses = recalculateStatuses(classes, zoomEvents, emergencyMap);
+            setData(dataWithStatuses);
+
+        } catch (err) {
+            console.error('Error loading real data:', err);
+            setData([]);
+        } finally {
+            setLoading(false);
+            setLastRefresh(new Date());
+        }
+    };
+
+    // Load real data from database
+    useEffect(() => {
         loadRealData();
     }, []);
 
@@ -998,10 +1002,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     // Detect new "left" entries and play alert sound
     useEffect(() => {
         const now = new Date();
-        const fifteenMinutes = 15 * 60 * 1000;
         const activeLeft = data.filter(item =>
             item.status === 'left' &&
-            now - new Date(item.class_end_time) <= fifteenMinutes
+            new Date(item.class_end_time) >= now
         );
         const currentLeftIds = new Set(activeLeft.map(item => item.live_class_id));
 
@@ -1019,10 +1022,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     // Detect new "not_started" entries and play alert sound
     useEffect(() => {
         const now = new Date();
-        const fifteenMinutes = 15 * 60 * 1000;
         const activeNotStarted = data.filter(item =>
             item.status === 'not_started' &&
-            now - new Date(item.class_end_time) <= fifteenMinutes
+            new Date(item.class_end_time) >= now
         );
         const currentNotStartedIds = new Set(activeNotStarted.map(item => item.live_class_id));
 
@@ -1041,10 +1043,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     // Detect new emergency entries and start continuous alert
     useEffect(() => {
         const now = new Date();
-        const fifteenMinutes = 15 * 60 * 1000;
         const activeEmergency = data.filter(item =>
             item.has_slack_emergency && !item.escalated &&
-            now - new Date(item.class_end_time) <= fifteenMinutes
+            new Date(item.class_end_time) >= now
         );
         const currentEmergencyIds = new Set(activeEmergency.map(item => item.live_class_id));
 
@@ -1063,10 +1064,9 @@ const TeacherMonitoring = ({ user, onLogout }) => {
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date();
-            const fifteenMinutes = 15 * 60 * 1000;
             const count = dataRef.current.filter(item =>
                 item.has_slack_emergency && !item.escalated &&
-                now - new Date(item.class_end_time) <= fifteenMinutes
+                new Date(item.class_end_time) >= now
             ).length;
             if (count > 0) playEmergencyAlert();
         }, 5 * 1000);
@@ -1121,22 +1121,23 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
-    // Filter out classes that ended more than 15 minutes ago
+    // Classes still within their scheduled time window — feeds the operational tabs
     const activeData = useMemo(() => {
         const now = new Date();
-        const fifteenMinutes = 15 * 60 * 1000;
-
-        return data.filter(item => {
-            const endTime = new Date(item.class_end_time);
-            const timeSinceEnd = now - endTime;
-
-            return timeSinceEnd <= fifteenMinutes;
-        });
+        return data.filter(item => new Date(item.class_end_time) >= now);
     }, [data, lastRefresh]); // lastRefresh ensures recalculation every poll
+
+    // Classes whose scheduled end time has passed — feeds the Past tab
+    const pastData = useMemo(() => {
+        const now = new Date();
+        return data.filter(item => new Date(item.class_end_time) < now);
+    }, [data, lastRefresh]);
 
     const filteredData = useMemo(() => {
         let result;
-        if (activeTab === 'need_replacement') {
+        if (activeTab === 'past') {
+            result = pastData;
+        } else if (activeTab === 'need_replacement') {
             result = activeData.filter(item => item.escalated);
         } else if (activeTab === 'ongoing') {
             result = activeData.filter(item =>
@@ -1144,6 +1145,11 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             );
         } else {
             result = activeData.filter(item => item.status === activeTab && !item.escalated);
+        }
+
+        if (activeTab === 'past') {
+            // Most recently ended class first
+            return [...result].sort((a, b) => new Date(b.class_end_time) - new Date(a.class_end_time));
         }
 
         // Sort: Slack emergency (not escalated) first, then not_started, then by start time
@@ -1156,12 +1162,14 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             if (aNotStarted !== bNotStarted) return aNotStarted - bNotStarted;
             return new Date(a.class_start_time) - new Date(b.class_start_time);
         });
-    }, [activeData, activeTab]);
+    }, [activeData, pastData, activeTab]);
 
     const statusCounts = useMemo(() => {
         const counts = {};
         TABS.forEach(tab => {
-            if (tab.key === 'need_replacement') {
+            if (tab.key === 'past') {
+                counts[tab.key] = pastData.length;
+            } else if (tab.key === 'need_replacement') {
                 counts[tab.key] = activeData.filter(item => item.escalated).length;
             } else if (tab.key === 'ongoing') {
                 counts[tab.key] = activeData.filter(item =>
@@ -1172,7 +1180,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
             }
         });
         return counts;
-    }, [activeData]);
+    }, [activeData, pastData]);
 
     // Calculate duration for stuck detection
     const getDuration = (timestamp) => {
