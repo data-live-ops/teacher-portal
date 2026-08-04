@@ -118,6 +118,63 @@ export function buildStickinessGridRows(stickinessRows, rosterRows) {
   return rows;
 }
 
+/**
+ * Builds CSV rows for the Weekly Grid export: sticky columns + Stickiness
+ * Overall + one column per week, mirroring what's rendered on screen and
+ * respecting whatever filters already narrowed `rows`.
+ */
+export function buildWeeklyGridCsvRows(rows, weekPeriods) {
+  const header = ['Grade', 'Teacher', 'Slot', 'Subject', 'Days', 'Time', 'Stickiness Overall', ...weekPeriods.map((w) => w.dateLabel)];
+
+  const cellIndex = new Map();
+  for (const row of rows) {
+    for (const w of row.weeklyData) {
+      cellIndex.set(`${row.key}|${w.week_period}`, w.stickiness);
+    }
+  }
+
+  const body = rows.map((row) => [
+    row.grade,
+    row.teacherName,
+    row.slotName,
+    row.subject,
+    row.days,
+    row.timeRange,
+    row.overallStickiness != null ? row.overallStickiness.toFixed(2) : '—',
+    ...weekPeriods.map((w) => {
+      const value = cellIndex.get(`${row.key}|${w.date}`);
+      return value != null ? value.toFixed(2) : '—';
+    }),
+  ]);
+
+  return [header, ...body];
+}
+
+/**
+ * Builds CSV rows for the Current Week export, mirroring the columns
+ * rendered on screen and respecting whatever filters already narrowed `rows`
+ * (grade/days/times filters plus the single selected week are baked into
+ * `rows` by the caller before this is called).
+ */
+export function buildCurrentWeekCsvRows(rows) {
+  const header = ['Grade', 'Teacher', 'Slot', 'Subject', 'Stickiness Overall', 'Average Stickiness', 'Deviation', 'Day', 'Time', 'Status'];
+
+  const body = rows.map((row) => [
+    row.course_grade,
+    row.teacher_name || '—',
+    row.slot_name,
+    row.subject || '—',
+    row.stickiness != null ? Number(row.stickiness).toFixed(2) : '—',
+    row.dynamic_avg != null ? Number(row.dynamic_avg).toFixed(2) : '—',
+    row.deviation != null ? Number(row.deviation).toFixed(2) : '—',
+    row.days,
+    row.time_range,
+    row.status || '—',
+  ]);
+
+  return [header, ...body];
+}
+
 /** Distinct week_period values sorted ASC across all stickiness rows. */
 export function getWeekPeriods(stickinessRows) {
   const dates = new Set();

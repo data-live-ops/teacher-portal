@@ -3,16 +3,17 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import MultiSelectFilter from './MultiSelectFilter';
 import { getHeatmapCellStyle, getValueRange } from '../utils/heatmapColor';
-import { buildStickinessGridRows } from '../utils/stickinessUtils';
+import { buildStickinessGridRows, buildWeeklyGridCsvRows } from '../utils/stickinessUtils';
+import { toCsvString } from '../utils/attendanceGrid';
 
 const DAY_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const FIXED_COL_COUNT = 8; // grade, teacher, slot, subject, days, time, overall, trendline
+const FIXED_COL_COUNT = 9; // no, grade, teacher, slot, subject, days, time, overall, trendline
 const ROW_HEIGHT = 40;
 const OVERSCAN = 8;
 
-function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods }) {
+function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickinessType, semesterName }) {
   const scrollRef = useRef(null);
 
   const [selectedGrades, setSelectedGrades] = useState([]);
@@ -95,6 +96,25 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods }) {
     setSelectedSubjects([]); setSelectedDays([]); setSelectedTimes([]);
   };
 
+  const handleExportCsv = () => {
+    const csvRows = buildWeeklyGridCsvRows(filteredRows, weekPeriods);
+    const csvContent = toCsvString(csvRows);
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `stickiness_weekly_grid_${stickinessType || 'stickiness'}_${semesterName || 'semester'}_${dateStr}`
+      .replace(/[^a-z0-9]+/gi, '_');
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const cellIndex = useMemo(() => {
     const index = new Map();
     for (const row of gridRows) {
@@ -145,8 +165,21 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods }) {
         <MultiSelectFilter label="Days" options={dayOptions} selectedValues={selectedDays} onChange={setSelectedDays} />
         <MultiSelectFilter label="Times" options={timeOptions} selectedValues={selectedTimes} onChange={setSelectedTimes} />
         {hasFilter > 0 && (
-          <button className="secondary-button" onClick={clearFilters}>Clear Filter</button>
+          <button className="secondary-button clear-filter-button" onClick={clearFilters}>Clear Filter</button>
         )}
+
+        <button
+          className="export-button"
+          onClick={handleExportCsv}
+          disabled={filteredRows.length === 0}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Export CSV
+        </button>
       </div>
 
       <div className="spreadsheet-container">
@@ -154,6 +187,7 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods }) {
           <table className="attendance-grid-table stickiness-weekly-table">
             <thead>
               <tr>
+                <th className="row-number-col">No.</th>
                 <th className="attendance-sticky-col attendance-sticky-col-1">Grade</th>
                 <th className="attendance-sticky-col attendance-sticky-col-2">Teacher</th>
                 <th className="attendance-sticky-col attendance-sticky-col-3">Slot</th>
@@ -186,6 +220,7 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods }) {
 
                 return (
                   <tr key={row.key}>
+                    <td className="row-number-col">{virtualRow.index + 1}</td>
                     <td className="attendance-sticky-col attendance-sticky-col-1">{row.grade}</td>
                     <td className="attendance-sticky-col attendance-sticky-col-2">{row.teacherName}</td>
                     <td className="attendance-sticky-col attendance-sticky-col-3">{row.slotName}</td>

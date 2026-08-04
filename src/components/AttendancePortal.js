@@ -364,7 +364,7 @@ const AttendancePortal = ({ user, onLogout }) => {
 
                         {hasActiveFilter && (
                             <button
-                                className="secondary-button"
+                                className="secondary-button clear-filter-button"
                                 onClick={clearFilters}
                             >
                                 Clear Filter

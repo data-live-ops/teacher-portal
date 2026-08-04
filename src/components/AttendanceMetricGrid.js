@@ -12,8 +12,9 @@ const STICKY_COLUMNS = [
     { key: 'timeRange', label: 'Times', width: 110 },
 ];
 
+const NUMBER_COL_WIDTH = 44;
 const WEEK_COL_WIDTH = 100;
-const STICKY_TOTAL_WIDTH = STICKY_COLUMNS.reduce((sum, col) => sum + col.width, 0);
+const STICKY_TOTAL_WIDTH = NUMBER_COL_WIDTH + STICKY_COLUMNS.reduce((sum, col) => sum + col.width, 0);
 const ROW_HEIGHT = 40;
 const OVERSCAN = 8;
 
@@ -55,7 +56,7 @@ function AttendanceMetricGrid({ rows, weeks, statsIndexByDataset, sheetConfig })
     const paddingBottom = virtualRows.length > 0
         ? totalHeight - virtualRows[virtualRows.length - 1].end
         : 0;
-    const colCount = STICKY_COLUMNS.length + weeks.length;
+    const colCount = 1 + STICKY_COLUMNS.length + weeks.length;
     const tableWidth = STICKY_TOTAL_WIDTH + weeks.length * WEEK_COL_WIDTH;
 
     return (
@@ -63,6 +64,7 @@ function AttendanceMetricGrid({ rows, weeks, statsIndexByDataset, sheetConfig })
             <table className="attendance-grid-table" style={{ width: tableWidth }}>
                 <thead>
                     <tr>
+                        <th className="row-number-col">No.</th>
                         {STICKY_COLUMNS.map((col, index) => (
                             <th key={col.key} className={`attendance-sticky-col attendance-sticky-col-${index + 1}`}>
                                 {col.label}
@@ -88,6 +90,7 @@ function AttendanceMetricGrid({ rows, weeks, statsIndexByDataset, sheetConfig })
                         const row = rows[virtualRow.index];
                         return (
                             <tr key={row.key}>
+                                <td className="row-number-col">{virtualRow.index + 1}</td>
                                 {STICKY_COLUMNS.map((col, index) => (
                                     <td key={col.key} className={`attendance-sticky-col attendance-sticky-col-${index + 1}`}>
                                         {row[col.key]}

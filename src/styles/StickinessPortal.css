@@ -16,7 +16,7 @@
 
 .stickiness-sticky-col-6 {
   position: sticky;
-  left: 650px;
+  left: 694px;
   z-index: 2;
   background: #fff;
   min-width: 110px;
@@ -89,6 +89,13 @@
 .stickiness-number-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.stickiness-row-number-cell {
+  width: 40px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 .stickiness-status-badge {

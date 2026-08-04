@@ -104,6 +104,18 @@
     cursor: not-allowed;
 }
 
+/* Stands out from the plain secondary button so an active filter is obvious at a glance. */
+.clear-filter-button {
+    border-color: #fbbf24;
+    background-color: #fffbeb;
+    color: #b45309;
+}
+
+.clear-filter-button:hover:not(:disabled) {
+    background-color: #fef3c7;
+    border-color: #f59e0b;
+}
+
 .export-button {
     height: 40px;
     padding: 0 16px;
@@ -480,13 +492,27 @@
     will-change: transform;
 }
 
-.attendance-grid-table thead th.attendance-sticky-col {
+.attendance-grid-table thead th.attendance-sticky-col,
+.attendance-grid-table thead th.row-number-col {
     background: #f8fafc;
     z-index: 25;
 }
 
-.attendance-sticky-col-1 { left: 0px; width: 60px; min-width: 60px; }
-.attendance-sticky-col-2 { left: 60px; width: 170px; min-width: 170px; }
-.attendance-sticky-col-3 { left: 230px; width: 170px; min-width: 170px; }
-.attendance-sticky-col-4 { left: 400px; width: 140px; min-width: 140px; }
-.attendance-sticky-col-5 { left: 540px; width: 110px; min-width: 110px; border-right: 2px solid #e2e8f0; }
+/* Row numbering column, sticky at the very left, ahead of all other sticky columns. */
+.row-number-col {
+    position: sticky;
+    left: 0px;
+    width: 44px;
+    min-width: 44px;
+    background: #ffffff;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
+    will-change: transform;
+}
+
+.attendance-sticky-col-1 { left: 44px; width: 60px; min-width: 60px; }
+.attendance-sticky-col-2 { left: 104px; width: 170px; min-width: 170px; }
+.attendance-sticky-col-3 { left: 274px; width: 170px; min-width: 170px; }
+.attendance-sticky-col-4 { left: 444px; width: 140px; min-width: 140px; }
+.attendance-sticky-col-5 { left: 584px; width: 110px; min-width: 110px; border-right: 2px solid #e2e8f0; }

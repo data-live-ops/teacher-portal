@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { stickinessSupabase } from '../lib/stickinessSupabaseClient';
 import { supabase } from '../lib/supabaseClient.mjs';
 import StickinessWeeklyGrid from './StickinessWeeklyGrid';
@@ -180,6 +180,19 @@ function StickinessPortal() {
     }
   }, [selectedSemesterId, stickinessType, semesters, loadStickinessData, loadRosterRows]);
 
+  // historical_stickiness/active_stickiness have no dedicated sync log (unlike
+  // attendance) - the newest row's updated_at across the currently loaded
+  // type/semester is the best available proxy for "last synced".
+  const lastSyncedAt = useMemo(() => {
+    let latest = null;
+    for (const r of stickinessData) {
+      if (r.updated_at && (!latest || r.updated_at > latest)) latest = r.updated_at;
+    }
+    return latest;
+  }, [stickinessData]);
+
+  const semesterName = semesters.find((s) => s.id === selectedSemesterId)?.name || 'semester';
+
   return (
     <div className="stickiness-portal">
       <div className="stickiness-type-tabs">
@@ -207,6 +220,12 @@ function StickinessPortal() {
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
+
+        {lastSyncedAt && (
+          <span className="attendance-last-synced">
+            Last synced: {new Date(lastSyncedAt).toLocaleString('id-ID')}
+          </span>
+        )}
       </div>
 
       <div className="tab-navigation">
@@ -232,6 +251,8 @@ function StickinessPortal() {
               stickinessRows={stickinessData}
               rosterRows={rosterRows}
               weekPeriods={weekPeriods}
+              stickinessType={stickinessType}
+              semesterName={semesterName}
             />
           )}
           {activeView === 'current_week' && (
@@ -239,6 +260,8 @@ function StickinessPortal() {
               stickinessRows={stickinessData}
               rosterRows={rosterRows}
               weekPeriods={weekPeriods}
+              stickinessType={stickinessType}
+              semesterName={semesterName}
             />
           )}
           {activeView === 'performance_dist' && (
