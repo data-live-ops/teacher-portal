@@ -188,6 +188,7 @@ const ICADashboardTab = ({ user }) => {
                     .select('session_id, user_id, student_name')
                     .eq('grade', parseInt(selectedGrade, 10))
                     .eq('slot_name', selectedSlot)
+                    .order('id')
             );
 
             setParticipantsData(participants || []);

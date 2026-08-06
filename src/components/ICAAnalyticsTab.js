@@ -364,11 +364,11 @@ const ClassificationOverview = ({ mode }) => {
                 setPctError(null);
                 // Try week_date first, then week_period as fallback (column name may differ by version)
                 let data = await fetchAllRows(() =>
-                    supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_date', weekFilter)
+                    supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_date', weekFilter).order('user_id').order('grade').order('slot_name')
                 );
                 if ((!data || data.length === 0)) {
                     data = await fetchAllRows(() =>
-                        supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_period', weekFilter)
+                        supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_period', weekFilter).order('user_id').order('grade').order('slot_name')
                     );
                 }
                 if (!cancelled) setPctRows(data || []);
@@ -926,6 +926,7 @@ const GradeBreakdown = () => {
                         .eq('grade', gradeAsInt)
                         .gte('session_date', dateFrom)
                         .lte('session_date', dateTo)
+                        .order('id')
                 );
 
                 if (cancelled) return;
@@ -952,6 +953,7 @@ const GradeBreakdown = () => {
                         .eq('grade_list', selectedGrade)
                         .gte('session_date', dateFrom)
                         .lte('session_date', dateTo)
+                        .order('id')
                 );
 
                 if (cancelled) return;
@@ -1253,6 +1255,7 @@ const QuestionsBreakdown = () => {
                         .from('ica_student_assessments')
                         .select('grade_list, slot_name, session_date, understanding_types')
                         .eq('reference_id', selectedQuestion)
+                        .order('id')
                 );
 
                 if (cancelled) return;
@@ -1283,6 +1286,7 @@ const QuestionsBreakdown = () => {
                             .select('slot_name, session_date, participated, teacher_name')
                             .eq('grade', gradeInt)
                             .in('slot_name', Array.from(slotSet))
+                            .order('id')
                     );
                     parts.forEach(p => {
                         const gsKey = `${gradeInt}||${p.slot_name}`;
