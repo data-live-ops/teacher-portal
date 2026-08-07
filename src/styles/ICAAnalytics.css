@@ -12,6 +12,15 @@
     color: #1e293b;
 }
 
+.ica-row-clickable {
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.ica-row-clickable:hover {
+    background-color: #f8fafc;
+}
+
 .ica-analytics-week-note {
     margin: 0;
     align-self: center;
@@ -567,6 +576,35 @@
     background: #f1f5f9;
     color: #374151;
     border-color: #cbd5e1;
+}
+
+.ica-threshold-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ica-threshold-save {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    background: #3b82f6;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.ica-threshold-save:hover {
+    background: #2563eb;
+    border-color: #1d4ed8;
+}
+
+.ica-threshold-save:disabled,
+.ica-threshold-reset:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* Threshold table */

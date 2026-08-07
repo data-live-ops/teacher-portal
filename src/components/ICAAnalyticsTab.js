@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { GitCompare, X, SlidersHorizontal } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { GitCompare, X } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import QuestionComparison from './ICAQuestionComparisonTab';
+import SlotDetailModal from './SlotDetailModal';
 
 export const fetchAllRows = async (queryFactory) => {
     const pageSize = 1000;
@@ -157,13 +158,13 @@ const DistributionChart = ({ pctBelow, pctOptimal, pctAbove, totalBelow, totalOp
     );
 };
 
-const JENJANG_DEFAULTS = {
+export const JENJANG_DEFAULTS = {
     SD:  { below: 50, above: 85 },
     SMP: { below: 50, above: 85 },
     SMA: { below: 50, above: 85 },
 };
 
-const getJenjang = (grade) => {
+export const getJenjang = (grade) => {
     const g = parseInt(grade, 10);
     if (g <= 6) return 'SD';
     if (g <= 9) return 'SMP';
@@ -187,11 +188,9 @@ const ClassificationOverview = ({ mode }) => {
     const [availableWeeks, setAvailableWeeks] = useState([]);
     const [weekFilter, setWeekFilter] = useState('');
     const [questionTypeFilter, setQuestionTypeFilter] = useState('all');
-    const [jenjangThresholds, setJenjangThresholds] = useState(JENJANG_DEFAULTS);
-    const [showThresholdPanel, setShowThresholdPanel] = useState(false);
-    const [pctRows, setPctRows] = useState([]);
-    const [pctLoading, setPctLoading] = useState(false);
-    const [pctError, setPctError] = useState(null);
+    // Row clicked in the results table below - drives the drill-down modal
+    // that lists the actual students behind that row's aggregate numbers.
+    const [selectedSlotDetail, setSelectedSlotDetail] = useState(null);
 
     // Compare Weeks mode - same grade+slot, two different weeks side by side
     const [compareMode, setCompareMode] = useState(false);
@@ -210,33 +209,6 @@ const ClassificationOverview = ({ mode }) => {
         ? (isMandatory ? 'mv_ica_classification_historical_mandatory' : 'mv_ica_classification_historical')
         : (isMandatory ? 'mv_ica_classification_active_mandatory' : 'mv_ica_classification_active');
     const weeksViewName = isMandatory ? 'vw_ica_available_weeks_mandatory' : 'vw_ica_available_weeks';
-    const pctTableName = isMandatory ? 'mv_student_pct_per_week_mandatory' : 'mv_student_pct_per_week';
-    const isDefaultThresholds = ['SD', 'SMP', 'SMA'].every(
-        j => jenjangThresholds[j].below === JENJANG_DEFAULTS[j].below &&
-             jenjangThresholds[j].above === JENJANG_DEFAULTS[j].above
-    );
-
-    const updateJenjangThreshold = (jenjang, field, rawValue) => {
-        const value = Number(rawValue);
-        if (rawValue === '' || isNaN(value)) return;
-        setJenjangThresholds(prev => {
-            const cur = prev[jenjang];
-            if (field === 'below') return { ...prev, [jenjang]: { ...cur, below: value } };
-            return { ...prev, [jenjang]: { ...cur, above: value } };
-        });
-    };
-
-    const clampJenjangThreshold = (jenjang, field) => {
-        setJenjangThresholds(prev => {
-            const cur = prev[jenjang];
-            if (field === 'below') {
-                const clamped = Math.max(1, Math.min(Math.round(cur.below) || 1, cur.above - 1));
-                return { ...prev, [jenjang]: { ...cur, below: clamped } };
-            }
-            const clamped = Math.max(cur.below + 1, Math.min(Math.round(cur.above) || 99, 99));
-            return { ...prev, [jenjang]: { ...cur, above: clamped } };
-        });
-    };
 
     // Available weeks to pick from - ordered newest first, reload when question type changes.
     useEffect(() => {
@@ -331,98 +303,41 @@ const ClassificationOverview = ({ mode }) => {
     const rowA = rowForWeek(weekA);
     const rowB = rowForWeek(weekB);
 
-    useEffect(() => {
+    // baseTableName (mv_ica_classification_historical/active[_mandatory]) is already
+    // classified server-side using ica_threshold_config (see vw_student_classification),
+    // so rows come back pre-split into Below/Optimal/Above - no client-side reclass needed.
+    const loadRows = useCallback(async () => {
         if (!weekFilter) return;
-
-        let cancelled = false;
-        (async () => {
-            try {
-                setLoading(true);
-                setError(null);
-                const data = await fetchAllRows(() =>
-                    supabase.from(baseTableName).select('*').eq('week_period', weekFilter).order('grade').order('slot_name')
-                );
-                if (!cancelled) setRows(data || []);
-            } catch (err) {
-                console.error(`Error loading ${baseTableName}:`, err);
-                if (!cancelled) setError(err.message);
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await fetchAllRows(() =>
+                supabase.from(baseTableName).select('*').eq('week_period', weekFilter).order('grade').order('slot_name')
+            );
+            setRows(data || []);
+        } catch (err) {
+            console.error(`Error loading ${baseTableName}:`, err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     }, [baseTableName, weekFilter]);
 
-    // Always fetch per-student pct_correctness — used for client-side reclassification
-    // with per-jenjang thresholds. mv_student_pct_per_week is a materialized view so it's fast.
     useEffect(() => {
-        if (!weekFilter) {
-            setPctRows([]);
-            return;
-        }
         let cancelled = false;
         (async () => {
-            try {
-                setPctLoading(true);
-                setPctError(null);
-                // Try week_date first, then week_period as fallback (column name may differ by version)
-                let data = await fetchAllRows(() =>
-                    supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_date', weekFilter).order('user_id').order('grade').order('slot_name')
-                );
-                if ((!data || data.length === 0)) {
-                    data = await fetchAllRows(() =>
-                        supabase.from(pctTableName).select('user_id,grade,slot_name,pct_correctness').eq('week_period', weekFilter).order('user_id').order('grade').order('slot_name')
-                    );
-                }
-                if (!cancelled) setPctRows(data || []);
-            } catch (err) {
-                console.error('Error fetching pct data:', err);
-                if (!cancelled) {
-                    setPctRows([]);
-                    setPctError(err.message || String(err));
-                }
-            } finally {
-                if (!cancelled) setPctLoading(false);
-            }
+            await loadRows();
+            if (cancelled) return;
         })();
         return () => { cancelled = true; };
-    }, [weekFilter, pctTableName]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Reclassify rows using per-jenjang thresholds against per-student pct data
-    const displayRows = useMemo(() => {
-        if (pctRows.length === 0) return rows;
-        const slotMap = {};
-        pctRows.forEach(r => {
-            const key = `${r.grade}-${r.slot_name}`;
-            if (!slotMap[key]) slotMap[key] = [];
-            slotMap[key].push(r.pct_correctness);
-        });
-        return rows.map(r => {
-            const jenjang = getJenjang(r.grade);
-            const { below: belowT, above: aboveT } = jenjangThresholds[jenjang];
-            const students = slotMap[`${r.grade}-${r.slot_name}`] || [];
-            const below   = students.filter(p => p < belowT).length;
-            const above   = students.filter(p => p > aboveT).length;
-            const optimal = students.filter(p => p >= belowT && p <= aboveT).length;
-            const total   = r.total_students;
-            return {
-                ...r,
-                total_below:   below,
-                total_optimal: optimal,
-                total_above:   above,
-                pct_below:   total ? below   / total * 100 : 0,
-                pct_optimal: total ? optimal / total * 100 : 0,
-                pct_above:   total ? above   / total * 100 : 0,
-            };
-        });
-    }, [pctRows, rows, jenjangThresholds]);
+    }, [loadRows]);
 
     const grades = useMemo(() => {
         return [...new Set(rows.map(r => r.grade))].sort((a, b) => a - b);
     }, [rows]);
 
     const filteredRows = useMemo(() => {
-        return displayRows
+        return rows
             .filter(r => {
                 if (gradeFilter && String(r.grade) !== String(gradeFilter)) return false;
                 if (slotSearch && !r.slot_name?.toLowerCase().includes(slotSearch.toLowerCase())) return false;
@@ -432,7 +347,7 @@ const ClassificationOverview = ({ mode }) => {
                 if (a.grade !== b.grade) return a.grade - b.grade;
                 return compareSlotNames(a.slot_name, b.slot_name);
             });
-    }, [displayRows, gradeFilter, slotSearch]);
+    }, [rows, gradeFilter, slotSearch]);
 
     return (
         <div className="table-container">
@@ -471,15 +386,6 @@ const ClassificationOverview = ({ mode }) => {
                                 className="search-input"
                             />
                         </div>
-                        <button
-                            className={`dropdown-button ica-threshold-toggle${showThresholdPanel ? ' active' : ''}${!isDefaultThresholds ? ' modified' : ''}`}
-                            onClick={() => setShowThresholdPanel(v => !v)}
-                        >
-                            <SlidersHorizontal size={14} />
-                            Ambang Batas
-                            {!isDefaultThresholds && <span className="ica-threshold-dot" />}
-                            {pctLoading && <span className="ica-threshold-loading">↻</span>}
-                        </button>
                     </>
                 )}
                 <button
@@ -491,69 +397,6 @@ const ClassificationOverview = ({ mode }) => {
                     {compareMode ? 'Close Comparison' : 'Compare Weeks'}
                 </button>
             </div>
-
-            {showThresholdPanel && !compareMode && (
-                <div className="ica-threshold-panel">
-                    <div className="ica-threshold-panel-header">
-                        <span className="ica-threshold-panel-title">Ambang Batas per Jenjang</span>
-                        {!isDefaultThresholds && (
-                            <button className="ica-threshold-reset" onClick={() => setJenjangThresholds(JENJANG_DEFAULTS)}>
-                                Reset ke default
-                            </button>
-                        )}
-                    </div>
-                    <table className="ica-threshold-table">
-                        <thead>
-                            <tr>
-                                <th>Jenjang</th>
-                                <th>Below (&lt;)</th>
-                                <th>Above (&gt;)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {['SD', 'SMP', 'SMA'].map(j => (
-                                <tr key={j}>
-                                    <td className="ica-threshold-jenjang">{j}</td>
-                                    <td>
-                                        <div className="ica-threshold-cell">
-                                            <input
-                                                type="number" min="1" max="99"
-                                                value={jenjangThresholds[j].below}
-                                                onChange={e => updateJenjangThreshold(j, 'below', e.target.value)}
-                                                onBlur={() => clampJenjangThreshold(j, 'below')}
-                                                className="ica-threshold-input"
-                                            />
-                                            <span className="ica-threshold-pct">%</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="ica-threshold-cell">
-                                            <input
-                                                type="number" min="1" max="99"
-                                                value={jenjangThresholds[j].above}
-                                                onChange={e => updateJenjangThreshold(j, 'above', e.target.value)}
-                                                onBlur={() => clampJenjangThreshold(j, 'above')}
-                                                className="ica-threshold-input"
-                                            />
-                                            <span className="ica-threshold-pct">%</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <div className="ica-threshold-footer">
-                        {pctLoading
-                            ? <span className="ica-threshold-loading-text">Memuat data siswa…</span>
-                            : pctError
-                                ? <span className="ica-threshold-footer-error" title={pctError}>Error: {pctError}</span>
-                                : pctRows.length > 0
-                                    ? <span className="ica-threshold-footer-info">{pctRows.length} data siswa dimuat (week: {weekFilter})</span>
-                                    : <span className="ica-threshold-footer-warn">Belum ada data — week: {weekFilter}, tabel: {pctTableName}</span>
-                        }
-                    </div>
-                </div>
-            )}
 
             {compareMode ? (
                 <div className="ica-compare">
@@ -671,7 +514,12 @@ const ClassificationOverview = ({ mode }) => {
                         </thead>
                         <tbody>
                             {filteredRows.map(r => (
-                                <tr key={`${r.grade}-${r.slot_name}`}>
+                                <tr
+                                    key={`${r.grade}-${r.slot_name}`}
+                                    className="ica-row-clickable"
+                                    onClick={() => setSelectedSlotDetail(r)}
+                                    title="Klik untuk lihat detail per siswa"
+                                >
                                     <td>{r.grade}</td>
                                     <td className="ica-analytics-slot-cell">{r.slot_name}</td>
                                     <td>{r.teacher_name}</td>
@@ -698,6 +546,13 @@ const ClassificationOverview = ({ mode }) => {
                     </table>
                 </div>
             )}
+
+            <SlotDetailModal
+                row={selectedSlotDetail}
+                onClose={() => setSelectedSlotDetail(null)}
+                mode={mode}
+                isMandatory={isMandatory}
+            />
         </div>
     );
 };

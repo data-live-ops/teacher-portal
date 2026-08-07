@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Users, Search, Download, Filter, BookOpen, Copy, Check, ListChecks } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/InClassAssessment.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import MandatoryQuestionManager from './MandatoryQuestionManager';
 import { usePermissions } from '../contexts/PermissionContext';
+import { getJenjang, JENJANG_DEFAULTS } from './ICAAnalyticsTab';
 
 const MANDATORY_FILTER_LABELS = {
     all: 'All Question Types',
@@ -31,8 +32,25 @@ const ICADashboardTab = ({ user }) => {
     const [loadingFilters, setLoadingFilters] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Cross-grade/slot student lookup, active only before Grade & Slot are
+    // both picked - lets the search bar work "from the start" instead of
+    // requiring Grade/Slot first. A match just resolves + auto-selects the
+    // right Grade/Slot; the per-question matrix below still needs exactly one
+    // grade+slot to render (its columns are that class's specific sessions).
+    const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState([]);
+    const [globalSearching, setGlobalSearching] = useState(false);
+    const [globalSearchError, setGlobalSearchError] = useState(null);
+    const [globalDropdownOpen, setGlobalDropdownOpen] = useState(false);
+    const pendingSlotRef = useRef(null);
+
     // Mandatory question manager modal
     const [showQuestionManager, setShowQuestionManager] = useState(false);
+
+    // Shared Below/Optimal/Above thresholds (same source as Analytics tab's
+    // "Ambang Batas" panel: ica_threshold_config), so both tabs classify
+    // students identically instead of this tab having its own hardcoded split.
+    const [jenjangThresholds, setJenjangThresholds] = useState(JENJANG_DEFAULTS);
 
     // Copy state
     const [copiedId, setCopiedId] = useState(null);
@@ -52,7 +70,25 @@ const ICADashboardTab = ({ user }) => {
     useEffect(() => {
         loadGrades();
         loadQuestionMetadata();
+        loadThresholds();
     }, []);
+
+    const loadThresholds = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('ica_threshold_config')
+                .select('jenjang,below_threshold,above_threshold');
+            if (error) throw error;
+            if (!data || data.length === 0) return;
+            const next = { ...JENJANG_DEFAULTS };
+            data.forEach(r => {
+                next[r.jenjang] = { below: r.below_threshold, above: r.above_threshold };
+            });
+            setJenjangThresholds(next);
+        } catch (error) {
+            console.error('Error loading ica_threshold_config:', error);
+        }
+    };
 
     const loadQuestionMetadata = async () => {
         try {
@@ -132,10 +168,78 @@ const ICADashboardTab = ({ user }) => {
                 .filter(Boolean)
                 .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
             setSlots(uniqueSlots);
-            setSelectedSlot('');
+            // If a student search just picked this grade, jump straight to
+            // their slot instead of the usual reset-to-blank.
+            const pendingSlot = pendingSlotRef.current;
+            pendingSlotRef.current = null;
+            setSelectedSlot(pendingSlot && uniqueSlots.includes(pendingSlot) ? pendingSlot : '');
         } catch (error) {
             console.error('Error loading slots:', error);
         }
+    };
+
+    // Debounce the search box before a grade+slot is picked, so the global
+    // lookup below doesn't fire a query per keystroke.
+    useEffect(() => {
+        const timeout = setTimeout(() => setGlobalSearchTerm(searchTerm.trim()), 350);
+        return () => clearTimeout(timeout);
+    }, [searchTerm]);
+
+    // Cross-grade/slot student lookup by user_id or name, via the roster
+    // table (participants_per_batch) rather than ica_student_assessments -
+    // it's the same source used as the Student ID/Name roster once a
+    // grade+slot is picked, just queried without the grade/slot filter here.
+    useEffect(() => {
+        if (selectedGrade && selectedSlot) {
+            setGlobalSearchResults([]);
+            return;
+        }
+        if (globalSearchTerm.length < 2) {
+            setGlobalSearchResults([]);
+            setGlobalSearchError(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                setGlobalSearching(true);
+                setGlobalSearchError(null);
+                const term = globalSearchTerm.replace(/[%_]/g, '');
+                const { data, error } = await supabase
+                    .from('participants_per_batch')
+                    .select('user_id, student_name, grade, slot_name')
+                    .or(`student_name.ilike.%${term}%,user_id.ilike.%${term}%`)
+                    .limit(200);
+                if (error) throw error;
+                if (cancelled) return;
+
+                // Collapse the per-session rows down to unique student+grade+slot combos
+                const uniqueMap = new Map();
+                (data || []).forEach(r => {
+                    const key = `${r.user_id}|${r.grade}|${r.slot_name}`;
+                    if (!uniqueMap.has(key)) uniqueMap.set(key, r);
+                });
+                const results = Array.from(uniqueMap.values())
+                    .sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''))
+                    .slice(0, 30);
+                setGlobalSearchResults(results);
+            } catch (error) {
+                console.error('Error searching students:', error);
+                if (!cancelled) setGlobalSearchError(error.message);
+            } finally {
+                if (!cancelled) setGlobalSearching(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [globalSearchTerm, selectedGrade, selectedSlot]);
+
+    // A search match jumps straight to that student's class - auto-selecting
+    // Grade & Slot - instead of only filtering a table that doesn't exist yet.
+    const jumpToStudent = (result) => {
+        pendingSlotRef.current = result.slot_name;
+        setSelectedGrade(String(result.grade));
+        setGlobalSearchResults([]);
+        setGlobalDropdownOpen(false);
     };
 
     // Supabase/PostgREST caps a single select() at db.max_rows (default 1000).
@@ -329,6 +433,12 @@ const ICADashboardTab = ({ user }) => {
         return status;
     };
 
+    // Below/Optimal/Above split for whichever grade is currently selected -
+    // same ica_threshold_config source the Analytics tab's "Ambang Batas" panel
+    // writes to, keyed by jenjang (SD/SMP/SMA) since selectedGrade is a single
+    // grade for the whole table.
+    const activeThreshold = jenjangThresholds[getJenjang(selectedGrade)];
+
     // % Correctness = Full Understanding / (Full Understanding + No Understanding).
     // No Attempt and ABSENT are excluded entirely (not just from the numerator),
     // matching the ica-dashboard SQL definition of this metric.
@@ -353,9 +463,9 @@ const ICADashboardTab = ({ user }) => {
         const percentage = eligible > 0 ? (participated / eligible) * 100 : 0;
 
         let statusLabel;
-        if (percentage > 80) {
+        if (percentage > activeThreshold.above) {
             statusLabel = 'Above';
-        } else if (percentage >= 50) {
+        } else if (percentage >= activeThreshold.below) {
             statusLabel = 'Optimal';
         } else {
             statusLabel = 'Below';
@@ -565,16 +675,47 @@ const ICADashboardTab = ({ user }) => {
                             </select>
                         </div>
 
-                        {/* Search */}
+                        {/* Search - works before Grade/Slot is picked too: a match auto-selects
+                            the student's Grade & Slot instead of requiring them first. */}
                         <div className="search-bar">
                             <Search className="search-icon" size={18} />
                             <input
                                 type="text"
-                                placeholder="Search students..."
+                                placeholder={selectedGrade && selectedSlot ? 'Search students...' : 'Cari siswa (nama/ID) untuk lompat ke kelasnya...'}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                onFocus={() => setGlobalDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setGlobalDropdownOpen(false), 150)}
                                 className="search-input"
                             />
+                            {globalDropdownOpen && !(selectedGrade && selectedSlot) && globalSearchTerm.length >= 2 && (
+                                <div className="dropdown-menu">
+                                    {globalSearching ? (
+                                        <div className="dropdown-item" style={{ cursor: 'default' }}>Mencari…</div>
+                                    ) : globalSearchError ? (
+                                        <div className="dropdown-item" style={{ cursor: 'default', color: '#dc2626' }}>
+                                            Error: {globalSearchError}
+                                        </div>
+                                    ) : globalSearchResults.length === 0 ? (
+                                        <div className="dropdown-item" style={{ cursor: 'default' }}>Tidak ditemukan</div>
+                                    ) : (
+                                        globalSearchResults.map(r => (
+                                            <button
+                                                key={`${r.user_id}|${r.grade}|${r.slot_name}`}
+                                                type="button"
+                                                className="dropdown-item"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => jumpToStudent(r)}
+                                            >
+                                                <span>
+                                                    <strong>{r.student_name || r.user_id}</strong>
+                                                    {' '}({r.user_id}) - Grade {r.grade}, {r.slot_name}
+                                                </span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Export Button */}
@@ -795,13 +936,13 @@ const ICADashboardTab = ({ user }) => {
                         <div className="ica-legend">
                             <span className="legend-title">Participation:</span>
                             <span className="legend-item" style={getParticipationStyle('Above')}>
-                                Above = &gt;80%
+                                Above = &gt;{activeThreshold.above}%
                             </span>
                             <span className="legend-item" style={getParticipationStyle('Optimal')}>
-                                Optimal = 50-80%
+                                Optimal = {activeThreshold.below}-{activeThreshold.above}%
                             </span>
                             <span className="legend-item" style={getParticipationStyle('Below')}>
-                                Below = &lt;50%
+                                Below = &lt;{activeThreshold.below}%
                             </span>
                         </div>
                     </div>
