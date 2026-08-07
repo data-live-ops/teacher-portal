@@ -792,3 +792,165 @@
     font-size: 12px;
     color: #64748b;
 }
+
+/* Question Comparison tab - interactive multi-select chips (order = comparison
+   order, fully user-controlled via the up/down buttons on each chip) */
+.ica-compare-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.ica-compare-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 6px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    color: #374151;
+}
+
+.ica-compare-chip-order {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ica-compare-chip-subject {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.ica-compare-chip-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.ica-compare-chip-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    color: #64748b;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.ica-compare-chip-btn:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.ica-compare-chip-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.ica-compare-chip-remove:hover:not(:disabled) {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.ica-compare-status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.ica-compare-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 12px;
+}
+
+.ica-compare-pagination-info {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ica-compare-pagination-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.ica-compare-pagination-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.ica-compare-pagination-buttons button:hover:not(:disabled) {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.ica-compare-pagination-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Sankey flow chart (Understanding Flow) */
+.ica-sankey-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.ica-sankey-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ica-sankey-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.ica-sankey-chart {
+    display: block;
+}
+
+/* Centers the chart when it's narrower than its container (few stages);
+   when it's wider (many stages), the ancestor .ica-table-scroll still
+   scrolls normally since flex items are free to overflow their container. */
+.ica-sankey-center {
+    display: flex;
+    justify-content: center;
+    min-width: 100%;
+}

@@ -3,8 +3,9 @@ import { GitCompare, X, SlidersHorizontal } from 'lucide-react';
 import '../styles/TeacherAssignment.css';
 import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
+import QuestionComparison from './ICAQuestionComparisonTab';
 
-const fetchAllRows = async (queryFactory) => {
+export const fetchAllRows = async (queryFactory) => {
     const pageSize = 1000;
     let from = 0;
     let all = [];
@@ -33,7 +34,7 @@ const compareSlotNames = (a, b) => {
     return pa.slotNum - pb.slotNum;
 };
 
-const formatDate = (dateStr) => {
+export const formatDate = (dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -44,6 +45,7 @@ const SUB_TABS = [
     { key: 'active', label: 'Active Student' },
     { key: 'grade-breakdown', label: 'Grade Breakdown' },
     { key: 'questions-breakdown', label: 'Questions Breakdown' },
+    { key: 'question-comparison', label: 'Question Comparison' },
 ];
 
 const ICAAnalyticsTab = () => {
@@ -78,6 +80,7 @@ const ICAAnalyticsTab = () => {
             {activeSubTab === 'active' && <ClassificationOverview mode="active" />}
             {activeSubTab === 'grade-breakdown' && <GradeBreakdown />}
             {activeSubTab === 'questions-breakdown' && <QuestionsBreakdown />}
+            {activeSubTab === 'question-comparison' && <QuestionComparison />}
         </div>
     );
 };
@@ -1197,14 +1200,22 @@ const QuestionTrendChart = ({ weeks }) => {
 // ============================================================================
 // Section D: Per-question breakdown.
 // Primary filter: question (reference_id) — searchable combobox loaded from
-// ica_question_metadata. Once a question is selected, shows its performance
-// across every grade-slot that has assessment data for it. Secondary grade
-// filter narrows the table client-side. Each row = one grade×slot; expanding
-// it reveals the per-week breakdown for that slot.
+// ica_questions_with_metadata (NOT ica_question_metadata directly - that
+// table only has rows for questions the curriculum team has manually
+// reviewed/tagged, so an untagged-but-real question like a fresh non-mandatory
+// one would be invisible in the picker no matter the Question Type filter.
+// ica_questions_with_metadata FULL OUTER JOINs ica_answer_keys (every
+// question that's ever synced) with ica_question_metadata, so untagged
+// questions still show up with is_mandatory = null - correctly bucketed as
+// Non-Mandatory by the filter below). Once a question is selected, shows its
+// performance across every grade-slot that has assessment data for it.
+// Secondary grade filter narrows the table client-side. Each row = one
+// grade×slot; expanding it reveals the per-week breakdown for that slot.
 // ============================================================================
 const QuestionsBreakdown = () => {
     const [allQuestions, setAllQuestions] = useState([]);
     const [loadingQuestions, setLoadingQuestions] = useState(true);
+    const [questionTypeFilter, setQuestionTypeFilter] = useState('all'); // 'all' | 'mandatory' | 'non_mandatory' - applied before the question search, same convention as the Dashboard tab's Mandatory Filter
     const [searchTerm, setSearchTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
     const [selectedQuestion, setSelectedQuestion] = useState(null);
@@ -1218,7 +1229,7 @@ const QuestionsBreakdown = () => {
         (async () => {
             try {
                 const data = await fetchAllRows(() =>
-                    supabase.from('ica_question_metadata').select('reference_id, subject, grade, is_mandatory, week_launched')
+                    supabase.from('ica_questions_with_metadata').select('reference_id, subject, grade, is_mandatory, week_launched').order('reference_id')
                 );
                 setAllQuestions(data || []);
             } catch (err) {
@@ -1230,13 +1241,17 @@ const QuestionsBreakdown = () => {
     }, []);
 
     const dropdownOptions = useMemo(() => {
+        let pool = allQuestions;
+        if (questionTypeFilter === 'mandatory') pool = pool.filter(q => q.is_mandatory === true);
+        else if (questionTypeFilter === 'non_mandatory') pool = pool.filter(q => q.is_mandatory !== true);
+
         const term = searchTerm.trim().toLowerCase();
-        if (!term) return allQuestions.slice(0, 25);
-        return allQuestions.filter(q =>
+        if (!term) return pool.slice(0, 25);
+        return pool.filter(q =>
             q.reference_id.toLowerCase().includes(term) ||
             (q.subject && q.subject.toLowerCase().includes(term))
         ).slice(0, 30);
-    }, [allQuestions, searchTerm]);
+    }, [allQuestions, questionTypeFilter, searchTerm]);
 
     useEffect(() => {
         if (!selectedQuestion) {
@@ -1445,8 +1460,20 @@ const QuestionsBreakdown = () => {
 
     return (
         <div className="table-container">
-            {/* ── Question search ── */}
+            {/* ── Question type, then question search ── */}
             <div className="header-actions" style={{ marginBottom: 16 }}>
+                <div className="filter-group">
+                    <span className="filter-label">Question Type</span>
+                    <select
+                        value={questionTypeFilter}
+                        onChange={(e) => setQuestionTypeFilter(e.target.value)}
+                        className="filter-select"
+                    >
+                        <option value="all">All Questions</option>
+                        <option value="mandatory">Mandatory Only</option>
+                        <option value="non_mandatory">Non-Mandatory Only</option>
+                    </select>
+                </div>
                 <div className="filter-group ica-question-search-group">
                     <span className="filter-label">Question</span>
                     <div className="ica-question-search-wrap">
