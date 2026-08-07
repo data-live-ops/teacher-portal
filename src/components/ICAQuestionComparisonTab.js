@@ -417,7 +417,7 @@ const QuestionComparison = () => {
             </div>
 
             {!selectedGrade && (
-                <div className="empty-state"><p>Pilih Grade dulu untuk melihat daftar soal yang benar-benar di-launch di grade tersebut.</p></div>
+                <div className="empty-state"><p>Choose grade first to see in detail for questions list</p></div>
             )}
 
             {selectedQuestions.length > 0 && (

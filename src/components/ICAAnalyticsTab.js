@@ -307,7 +307,7 @@ const ClassificationOverview = ({ mode }) => {
     // classified server-side using ica_threshold_config (see vw_student_classification),
     // so rows come back pre-split into Below/Optimal/Above - no client-side reclass needed.
     const loadRows = useCallback(async () => {
-        if (!weekFilter) return;
+        if (!weekFilter) return [];
         try {
             setLoading(true);
             setError(null);
@@ -315,13 +315,26 @@ const ClassificationOverview = ({ mode }) => {
                 supabase.from(baseTableName).select('*').eq('week_period', weekFilter).order('grade').order('slot_name')
             );
             setRows(data || []);
+            return data || [];
         } catch (err) {
             console.error(`Error loading ${baseTableName}:`, err);
             setError(err.message);
+            return [];
         } finally {
             setLoading(false);
         }
     }, [baseTableName, weekFilter]);
+
+    // After a manual "Refresh data" from the slot detail modal, reload the
+    // table AND swap in the fresh copy of whichever row is still open, so its
+    // "Tabel" summary line (not just the background table) updates too.
+    const handleSlotDetailRefreshed = useCallback(async () => {
+        const freshRows = await loadRows();
+        setSelectedSlotDetail(prev => {
+            if (!prev) return prev;
+            return freshRows.find(r => r.grade === prev.grade && r.slot_name === prev.slot_name) || prev;
+        });
+    }, [loadRows]);
 
     useEffect(() => {
         let cancelled = false;
@@ -552,6 +565,7 @@ const ClassificationOverview = ({ mode }) => {
                 onClose={() => setSelectedSlotDetail(null)}
                 mode={mode}
                 isMandatory={isMandatory}
+                onRefreshed={handleSlotDetailRefreshed}
             />
         </div>
     );

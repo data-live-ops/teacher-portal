@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { X, Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { X, Search, RefreshCw } from 'lucide-react';
 import '../styles/ImportAssignmentModal.css';
 import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
@@ -12,65 +12,95 @@ import { fetchAllRows, formatDate } from './ICAAnalyticsTab';
 //   (vw_student_classification[_mandatory]), no registration filter.
 // - active: same, but only students still registered that exact week
 //   (participants_per_batch), mirroring mv_ica_classification_active's join.
-const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
+//
+// "Tabel" (row) comes from mv_ica_classification_historical/active - a
+// periodic snapshot, refreshed by cron or by saving the threshold config.
+// "Detail" queries vw_student_classification live. New assessment data or a
+// threshold change since the last refresh shows up in Detail immediately but
+// not in Tabel until the mat-view is refreshed - hence the mismatch warning.
+// The "Refresh data" button re-runs that same refresh on demand.
+const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [search, setSearch] = useState('');
+    const [classificationFilter, setClassificationFilter] = useState('all');
+    const [refreshing, setRefreshing] = useState(false);
+    const [refreshError, setRefreshError] = useState(null);
+
+    const loadDetail = useCallback(async () => {
+        if (!row) return;
+        try {
+            setLoading(true);
+            setError(null);
+
+            const classificationTable = isMandatory ? 'vw_student_classification_mandatory' : 'vw_student_classification';
+            const classRows = await fetchAllRows(() =>
+                supabase
+                    .from(classificationTable)
+                    .select('user_id, pct_correctness, classification')
+                    .eq('grade', row.grade)
+                    .eq('slot_name', row.slot_name)
+                    .eq('week_date', row.week_period)
+            );
+
+            // Union across every session for this grade+slot (not just this week),
+            // so a student who has since left still resolves a name for Historical.
+            const participantRows = await fetchAllRows(() =>
+                supabase
+                    .from('participants_per_batch')
+                    .select('user_id, student_name, week_date')
+                    .eq('grade', row.grade)
+                    .eq('slot_name', row.slot_name)
+            );
+
+            const nameMap = new Map();
+            participantRows.forEach(p => {
+                if (!nameMap.has(p.user_id)) nameMap.set(p.user_id, p.student_name);
+            });
+
+            const eligibleIds = mode === 'active'
+                ? new Set(participantRows.filter(p => p.week_date === row.week_period).map(p => p.user_id))
+                : null;
+
+            const merged = (classRows || [])
+                .filter(r => !eligibleIds || eligibleIds.has(r.user_id))
+                .map(r => ({ ...r, student_name: nameMap.get(r.user_id) || null }))
+                .sort((a, b) => (a.student_name || a.user_id).localeCompare(b.student_name || b.user_id));
+
+            setStudents(merged);
+        } catch (err) {
+            console.error('Error loading slot detail:', err);
+            setError(err.message || String(err));
+        } finally {
+            setLoading(false);
+        }
+    }, [row, mode, isMandatory]);
 
     useEffect(() => {
-        if (!row) return;
         let cancelled = false;
         (async () => {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const classificationTable = isMandatory ? 'vw_student_classification_mandatory' : 'vw_student_classification';
-                const classRows = await fetchAllRows(() =>
-                    supabase
-                        .from(classificationTable)
-                        .select('user_id, pct_correctness, classification')
-                        .eq('grade', row.grade)
-                        .eq('slot_name', row.slot_name)
-                        .eq('week_date', row.week_period)
-                );
-
-                // Union across every session for this grade+slot (not just this week),
-                // so a student who has since left still resolves a name for Historical.
-                const participantRows = await fetchAllRows(() =>
-                    supabase
-                        .from('participants_per_batch')
-                        .select('user_id, student_name, week_date')
-                        .eq('grade', row.grade)
-                        .eq('slot_name', row.slot_name)
-                );
-                if (cancelled) return;
-
-                const nameMap = new Map();
-                participantRows.forEach(p => {
-                    if (!nameMap.has(p.user_id)) nameMap.set(p.user_id, p.student_name);
-                });
-
-                const eligibleIds = mode === 'active'
-                    ? new Set(participantRows.filter(p => p.week_date === row.week_period).map(p => p.user_id))
-                    : null;
-
-                const merged = (classRows || [])
-                    .filter(r => !eligibleIds || eligibleIds.has(r.user_id))
-                    .map(r => ({ ...r, student_name: nameMap.get(r.user_id) || null }))
-                    .sort((a, b) => (a.student_name || a.user_id).localeCompare(b.student_name || b.user_id));
-
-                setStudents(merged);
-            } catch (err) {
-                console.error('Error loading slot detail:', err);
-                if (!cancelled) setError(err.message || String(err));
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
+            await loadDetail();
+            if (cancelled) return;
         })();
         return () => { cancelled = true; };
-    }, [row, mode, isMandatory]);
+    }, [loadDetail]);
+
+    const handleRefresh = async () => {
+        try {
+            setRefreshing(true);
+            setRefreshError(null);
+            const { error: err } = await supabase.rpc('refresh_ica_classification_views');
+            if (err) throw err;
+            await loadDetail();
+            onRefreshed?.();
+        } catch (err) {
+            console.error('Error refreshing classification views:', err);
+            setRefreshError(err.message || String(err));
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const computedTotals = useMemo(() => ({
         total: students.length,
@@ -79,13 +109,20 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
         above: students.filter(s => s.classification === 'Above').length,
     }), [students]);
 
+    // New row clicked - drop whatever filter/search was left from the last one.
+    useEffect(() => {
+        setSearch('');
+        setClassificationFilter('all');
+    }, [row]);
+
     const filteredStudents = useMemo(() => {
-        if (!search) return students;
         const term = search.toLowerCase();
-        return students.filter(s =>
-            s.user_id?.toLowerCase().includes(term) || s.student_name?.toLowerCase().includes(term)
-        );
-    }, [students, search]);
+        return students.filter(s => {
+            if (classificationFilter !== 'all' && s.classification !== classificationFilter) return false;
+            if (!term) return true;
+            return s.user_id?.toLowerCase().includes(term) || s.student_name?.toLowerCase().includes(term);
+        });
+    }, [students, search, classificationFilter]);
 
     if (!row) return null;
 
@@ -98,7 +135,7 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
 
     return (
         <div className="import-modal-overlay">
-            <div className="import-modal-content">
+            <div className="import-modal-content slot-detail-modal-content">
                 <div className="import-modal-header">
                     <h3 className="import-modal-title">
                         Grade {row.grade} - {row.slot_name}
@@ -143,20 +180,51 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
                     </table>
 
                     {mismatch && (
+                        <div className="slot-detail-mismatch">
+                            <span>
+                                Jumlah di tabel dan detail tidak sama - "Tabel" adalah snapshot yang di-refresh berkala,
+                                "Detail" selalu live. Data baru masuk atau ambang batas berubah sejak snapshot terakhir bisa menyebabkan ini.
+                            </span>
+                            <button
+                                type="button"
+                                className="import-button primary"
+                                onClick={handleRefresh}
+                                disabled={refreshing}
+                            >
+                                <RefreshCw size={14} className={refreshing ? 'ica-threshold-loading' : ''} />
+                                {refreshing ? 'Menyegarkan…' : 'Refresh data'}
+                            </button>
+                        </div>
+                    )}
+                    {refreshError && (
                         <div className="ica-threshold-footer-error" style={{ marginBottom: 12 }}>
-                            Jumlah di tabel dan detail tidak sama - kemungkinan data belum di-refresh atau ada perubahan ambang batas yang belum diterapkan ulang.
+                            Gagal refresh: {refreshError}
                         </div>
                     )}
 
-                    <div className="search-bar" style={{ maxWidth: '100%', marginBottom: 12 }}>
-                        <Search className="search-icon" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Cari nama/user_id..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="search-input"
-                        />
+                    <div className="slot-detail-toolbar">
+                        <div className="search-bar" style={{ maxWidth: '100%', marginBottom: 0 }}>
+                            <Search className="search-icon" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Cari nama/user_id..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="search-input"
+                            />
+                        </div>
+                        <div className="ica-view-toggle">
+                            {['all', 'Below', 'Optimal', 'Above'].map(opt => (
+                                <button
+                                    key={opt}
+                                    className={`ica-view-toggle-btn${classificationFilter === opt ? ' active' : ''}`}
+                                    onClick={() => setClassificationFilter(opt)}
+                                >
+                                    {opt === 'all' ? 'All' : opt}
+                                    {opt !== 'all' && !loading && ` (${computedTotals[opt.toLowerCase()]})`}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {loading ? (
@@ -166,10 +234,11 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
                     ) : filteredStudents.length === 0 ? (
                         <p className="ica-threshold-footer-warn">Tidak ada siswa untuk ditampilkan.</p>
                     ) : (
-                        <div className="ica-table-scroll" style={{ maxHeight: 360 }}>
+                        <div className="ica-table-scroll slot-detail-table-scroll">
                             <table className="assignment-table ica-analytics-table">
                                 <thead>
                                     <tr>
+                                        <th>#</th>
                                         <th>Nama</th>
                                         <th>User ID</th>
                                         <th>% Correctness</th>
@@ -177,8 +246,9 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredStudents.map(s => (
+                                    {filteredStudents.map((s, idx) => (
                                         <tr key={s.user_id}>
+                                            <td>{idx + 1}</td>
                                             <td>{s.student_name || '-'}</td>
                                             <td>{s.user_id}</td>
                                             <td>{s.pct_correctness != null ? `${Number(s.pct_correctness).toFixed(1)}%` : '-'}</td>
