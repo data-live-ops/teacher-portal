@@ -838,7 +838,7 @@ const ICADashboardTab = ({ user }) => {
                                     <tr>
                                         <th className="sticky-col sticky-col-1">Student ID</th>
                                         <th className="sticky-col sticky-col-2">Student Name</th>
-                                        <th className="sticky-col sticky-col-3">Participation</th>
+                                        <th className="sticky-col sticky-col-3">ICA Status</th>
                                         {filteredQuestionsWithDates.map(q => (
                                             <th key={`${q.reference_id}-${q.session_date}`} className="question-header">
                                                 <div className="question-id">{q.reference_id}</div>
