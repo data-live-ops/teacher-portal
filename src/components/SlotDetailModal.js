@@ -5,6 +5,18 @@ import '../styles/ICAAnalytics.css';
 import { supabase } from '../lib/supabaseClient.mjs';
 import { fetchAllRows, formatDate } from './ICAAnalyticsTab';
 
+// classification -> computedTotals key ('Not Considered' has a space, doesn't
+// match a plain .toLowerCase() key)
+const CLASSIFICATION_TOTAL_KEY = {
+    Below: 'below',
+    Optimal: 'optimal',
+    Above: 'above',
+    'Not Considered': 'notConsidered',
+};
+
+// classification -> CSS class suffix, e.g. 'Not Considered' -> 'not-considered'
+const classificationSlug = (classification) => classification?.toLowerCase().replace(/\s+/g, '-');
+
 // Per-student drill-down behind one Historical/Active row, so the aggregate
 // Total/Below/Optimal/Above numbers can be checked against the actual list
 // of students they were computed from, instead of taken on faith.
@@ -102,11 +114,15 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
         }
     };
 
+    // total: hanya siswa yang sudah terklasifikasi Below/Optimal/Above (>=3
+    // attempt) - mirroring total_students di mv_ica_classification_*, yang
+    // sengaja TIDAK menghitung Not Considered.
     const computedTotals = useMemo(() => ({
-        total: students.length,
+        total: students.filter(s => s.classification !== 'Not Considered').length,
         below: students.filter(s => s.classification === 'Below').length,
         optimal: students.filter(s => s.classification === 'Optimal').length,
         above: students.filter(s => s.classification === 'Above').length,
+        notConsidered: students.filter(s => s.classification === 'Not Considered').length,
     }), [students]);
 
     // New row clicked - drop whatever filter/search was left from the last one.
@@ -130,7 +146,8 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
         computedTotals.total !== row.total_students ||
         computedTotals.below !== row.total_below ||
         computedTotals.optimal !== row.total_optimal ||
-        computedTotals.above !== row.total_above
+        computedTotals.above !== row.total_above ||
+        computedTotals.notConsidered !== row.total_not_considered
     );
 
     return (
@@ -159,6 +176,7 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                                 <th>Below</th>
                                 <th>Optimal</th>
                                 <th>Above</th>
+                                <th>Not Considered</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -168,6 +186,7 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                                 <td>{row.total_below}</td>
                                 <td>{row.total_optimal}</td>
                                 <td>{row.total_above}</td>
+                                <td>{row.total_not_considered}</td>
                             </tr>
                             <tr>
                                 <td className="ica-threshold-jenjang">Detail (di bawah)</td>
@@ -175,6 +194,7 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                                 <td>{loading ? '…' : computedTotals.below}</td>
                                 <td>{loading ? '…' : computedTotals.optimal}</td>
                                 <td>{loading ? '…' : computedTotals.above}</td>
+                                <td>{loading ? '…' : computedTotals.notConsidered}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -214,14 +234,14 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                             />
                         </div>
                         <div className="ica-view-toggle">
-                            {['all', 'Below', 'Optimal', 'Above'].map(opt => (
+                            {['all', 'Below', 'Optimal', 'Above', 'Not Considered'].map(opt => (
                                 <button
                                     key={opt}
                                     className={`ica-view-toggle-btn${classificationFilter === opt ? ' active' : ''}`}
                                     onClick={() => setClassificationFilter(opt)}
                                 >
                                     {opt === 'all' ? 'All' : opt}
-                                    {opt !== 'all' && !loading && ` (${computedTotals[opt.toLowerCase()]})`}
+                                    {opt !== 'all' && !loading && ` (${computedTotals[CLASSIFICATION_TOTAL_KEY[opt]]})`}
                                 </button>
                             ))}
                         </div>
@@ -253,7 +273,7 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                                             <td>{s.user_id}</td>
                                             <td>{s.pct_correctness != null ? `${Number(s.pct_correctness).toFixed(1)}%` : '-'}</td>
                                             <td>
-                                                <span className={`ica-badge ica-badge-${s.classification?.toLowerCase()}`}>
+                                                <span className={`ica-badge ica-badge-${classificationSlug(s.classification)}`}>
                                                     {s.classification}
                                                 </span>
                                             </td>

@@ -3,6 +3,7 @@ import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import '../styles/InClassAssessment.css'; // .cell-with-copy / .copy-btn used by the matrix's copy buttons
 import { supabase } from '../lib/supabaseClient.mjs';
 import { fetchAllRows } from './ICAAnalyticsTab';
+import MultiSelectFilter from './MultiSelectFilter';
 
 const RESULT_TABS = [
     { key: 'matrix', label: 'Student Comparison Matrix' },
@@ -35,11 +36,18 @@ const STATUS_LABEL = { Full: 'Full Understanding', No: 'No Understanding', 'Not 
 
 // ============================================================================
 // Question Comparison: pick 2+ question IDs and see how student understanding
-// transitions from one to the next (Full -> No, No -> Full, etc.), across
-// every grade/slot the questions were launched in. Order is entirely
-// user-controlled (selection order, adjustable via the up/down buttons) - not
-// auto-inferred from week_launched/session_date, even though the comparison
-// is conceptually a chronological progression.
+// transitions from one to the next (Full -> No, No -> Full, etc.). Grade is
+// required; Slot is an optional multi-select scoped to that grade - left
+// empty ("All Slots"), the comparison spans every slot (and even other
+// grades, if a reference_id was reused elsewhere) the questions were launched
+// in, so a question given to only some slots shows 'Not Launched' for the
+// rest. Picking one or more slots scopes both the question picker and the
+// comparison fetch to just those slots - 'Not Launched' then only remains
+// possible if a question wasn't launched to ALL of the picked slots (still a
+// meaningful signal when comparing multiple slots, not a bug). Order is
+// entirely user-controlled (selection order, adjustable via the up/down
+// buttons) - not auto-inferred from week_launched/session_date, even though
+// the comparison is conceptually a chronological progression.
 // ============================================================================
 const QuestionComparison = () => {
     // Grade filter - must be picked before the question picker appears, so
@@ -49,15 +57,30 @@ const QuestionComparison = () => {
     const [loadingGrades, setLoadingGrades] = useState(true);
     const [selectedGrade, setSelectedGrade] = useState('');
 
-    // reference_ids actually launched in the selected grade, sourced from
-    // ica_student_assessments (ground truth of what was launched) rather than
-    // ica_question_metadata (only holds questions the curriculum team has
-    // manually reviewed/tagged, and its own `grade` column is a free-text
-    // curriculum label, not the real grade_list - not reliable for filtering).
+    // Slot filter - optional, scoped to the selected grade, multi-select.
+    // Empty array means "All Slots" (today's original behavior: the picker
+    // offers every reference_id launched anywhere in the grade, and a
+    // question launched to only SOME slots shows 'Not Launched' for students
+    // in the others). Picking one or more slots narrows both the question
+    // picker AND the comparison fetch to just those slots - since every
+    // offered question is then guaranteed to have been launched to at least
+    // one of the picked slots, 'Not Launched' only remains possible when
+    // comparing across >1 picked slot where a question wasn't launched to
+    // all of them (still meaningful signal, not a bug).
+    const [slots, setSlots] = useState([]);
+    const [selectedSlots, setSelectedSlots] = useState([]);
+    const slotOptions = useMemo(() => slots.map(s => ({ value: s, label: s })), [slots]);
+
+    // reference_ids actually launched in the selected grade (+ slot, if one is
+    // picked), sourced from ica_student_assessments (ground truth of what was
+    // launched) rather than ica_question_metadata (only holds questions the
+    // curriculum team has manually reviewed/tagged, and its own `grade` column
+    // is a free-text curriculum label, not the real grade_list - not reliable
+    // for filtering).
     const [gradeQuestionRefIds, setGradeQuestionRefIds] = useState([]);
     const [loadingGradeQuestions, setLoadingGradeQuestions] = useState(false);
 
-    // Applied between Grade and the question search - Grade -> Question Type -> Question ID
+    // Applied between Grade/Slot and the question search - Grade -> Slot -> Question Type -> Question ID
     const [questionTypeFilter, setQuestionTypeFilter] = useState('all'); // 'all' | 'mandatory' | 'non_mandatory'
 
     const [activeResultTab, setActiveResultTab] = useState('matrix');
@@ -113,9 +136,48 @@ const QuestionComparison = () => {
     // cross-grade comparison linger.
     const handleGradeChange = (grade) => {
         setSelectedGrade(grade);
+        setSelectedSlots([]);
         setSelectedQuestions([]);
         setSearchTerm('');
     };
+
+    // Picking/changing slots narrows the question pool - drop any selection
+    // made under the wider (or a different) slot scope, same rationale as grade.
+    const handleSlotsChange = (newSlots) => {
+        setSelectedSlots(newSlots);
+        setSelectedQuestions([]);
+        setSearchTerm('');
+    };
+
+    // Slot options for the selected grade, from ica_grade_slots - same
+    // canonical grade/slot source used by the Historical/Active "Compare
+    // Weeks" picker in ICAAnalyticsTab.js.
+    useEffect(() => {
+        if (!selectedGrade) {
+            setSlots([]);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data, error: err } = await supabase
+                    .from('ica_grade_slots')
+                    .select('slot_name')
+                    .eq('grade_list', selectedGrade);
+                if (err) throw err;
+                const uniqueSlots = [...new Set((data || []).map(d => d.slot_name))]
+                    .filter(Boolean)
+                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                if (!cancelled) setSlots(uniqueSlots);
+            } catch (err) {
+                console.error('Error loading slots for grade:', err);
+                if (!cancelled) setSlots([]);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [selectedGrade]);
 
     useEffect(() => {
         if (!selectedGrade) {
@@ -127,13 +189,14 @@ const QuestionComparison = () => {
         (async () => {
             try {
                 setLoadingGradeQuestions(true);
-                const data = await fetchAllRows(() =>
-                    supabase
+                const data = await fetchAllRows(() => {
+                    let query = supabase
                         .from('ica_student_assessments')
                         .select('reference_id')
-                        .eq('grade_list', selectedGrade)
-                        .order('id')
-                );
+                        .eq('grade_list', selectedGrade);
+                    if (selectedSlots.length) query = query.in('slot_name', selectedSlots);
+                    return query.order('id');
+                });
                 if (!cancelled) setGradeQuestionRefIds([...new Set((data || []).map(r => r.reference_id))]);
             } catch (err) {
                 console.error('Error loading questions for grade:', err);
@@ -144,7 +207,7 @@ const QuestionComparison = () => {
         })();
 
         return () => { cancelled = true; };
-    }, [selectedGrade]);
+    }, [selectedGrade, selectedSlots]);
 
     const dropdownOptions = useMemo(() => {
         if (!selectedGrade) return [];
@@ -211,13 +274,20 @@ const QuestionComparison = () => {
             try {
                 setLoading(true);
                 setError(null);
-                const data = await fetchAllRows(() =>
-                    supabase
+                // No slot picked: preserve the original cross-slot/cross-grade
+                // behavior (a reference_id can be reused in a different class -
+                // classifyForRow's launchedCombos still keys 'Not Launched'
+                // correctly either way). Slot(s) picked: scope the fetch to
+                // that grade + those slots alone, so only their own students
+                // show up.
+                const data = await fetchAllRows(() => {
+                    let query = supabase
                         .from('ica_student_assessments')
                         .select('user_id, student_name, grade_list, slot_name, reference_id, session_date, understanding_types')
-                        .in('reference_id', selectedQuestions)
-                        .order('id') // required: .range() pagination is unstable without a deterministic order
-                );
+                        .in('reference_id', selectedQuestions);
+                    if (selectedSlots.length) query = query.eq('grade_list', selectedGrade).in('slot_name', selectedSlots);
+                    return query.order('id'); // required: .range() pagination is unstable without a deterministic order
+                });
                 if (!cancelled) setAssessments(data || []);
             } catch (err) {
                 console.error('Error loading comparison data:', err);
@@ -228,7 +298,7 @@ const QuestionComparison = () => {
         })();
 
         return () => { cancelled = true; };
-    }, [selectedQuestions]);
+    }, [selectedQuestions, selectedGrade, selectedSlots]);
 
     // Core aggregation: dedupe -> per-row (student x grade x slot) status
     // vector -> matrix rows, per-stage counts (Sankey node sizing), per-stage
@@ -361,6 +431,18 @@ const QuestionComparison = () => {
                         {grades.map(g => <option key={g} value={g}>{g}</option>)}
                     </select>
                 </div>
+
+                {selectedGrade && (
+                    <div className="filter-group">
+                        <span className="filter-label">Slot</span>
+                        <MultiSelectFilter
+                            label="Slot"
+                            options={slotOptions}
+                            selectedValues={selectedSlots}
+                            onChange={handleSlotsChange}
+                        />
+                    </div>
+                )}
 
                 {selectedGrade && (
                     <div className="filter-group">

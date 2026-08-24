@@ -103,6 +103,11 @@
     color: #166534;
 }
 
+.ica-badge-not-considered {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
 /* Per-question chips in the Grade Breakdown table */
 .ica-question-chip-list {
     display: flex;

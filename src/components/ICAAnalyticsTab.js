@@ -478,6 +478,11 @@ const ClassificationOverview = ({ mode }) => {
                                     a={rowA?.total_above} b={rowB?.total_above}
                                     pctA={rowA?.pct_above} pctB={rowB?.pct_above}
                                 />
+                                <CompareStatCard
+                                    label="Not Considered" accent="neutral" colorRule="neutral"
+                                    a={rowA?.total_not_considered} b={rowB?.total_not_considered}
+                                    pctA={rowA?.pct_not_considered} pctB={rowB?.pct_not_considered}
+                                />
                             </div>
 
                             <div className="ica-dumbbell-card">
@@ -515,6 +520,7 @@ const ClassificationOverview = ({ mode }) => {
                                 <th>Below</th>
                                 <th>Optimal</th>
                                 <th>Above</th>
+                                <th>Not Considered</th>
                                 <th>
                                     Distribution
                                     <div className="ica-distribution-legend">
@@ -546,6 +552,9 @@ const ClassificationOverview = ({ mode }) => {
                                     </td>
                                     <td>
                                         <span className="ica-badge ica-badge-above">{r.total_above} ({r.pct_above?.toFixed(1)}%)</span>
+                                    </td>
+                                    <td>
+                                        <span className="ica-badge ica-badge-not-considered">{r.total_not_considered} ({r.pct_not_considered?.toFixed(1)}%)</span>
                                     </td>
                                     <td>
                                         <DistributionChart

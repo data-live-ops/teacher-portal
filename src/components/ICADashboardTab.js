@@ -439,11 +439,18 @@ const ICADashboardTab = ({ user }) => {
     // grade for the whole table.
     const activeThreshold = jenjangThresholds[getJenjang(selectedGrade)];
 
+    // Minimal 3x attempt (eligible, terlepas Full/No Understanding) sebelum
+    // dianggap cukup data untuk masuk Below/Optimal/Above - masukan Tim ICA.
+    // Di bawah itu statusnya 'Not Considered', bukan dipaksa 'Below'.
+    // Sama dengan gate cumulative_total < 3 di vw_student_classification[_mandatory]
+    // (ica-dashboard SQL), supaya konsisten dengan Analytics tab.
+    const MIN_ATTEMPTS_FOR_CLASSIFICATION = 3;
+
     // % Correctness = Full Understanding / (Full Understanding + No Understanding).
     // No Attempt and ABSENT are excluded entirely (not just from the numerator),
     // matching the ica-dashboard SQL definition of this metric.
     const getParticipationStatus = (student) => {
-        if (!filteredQuestionsWithDates.length) return { percentage: 0, status: 'Below', participated: 0, eligible: 0 };
+        if (!filteredQuestionsWithDates.length) return { percentage: 0, status: 'Not Considered', participated: 0, eligible: 0 };
 
         let participated = 0; // Full Understanding (correct)
         let eligible = 0; // Full Understanding + No Understanding (No Attempt/ABSENT/INACTIVE excluded)
@@ -463,7 +470,9 @@ const ICADashboardTab = ({ user }) => {
         const percentage = eligible > 0 ? (participated / eligible) * 100 : 0;
 
         let statusLabel;
-        if (percentage > activeThreshold.above) {
+        if (eligible < MIN_ATTEMPTS_FOR_CLASSIFICATION) {
+            statusLabel = 'Not Considered';
+        } else if (percentage > activeThreshold.above) {
             statusLabel = 'Above';
         } else if (percentage >= activeThreshold.below) {
             statusLabel = 'Optimal';
@@ -483,6 +492,8 @@ const ICADashboardTab = ({ user }) => {
                 return { backgroundColor: '#dbeafe', color: '#1e40af' }; // Blue
             case 'Below':
                 return { backgroundColor: '#fee2e2', color: '#991b1b' }; // Red
+            case 'Not Considered':
+                return { backgroundColor: '#f3f4f6', color: '#6b7280' }; // Gray - belum cukup attempt (<3)
             default:
                 return { backgroundColor: '#f9fafb', color: '#374151' };
         }
@@ -943,6 +954,9 @@ const ICADashboardTab = ({ user }) => {
                             </span>
                             <span className="legend-item" style={getParticipationStyle('Below')}>
                                 Below = &lt;{activeThreshold.below}%
+                            </span>
+                            <span className="legend-item" style={getParticipationStyle('Not Considered')}>
+                                Not Considered = &lt;{MIN_ATTEMPTS_FOR_CLASSIFICATION}x attempt
                             </span>
                         </div>
                     </div>
