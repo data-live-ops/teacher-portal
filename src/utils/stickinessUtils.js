@@ -22,18 +22,26 @@ export function formatWeekDate(dateStr) {
   return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-// SD: Matematika grade 4-6, SMP: 7-9, Grade 10-11: 10-11, Grade 12: 12, Sciences: non-Matematika
+// SD: Matematika grade 4-6, SMP: 7-9, Grade 10-11: 10-11, Grade 12: 12 (TKA — no
+// 1x/2x split, see SPLIT_ELIGIBLE_JENJANG). Non-Matematika (Science) subjects are
+// grouped by grade band instead of the SD/SMP/Grade split above; grade 12 Science
+// slots are TKA and intentionally unclassified (excluded from every Science group).
 export function getJenjang(subject, grade) {
   const isMath = subject?.toLowerCase().includes('matematika');
-  if (!isMath) return 'Sciences';
-  if ([4, 5, 6].includes(grade)) return 'SD';
-  if ([7, 8, 9].includes(grade)) return 'SMP';
-  if ([10, 11].includes(grade)) return 'Grade 10-11';
-  if (grade === 12) return 'Grade 12';
+  if (isMath) {
+    if ([4, 5, 6].includes(grade)) return 'SD';
+    if ([7, 8, 9].includes(grade)) return 'SMP';
+    if ([10, 11].includes(grade)) return 'Grade 10-11';
+    if (grade === 12) return 'Grade 12';
+    return null;
+  }
+  if ([5, 6].includes(grade)) return 'Science 5 & 6';
+  if ([7, 8, 9, 10].includes(grade)) return 'Science 7-10';
+  if (grade === 11) return 'Science 11';
   return null;
 }
 
-export const JENJANG_LIST = ['SD', 'SMP', 'Grade 10-11', 'Grade 12', 'Sciences'];
+export const JENJANG_LIST = ['SD', 'SMP', 'Grade 10-11', 'Grade 12', 'Science 5 & 6', 'Science 7-10', 'Science 11'];
 export const STATUS_LIST = ['EXCEPTIONAL', 'ON AVERAGE', 'BELOW AVERAGE', 'NOT AVAILABLE YET'];
 
 export function getStatusColor(status) {
@@ -46,12 +54,83 @@ export function getStatusColor(status) {
 }
 
 export const JENJANG_COLORS = {
-  SD:          { header: '#e8d5f5', border: '#c084fc' },
-  SMP:         { header: '#dbeafe', border: '#60a5fa' },
+  SD:            { header: '#e8d5f5', border: '#c084fc' },
+  SMP:           { header: '#dbeafe', border: '#60a5fa' },
   'Grade 10-11': { header: '#dcfce7', border: '#4ade80' },
-  'Grade 12':  { header: '#fef3c7', border: '#fbbf24' },
-  Sciences:    { header: '#ffe4e6', border: '#fb7185' },
+  'Grade 12':    { header: '#fef3c7', border: '#fbbf24' },
+  'Science 5 & 6': { header: '#ffe4e6', border: '#fb7185' },
+  'Science 7-10':  { header: '#fecdd3', border: '#f43f5e' },
+  'Science 11':    { header: '#fda4af', border: '#e11d48' },
 };
+
+// Slot names carry their weekly meeting frequency as a "(1x)"/"(2x)" suffix
+// (e.g. "Matematika 1 (2x)"). Only SD/SMP/Grade 10-11 slots use it, so only
+// those jenjang get a (1x)/(2x) breakdown — see SPLIT_ELIGIBLE_JENJANG.
+// Grade 12 (TKA) and every Science group deliberately skip the split.
+export const MEETING_FREQUENCIES = ['1x', '2x'];
+const SPLIT_ELIGIBLE_JENJANG = ['SD', 'SMP', 'Grade 10-11'];
+
+export function getMeetingFrequency(slotName) {
+  const m = String(slotName || '').match(/\((1x|2x)\)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** Ordered column keys for Per Jenjang / Weekly Trend: each jenjang, plus (1x)/(2x) breakdowns for the ones eligible for it. */
+export function buildJenjangColumnKeys() {
+  const keys = [];
+  for (const jenjang of JENJANG_LIST) {
+    keys.push(jenjang);
+    if (SPLIT_ELIGIBLE_JENJANG.includes(jenjang)) {
+      for (const freq of MEETING_FREQUENCIES) keys.push(`${jenjang} (${freq})`);
+    }
+  }
+  return keys;
+}
+
+/** Strips a "(1x)"/"(2x)" suffix off a column key to recover its base jenjang, for color/lookup purposes. */
+export function baseJenjangOf(columnKey) {
+  return columnKey.replace(/ \((1x|2x)\)$/, '');
+}
+
+export const MEETING_FREQUENCY_OPTIONS = ['1x', '2x', '>2x'];
+
+/**
+ * General-purpose meeting-frequency classification for filtering (distinct from
+ * getMeetingFrequency, which is suffix-only and used by the Per Jenjang/Weekly
+ * Trend breakdown where "no suffix" must stay unclassified). Here, a slot with
+ * no "(1x)"/"(2x)" suffix is assumed to meet once a week — except "TKA", a known
+ * exception that meets more than twice a week despite carrying no suffix.
+ *
+ * Some roster naming schemes (e.g. Grade 12's "TKA 1 - MTK 1") carry neither a
+ * suffix nor the literal "TKA" name despite meeting more than once a week; when
+ * the caller can supply how many distinct days the slot actually meets on
+ * (roster daysCount), that takes priority over the "assume 1x" default.
+ */
+export function classifyMeetingFrequency(slotName, daysCount) {
+  const suffixFreq = getMeetingFrequency(slotName);
+  if (suffixFreq) return suffixFreq;
+  if (String(slotName || '').trim().toUpperCase() === 'TKA') return '>2x';
+  if (daysCount === 1) return '1x';
+  if (daysCount === 2) return '2x';
+  if (daysCount > 2) return '>2x';
+  return '1x';
+}
+
+/**
+ * Collapses stickiness rows down to one row per unique (course_grade, slot_name,
+ * subject) slot, keeping only its latest week_period — the same "overall" convention
+ * used by buildStickinessGridRows' overallStickiness/overallStatus. Used for "All Week"
+ * views so a slot that has 8 weeks of history isn't counted as 8 separate slots.
+ */
+export function getLatestPerSlot(stickinessRows) {
+  const latestBySlot = new Map();
+  for (const r of stickinessRows) {
+    const key = `${r.course_grade}|${r.slot_name}|${r.subject}`;
+    const existing = latestBySlot.get(key);
+    if (!existing || r.week_period > existing.week_period) latestBySlot.set(key, r);
+  }
+  return Array.from(latestBySlot.values());
+}
 
 /**
  * Merge external stickiness rows with local roster rows.
@@ -205,8 +284,6 @@ function avg(nums) {
  * Returns: { entireSlot, perJenjang, gap }
  */
 export function computeDistribution(weekRows) {
-  const total = weekRows.length;
-
   const aggregate = (subset) => {
     const result = {};
     for (const status of STATUS_LIST) {
@@ -215,27 +292,37 @@ export function computeDistribution(weekRows) {
         return r.status?.toUpperCase() === status;
       });
       const count = matching.length;
-      const pct = total > 0 ? (count / subset.length) * 100 : 0;
+      const pct = subset.length > 0 ? (count / subset.length) * 100 : 0;
       const avgStickiness = avg(matching.map((r) => r.stickiness != null ? Number(r.stickiness) : null));
       result[status] = { count, pct, avgStickiness };
     }
     return result;
   };
 
+  const computeGap = (subset) => {
+    const excAvg = avg(subset.filter((r) => r.status?.toUpperCase() === 'EXCEPTIONAL').map((r) => r.stickiness != null ? Number(r.stickiness) : null));
+    const belAvg = avg(subset.filter((r) => r.status?.toUpperCase() === 'BELOW AVERAGE').map((r) => r.stickiness != null ? Number(r.stickiness) : null));
+    return excAvg != null && belAvg != null ? excAvg - belAvg : null;
+  };
+
   const entireSlot = aggregate(weekRows);
 
   const perJenjang = {};
+  const gap = { General: computeGap(weekRows) };
+
   for (const jenjang of JENJANG_LIST) {
     const subset = weekRows.filter((r) => getJenjang(r.subject, r.course_grade) === jenjang);
     perJenjang[jenjang] = aggregate(subset);
-  }
+    gap[jenjang] = computeGap(subset);
 
-  const gap = {};
-  for (const jenjang of ['General', ...JENJANG_LIST]) {
-    const subset = jenjang === 'General' ? weekRows : weekRows.filter((r) => getJenjang(r.subject, r.course_grade) === jenjang);
-    const excAvg = avg(subset.filter((r) => r.status?.toUpperCase() === 'EXCEPTIONAL').map((r) => r.stickiness != null ? Number(r.stickiness) : null));
-    const belAvg = avg(subset.filter((r) => r.status?.toUpperCase() === 'BELOW AVERAGE').map((r) => r.stickiness != null ? Number(r.stickiness) : null));
-    gap[jenjang] = excAvg != null && belAvg != null ? excAvg - belAvg : null;
+    if (SPLIT_ELIGIBLE_JENJANG.includes(jenjang)) {
+      for (const freq of MEETING_FREQUENCIES) {
+        const freqSubset = subset.filter((r) => getMeetingFrequency(r.slot_name) === freq);
+        const key = `${jenjang} (${freq})`;
+        perJenjang[key] = aggregate(freqSubset);
+        gap[key] = computeGap(freqSubset);
+      }
+    }
   }
 
   return { entireSlot, perJenjang, gap };
@@ -266,6 +353,13 @@ export function computeWeeklyTrend(allRows, weekPeriods) {
     for (const jenjang of JENJANG_LIST) {
       const subset = weekRows.filter((r) => getJenjang(r.subject, r.course_grade) === jenjang);
       result[date][jenjang] = computeGroup(subset);
+
+      if (SPLIT_ELIGIBLE_JENJANG.includes(jenjang)) {
+        for (const freq of MEETING_FREQUENCIES) {
+          const freqSubset = subset.filter((r) => getMeetingFrequency(r.slot_name) === freq);
+          result[date][`${jenjang} (${freq})`] = computeGroup(freqSubset);
+        }
+      }
     }
   }
   return result;

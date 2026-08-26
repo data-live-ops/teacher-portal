@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import MultiSelectFilter from './MultiSelectFilter';
-import { getStatusColor, buildCurrentWeekCsvRows } from '../utils/stickinessUtils';
+import FilterReflection from './FilterReflection';
+import { getStatusColor, buildCurrentWeekCsvRows, classifyMeetingFrequency, MEETING_FREQUENCY_OPTIONS } from '../utils/stickinessUtils';
 import { toCsvString } from '../utils/attendanceGrid';
+import { buildFilterReflections } from '../utils/filterReflection';
 
 const DAY_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -13,6 +15,7 @@ function StickinessCurrentWeek({ stickinessRows, rosterRows, weekPeriods, sticki
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
+  const [selectedFrequencies, setSelectedFrequencies] = useState([]);
 
   const activeWeek = selectedWeek || latestWeek;
 
@@ -67,18 +70,30 @@ function StickinessCurrentWeek({ stickinessRows, rosterRows, weekPeriods, sticki
     () => [...new Set(weekRows.map((r) => r.time_range).filter((t) => t !== '—'))].sort().map((t) => ({ value: t, label: t })),
     [weekRows]
   );
+  const frequencyOptions = useMemo(
+    () => [...new Set(weekRows.map((r) => classifyMeetingFrequency(r.slot_name, getRowDays(r).length)))]
+      .sort((a, b) => MEETING_FREQUENCY_OPTIONS.indexOf(a) - MEETING_FREQUENCY_OPTIONS.indexOf(b))
+      .map((f) => ({ value: f, label: f })),
+    [weekRows]
+  );
 
   const filteredRows = useMemo(() => {
     return weekRows.filter((r) => {
       if (selectedGrades.length && !selectedGrades.includes(r.course_grade)) return false;
       if (selectedDays.length && !selectedDays.some((d) => getRowDays(r).includes(d))) return false;
       if (selectedTimes.length && !selectedTimes.includes(r.time_range)) return false;
+      if (selectedFrequencies.length && !selectedFrequencies.includes(classifyMeetingFrequency(r.slot_name, getRowDays(r).length))) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekRows, selectedGrades, selectedDays, selectedTimes]);
+  }, [weekRows, selectedGrades, selectedDays, selectedTimes, selectedFrequencies]);
 
-  const hasFilter = selectedGrades.length || selectedDays.length || selectedTimes.length;
+  const hasFilter = selectedGrades.length || selectedDays.length || selectedTimes.length || selectedFrequencies.length;
+
+  const filterReflections = useMemo(
+    () => buildFilterReflections(selectedGrades, selectedDays, selectedTimes, selectedFrequencies),
+    [selectedGrades, selectedDays, selectedTimes, selectedFrequencies]
+  );
 
   const handleExportCsv = () => {
     const csvRows = buildCurrentWeekCsvRows(filteredRows);
@@ -122,9 +137,10 @@ function StickinessCurrentWeek({ stickinessRows, rosterRows, weekPeriods, sticki
         <MultiSelectFilter label="Grade" options={gradeOptions} selectedValues={selectedGrades} onChange={setSelectedGrades} />
         <MultiSelectFilter label="Days" options={dayOptions} selectedValues={selectedDays} onChange={setSelectedDays} />
         <MultiSelectFilter label="Times" options={timeOptions} selectedValues={selectedTimes} onChange={setSelectedTimes} />
+        <MultiSelectFilter label="Meeting" options={frequencyOptions} selectedValues={selectedFrequencies} onChange={setSelectedFrequencies} />
 
         {hasFilter > 0 && (
-          <button className="secondary-button clear-filter-button" onClick={() => { setSelectedGrades([]); setSelectedDays([]); setSelectedTimes([]); }}>
+          <button className="secondary-button clear-filter-button" onClick={() => { setSelectedGrades([]); setSelectedDays([]); setSelectedTimes([]); setSelectedFrequencies([]); }}>
             Clear Filter
           </button>
         )}
@@ -142,6 +158,8 @@ function StickinessCurrentWeek({ stickinessRows, rosterRows, weekPeriods, sticki
           Export CSV
         </button>
       </div>
+
+      <FilterReflection labels={filterReflections} />
 
       <div className="spreadsheet-container">
         <div className="table-scroll-container">

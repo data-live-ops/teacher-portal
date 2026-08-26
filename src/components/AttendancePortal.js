@@ -4,8 +4,11 @@ import { usePermissions } from '../contexts/PermissionContext';
 import Navbar from './Navbar';
 import AttendanceMetricGrid from './AttendanceMetricGrid';
 import MultiSelectFilter from './MultiSelectFilter';
+import FilterReflection from './FilterReflection';
 import StickinessPortal from './StickinessPortal';
 import { SHEET_CONFIG, buildGridRows, getWeeks, buildStatsIndex, buildCsvRows, toCsvString } from '../utils/attendanceGrid';
+import { classifyMeetingFrequency, MEETING_FREQUENCY_OPTIONS } from '../utils/stickinessUtils';
+import { buildFilterReflections } from '../utils/filterReflection';
 import '../styles/AttendancePortal.css';
 
 const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -25,6 +28,7 @@ const AttendancePortal = ({ user, onLogout }) => {
     const [selectedGuruJuaras, setSelectedGuruJuaras] = useState([]);
     const [selectedDays, setSelectedDays] = useState([]);
     const [selectedTimes, setSelectedTimes] = useState([]);
+    const [selectedFrequencies, setSelectedFrequencies] = useState([]);
     const [rosterRows, setRosterRows] = useState([]);
     const [attendanceStats, setAttendanceStats] = useState([]);
     const [engagementStats, setEngagementStats] = useState([]);
@@ -106,6 +110,7 @@ const AttendancePortal = ({ user, onLogout }) => {
             setSelectedGuruJuaras([]);
             setSelectedDays([]);
             setSelectedTimes([]);
+            setSelectedFrequencies([]);
         }
     }, [selectedSemesterId, loadGridData]);
 
@@ -125,8 +130,9 @@ const AttendancePortal = ({ user, onLogout }) => {
             if (!selectedDays.some((d) => rowDays.includes(d))) return false;
         }
         if (exclude !== 'times' && selectedTimes.length && !selectedTimes.includes(row.timeRange)) return false;
+        if (exclude !== 'freq' && selectedFrequencies.length && !selectedFrequencies.includes(classifyMeetingFrequency(row.slotName, getRowDays(row).length))) return false;
         return true;
-    }, [selectedGrades, selectedSlotNames, selectedGuruJuaras, selectedDays, selectedTimes]);
+    }, [selectedGrades, selectedSlotNames, selectedGuruJuaras, selectedDays, selectedTimes, selectedFrequencies]);
 
     const buildOptionValues = useCallback((mapFn, exclude) => {
         const values = new Set();
@@ -176,6 +182,13 @@ const AttendancePortal = ({ user, onLogout }) => {
         [buildOptionValues]
     );
 
+    const frequencyOptions = useMemo(
+        () => Array.from(buildOptionValues((r) => classifyMeetingFrequency(r.slotName, getRowDays(r).length), 'freq'))
+            .sort((a, b) => MEETING_FREQUENCY_OPTIONS.indexOf(a) - MEETING_FREQUENCY_OPTIONS.indexOf(b))
+            .map((freq) => ({ value: freq, label: freq })),
+        [buildOptionValues]
+    );
+
     // Selections that fall out of a narrowed option list (e.g. a Slot that no
     // longer matches after Grade changes) are dropped automatically. Bail out
     // to the same array reference when nothing was actually removed, or the
@@ -210,8 +223,19 @@ const AttendancePortal = ({ user, onLogout }) => {
         setSelectedTimes((prev) => dropStale(prev, validTimes));
     }, [timeOptions]);
 
+    useEffect(() => {
+        const validFrequencies = new Set(frequencyOptions.map((o) => o.value));
+        setSelectedFrequencies((prev) => dropStale(prev, validFrequencies));
+    }, [frequencyOptions]);
+
     const hasActiveFilter = selectedGrades.length > 0 || selectedSlotNames.length > 0
-        || selectedGuruJuaras.length > 0 || selectedDays.length > 0 || selectedTimes.length > 0;
+        || selectedGuruJuaras.length > 0 || selectedDays.length > 0 || selectedTimes.length > 0
+        || selectedFrequencies.length > 0;
+
+    const filterReflections = useMemo(
+        () => buildFilterReflections(selectedGrades, selectedSlotNames, selectedGuruJuaras, selectedDays, selectedTimes, selectedFrequencies),
+        [selectedGrades, selectedSlotNames, selectedGuruJuaras, selectedDays, selectedTimes, selectedFrequencies]
+    );
 
     const clearFilters = () => {
         setSelectedGrades([]);
@@ -219,6 +243,7 @@ const AttendancePortal = ({ user, onLogout }) => {
         setSelectedGuruJuaras([]);
         setSelectedDays([]);
         setSelectedTimes([]);
+        setSelectedFrequencies([]);
     };
 
     const filteredRows = useMemo(
@@ -362,6 +387,13 @@ const AttendancePortal = ({ user, onLogout }) => {
                             onChange={setSelectedTimes}
                         />
 
+                        <MultiSelectFilter
+                            label="Meeting"
+                            options={frequencyOptions}
+                            selectedValues={selectedFrequencies}
+                            onChange={setSelectedFrequencies}
+                        />
+
                         {hasActiveFilter && (
                             <button
                                 className="secondary-button clear-filter-button"
@@ -400,6 +432,8 @@ const AttendancePortal = ({ user, onLogout }) => {
                             </span>
                         )}
                     </div>
+
+                    <FilterReflection labels={filterReflections} />
 
                     <div className="tab-navigation">
                         {SHEET_CONFIG.map((sheet) => (

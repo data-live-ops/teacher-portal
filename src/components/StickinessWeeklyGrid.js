@@ -2,9 +2,11 @@ import React, { useRef, useMemo, useState, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import MultiSelectFilter from './MultiSelectFilter';
+import FilterReflection from './FilterReflection';
 import { getHeatmapCellStyle, getValueRange } from '../utils/heatmapColor';
-import { buildStickinessGridRows, buildWeeklyGridCsvRows } from '../utils/stickinessUtils';
+import { buildStickinessGridRows, buildWeeklyGridCsvRows, classifyMeetingFrequency, MEETING_FREQUENCY_OPTIONS } from '../utils/stickinessUtils';
 import { toCsvString } from '../utils/attendanceGrid';
+import { buildFilterReflections } from '../utils/filterReflection';
 
 const DAY_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -22,6 +24,7 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
+  const [selectedFrequencies, setSelectedFrequencies] = useState([]);
 
   const gridRows = useMemo(
     () => buildStickinessGridRows(stickinessRows, rosterRows),
@@ -40,9 +43,10 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
       if (!selectedDays.some((d) => rowDays.includes(d))) return false;
     }
     if (exclude !== 'times' && selectedTimes.length && !selectedTimes.includes(row.timeRange)) return false;
+    if (exclude !== 'freq' && selectedFrequencies.length && !selectedFrequencies.includes(classifyMeetingFrequency(row.slotName, getRowDays(row).length))) return false;
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedDays, selectedTimes]);
+  }, [selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedDays, selectedTimes, selectedFrequencies]);
 
   const buildOptions = useCallback((mapFn, exclude) => {
     const values = new Set();
@@ -82,6 +86,12 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
     () => Array.from(buildOptions((r) => r.timeRange, 'times')).sort((a, b) => a.localeCompare(b)).map((t) => ({ value: t, label: t })),
     [buildOptions]
   );
+  const frequencyOptions = useMemo(
+    () => Array.from(buildOptions((r) => classifyMeetingFrequency(r.slotName, getRowDays(r).length), 'freq'))
+      .sort((a, b) => MEETING_FREQUENCY_OPTIONS.indexOf(a) - MEETING_FREQUENCY_OPTIONS.indexOf(b))
+      .map((f) => ({ value: f, label: f })),
+    [buildOptions]
+  );
 
   const filteredRows = useMemo(
     () => gridRows.filter((r) => matchesFilters(r, null)),
@@ -89,11 +99,16 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
   );
 
   const hasFilter = selectedGrades.length || selectedSlots.length || selectedTeachers.length
-    || selectedSubjects.length || selectedDays.length || selectedTimes.length;
+    || selectedSubjects.length || selectedDays.length || selectedTimes.length || selectedFrequencies.length;
+
+  const filterReflections = useMemo(
+    () => buildFilterReflections(selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedDays, selectedTimes, selectedFrequencies),
+    [selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedDays, selectedTimes, selectedFrequencies]
+  );
 
   const clearFilters = () => {
     setSelectedGrades([]); setSelectedSlots([]); setSelectedTeachers([]);
-    setSelectedSubjects([]); setSelectedDays([]); setSelectedTimes([]);
+    setSelectedSubjects([]); setSelectedDays([]); setSelectedTimes([]); setSelectedFrequencies([]);
   };
 
   const handleExportCsv = () => {
@@ -164,6 +179,7 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
         <MultiSelectFilter label="Subject" options={subjectOptions} selectedValues={selectedSubjects} onChange={setSelectedSubjects} />
         <MultiSelectFilter label="Days" options={dayOptions} selectedValues={selectedDays} onChange={setSelectedDays} />
         <MultiSelectFilter label="Times" options={timeOptions} selectedValues={selectedTimes} onChange={setSelectedTimes} />
+        <MultiSelectFilter label="Meeting" options={frequencyOptions} selectedValues={selectedFrequencies} onChange={setSelectedFrequencies} />
         {hasFilter > 0 && (
           <button className="secondary-button clear-filter-button" onClick={clearFilters}>Clear Filter</button>
         )}
@@ -181,6 +197,8 @@ function StickinessWeeklyGrid({ stickinessRows, rosterRows, weekPeriods, stickin
           Export CSV
         </button>
       </div>
+
+      <FilterReflection labels={filterReflections} />
 
       <div className="spreadsheet-container">
         <div className="table-scroll-container" ref={scrollRef}>

@@ -52,6 +52,24 @@
     margin-bottom: 24px;
 }
 
+.filter-reflection {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -16px 0 16px;
+}
+
+.filter-reflection-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: #eef2ff;
+    color: #4338ca;
+}
+
 .primary-button {
     height: 40px;
     padding: 0 16px;

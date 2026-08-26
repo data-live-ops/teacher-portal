@@ -1,9 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
+import MultiSelectFilter from './MultiSelectFilter';
+import FilterReflection from './FilterReflection';
 import {
-  computeDistribution, computeWeeklyTrend,
-  STATUS_LIST, JENJANG_LIST, JENJANG_COLORS, getStatusColor,
+  computeDistribution, computeWeeklyTrend, getLatestPerSlot, classifyMeetingFrequency,
+  STATUS_LIST, JENJANG_COLORS, getStatusColor,
+  buildJenjangColumnKeys, baseJenjangOf, MEETING_FREQUENCY_OPTIONS,
 } from '../utils/stickinessUtils';
+import { buildFilterReflections } from '../utils/filterReflection';
+
+/** Header color for a Per Jenjang / Weekly Trend column ("Grade 10-11", "Grade 10-11 (1x)", ...). */
+function getColumnColor(columnKey) {
+  return JENJANG_COLORS[baseJenjangOf(columnKey)];
+}
 
 const STATUS_DISPLAY = {
   'EXCEPTIONAL':       'Exceptional',
@@ -72,6 +81,7 @@ function EntireSlotTable({ distribution }) {
 // ── Per Jenjang tab ──────────────────────────────────────────────────────────
 function PerJenjangTable({ distribution }) {
   const { perJenjang, gap } = distribution;
+  const columns = useMemo(() => buildJenjangColumnKeys(), []);
 
   return (
     <div className="stickiness-dist-section">
@@ -81,19 +91,19 @@ function PerJenjangTable({ distribution }) {
           <thead>
             <tr>
               <th></th>
-              {JENJANG_LIST.map((j) => (
-                <th key={j} colSpan={3} style={{ background: JENJANG_COLORS[j].header, borderBottom: `2px solid ${JENJANG_COLORS[j].border}` }}>
-                  {j}
+              {columns.map((col) => (
+                <th key={col} colSpan={3} style={{ background: getColumnColor(col).header, borderBottom: `2px solid ${getColumnColor(col).border}` }}>
+                  {col}
                 </th>
               ))}
             </tr>
             <tr>
               <th></th>
-              {JENJANG_LIST.map((j) => (
-                <React.Fragment key={j}>
-                  <th style={{ background: JENJANG_COLORS[j].header }}>Slot</th>
-                  <th style={{ background: JENJANG_COLORS[j].header }}>%</th>
-                  <th style={{ background: JENJANG_COLORS[j].header }}>Avg.</th>
+              {columns.map((col) => (
+                <React.Fragment key={col}>
+                  <th style={{ background: getColumnColor(col).header }}>Slot</th>
+                  <th style={{ background: getColumnColor(col).header }}>%</th>
+                  <th style={{ background: getColumnColor(col).header }}>Avg.</th>
                 </React.Fragment>
               ))}
             </tr>
@@ -108,10 +118,10 @@ function PerJenjangTable({ distribution }) {
                       {STATUS_DISPLAY[status]}
                     </span>
                   </td>
-                  {JENJANG_LIST.map((j) => {
-                    const d = (perJenjang[j] || {})[status] || { count: 0, pct: 0, avgStickiness: null };
+                  {columns.map((col) => {
+                    const d = (perJenjang[col] || {})[status] || { count: 0, pct: 0, avgStickiness: null };
                     return (
-                      <React.Fragment key={j}>
+                      <React.Fragment key={col}>
                         <td className="stickiness-number-cell">{d.count}</td>
                         <td className="stickiness-number-cell">{fmtPct(d.pct)}</td>
                         <td className="stickiness-number-cell">{fmt(d.avgStickiness)}</td>
@@ -123,9 +133,9 @@ function PerJenjangTable({ distribution }) {
             })}
             <tr className="stickiness-dist-gap">
               <td>gap exceptional - below</td>
-              {JENJANG_LIST.map((j) => (
-                <td key={j} colSpan={3} className="stickiness-number-cell">
-                  {fmt(gap[j])}
+              {columns.map((col) => (
+                <td key={col} colSpan={3} className="stickiness-number-cell">
+                  {fmt(gap[col])}
                 </td>
               ))}
             </tr>
@@ -137,7 +147,7 @@ function PerJenjangTable({ distribution }) {
 }
 
 // ── Weekly Trend tab ─────────────────────────────────────────────────────────
-const TREND_GROUPS = ['General', ...JENJANG_LIST];
+const TREND_GROUPS = ['General', ...buildJenjangColumnKeys()];
 
 function WeeklyTrendTable({ allStickinessRows, weekPeriods }) {
   const trendData = useMemo(() => computeWeeklyTrend(allStickinessRows, weekPeriods), [allStickinessRows, weekPeriods]);
@@ -168,7 +178,7 @@ function WeeklyTrendTable({ allStickinessRows, weekPeriods }) {
             <tr>
               <th>Periode</th>
               {TREND_GROUPS.map((group) => (
-                <th key={group} colSpan={6} style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>
+                <th key={group} colSpan={6} style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>
                   {group}
                 </th>
               ))}
@@ -177,12 +187,12 @@ function WeeklyTrendTable({ allStickinessRows, weekPeriods }) {
               <th></th>
               {TREND_GROUPS.map((group) => (
                 <React.Fragment key={group}>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>Exceptional</th>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>%</th>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>On Average</th>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>%</th>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>Below Average</th>
-                  <th style={group !== 'General' ? { background: JENJANG_COLORS[group]?.header } : {}}>%</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>Exceptional</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>%</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>On Average</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>%</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>Below Average</th>
+                  <th style={group !== 'General' ? { background: getColumnColor(group)?.header } : {}}>%</th>
                 </React.Fragment>
               ))}
             </tr>
@@ -245,18 +255,89 @@ function WeeklyTrendTable({ allStickinessRows, weekPeriods }) {
   );
 }
 
+const ALL_WEEKS = '__ALL_WEEKS__';
+
 // ── Main component ────────────────────────────────────────────────────────────
 function StickinessPerformanceDistribution({ stickinessRows, weekPeriods }) {
   const latestWeek = weekPeriods[weekPeriods.length - 1]?.date || null;
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [innerTab, setInnerTab] = useState('entire');
 
+  const [selectedGrades, setSelectedGrades] = useState([]);
+  const [selectedSlots, setSelectedSlots] = useState([]);
+  const [selectedTeachers, setSelectedTeachers] = useState([]);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [selectedFrequencies, setSelectedFrequencies] = useState([]);
+
+  const matchesFilters = useCallback((row, exclude) => {
+    if (exclude !== 'grade' && selectedGrades.length && !selectedGrades.includes(row.course_grade)) return false;
+    if (exclude !== 'slot' && selectedSlots.length && !selectedSlots.includes(row.slot_name)) return false;
+    if (exclude !== 'teacher' && selectedTeachers.length && !selectedTeachers.includes(row.teacher_name)) return false;
+    if (exclude !== 'subject' && selectedSubjects.length && !selectedSubjects.includes(row.subject)) return false;
+    if (exclude !== 'freq' && selectedFrequencies.length && !selectedFrequencies.includes(classifyMeetingFrequency(row.slot_name))) return false;
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedFrequencies]);
+
+  const buildOptions = useCallback((mapFn, exclude) => {
+    const values = new Set();
+    for (const row of stickinessRows) {
+      if (!matchesFilters(row, exclude)) continue;
+      const value = mapFn(row);
+      if (value != null && value !== '') values.add(value);
+    }
+    return values;
+  }, [stickinessRows, matchesFilters]);
+
+  const gradeOptions = useMemo(
+    () => Array.from(buildOptions((r) => r.course_grade, 'grade')).sort((a, b) => a - b).map((g) => ({ value: g, label: `Grade ${g}` })),
+    [buildOptions]
+  );
+  const slotOptions = useMemo(
+    () => Array.from(buildOptions((r) => r.slot_name, 'slot')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map((s) => ({ value: s, label: s })),
+    [buildOptions]
+  );
+  const teacherOptions = useMemo(
+    () => Array.from(buildOptions((r) => r.teacher_name, 'teacher')).sort((a, b) => a.localeCompare(b)).map((t) => ({ value: t, label: t })),
+    [buildOptions]
+  );
+  const subjectOptions = useMemo(
+    () => Array.from(buildOptions((r) => r.subject, 'subject')).sort((a, b) => a.localeCompare(b)).map((s) => ({ value: s, label: s })),
+    [buildOptions]
+  );
+  const frequencyOptions = useMemo(
+    () => Array.from(buildOptions((r) => classifyMeetingFrequency(r.slot_name), 'freq'))
+      .sort((a, b) => MEETING_FREQUENCY_OPTIONS.indexOf(a) - MEETING_FREQUENCY_OPTIONS.indexOf(b))
+      .map((f) => ({ value: f, label: f })),
+    [buildOptions]
+  );
+
+  const filteredRows = useMemo(
+    () => stickinessRows.filter((r) => matchesFilters(r, null)),
+    [stickinessRows, matchesFilters]
+  );
+
+  const hasFilter = selectedGrades.length || selectedSlots.length || selectedTeachers.length || selectedSubjects.length || selectedFrequencies.length;
+
+  const filterReflections = useMemo(
+    () => buildFilterReflections(selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedFrequencies),
+    [selectedGrades, selectedSlots, selectedTeachers, selectedSubjects, selectedFrequencies]
+  );
+
+  const clearFilters = () => {
+    setSelectedGrades([]); setSelectedSlots([]); setSelectedTeachers([]); setSelectedSubjects([]); setSelectedFrequencies([]);
+  };
+
   const activeWeek = selectedWeek || latestWeek;
 
-  const weekRows = useMemo(
-    () => stickinessRows.filter((r) => r.week_period === activeWeek),
-    [stickinessRows, activeWeek]
-  );
+  // "All Week" shows each unique slot once (its latest week), so Entire Slot /
+  // Per Jenjang reflect the current overall standing of every slot instead of
+  // a single week's snapshot — not every week-slot row summed together.
+  // Weekly Trend ignores activeWeek entirely, so selecting it there has no effect.
+  const weekRows = useMemo(() => {
+    if (activeWeek === ALL_WEEKS) return getLatestPerSlot(filteredRows);
+    return filteredRows.filter((r) => r.week_period === activeWeek);
+  }, [filteredRows, activeWeek]);
 
   const distribution = useMemo(() => computeDistribution(weekRows), [weekRows]);
 
@@ -266,6 +347,17 @@ function StickinessPerformanceDistribution({ stickinessRows, weekPeriods }) {
 
   return (
     <div>
+      <div className="action-bar">
+        <MultiSelectFilter label="Grade" options={gradeOptions} selectedValues={selectedGrades} onChange={setSelectedGrades} />
+        <MultiSelectFilter label="Slot" options={slotOptions} selectedValues={selectedSlots} onChange={setSelectedSlots} />
+        <MultiSelectFilter label="Teacher" options={teacherOptions} selectedValues={selectedTeachers} onChange={setSelectedTeachers} />
+        <MultiSelectFilter label="Subject" options={subjectOptions} selectedValues={selectedSubjects} onChange={setSelectedSubjects} />
+        <MultiSelectFilter label="Meeting" options={frequencyOptions} selectedValues={selectedFrequencies} onChange={setSelectedFrequencies} />
+        {hasFilter > 0 && (
+          <button className="secondary-button clear-filter-button" onClick={clearFilters}>Clear Filter</button>
+        )}
+      </div>
+
       <div className="stickiness-dist-header">
         <h2 className="stickiness-dist-title">Teachers Performance Distribution</h2>
         <select
@@ -273,6 +365,7 @@ function StickinessPerformanceDistribution({ stickinessRows, weekPeriods }) {
           value={activeWeek || ''}
           onChange={(e) => setSelectedWeek(e.target.value)}
         >
+          <option value={ALL_WEEKS}>All Week — Overall</option>
           {weekPeriods.map((w) => (
             <option key={w.date} value={w.date}>
               {w.label} — {w.dateLabel}
@@ -280,6 +373,8 @@ function StickinessPerformanceDistribution({ stickinessRows, weekPeriods }) {
           ))}
         </select>
       </div>
+
+      <FilterReflection labels={filterReflections} />
 
       <div className="tab-navigation" style={{ marginBottom: '16px' }}>
         <button className={`tab-button ${innerTab === 'entire' ? 'active' : ''}`} onClick={() => setInnerTab('entire')}>
@@ -295,7 +390,7 @@ function StickinessPerformanceDistribution({ stickinessRows, weekPeriods }) {
 
       {innerTab === 'entire' && <EntireSlotTable distribution={distribution} />}
       {innerTab === 'jenjang' && <PerJenjangTable distribution={distribution} />}
-      {innerTab === 'trend' && <WeeklyTrendTable allStickinessRows={stickinessRows} weekPeriods={weekPeriods} />}
+      {innerTab === 'trend' && <WeeklyTrendTable allStickinessRows={filteredRows} weekPeriods={weekPeriods} />}
     </div>
   );
 }
