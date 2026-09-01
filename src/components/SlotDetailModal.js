@@ -22,8 +22,11 @@ const classificationSlug = (classification) => classification?.toLowerCase().rep
 // of students they were computed from, instead of taken on faith.
 // - historical: every student who ever had data for this grade+slot+week
 //   (vw_student_classification[_mandatory]), no registration filter.
-// - active: same, but only students still registered that exact week
-//   (participants_per_batch), mirroring mv_ica_classification_active's join.
+// - active: same, but only students in the forward-filled active roster for
+//   that exact week (vw_active_roster_forward_filled), mirroring
+//   mv_ica_classification_active's join (see sql/patch_v8_active_holiday_forward_fill.sql).
+//   On a slot-holiday week (no session at all that week) the roster carries
+//   forward from the slot's last real session instead of coming up empty.
 //
 // "Tabel" (row) comes from mv_ica_classification_historical/active - a
 // periodic snapshot, refreshed by cron or by saving the threshold config.
@@ -72,7 +75,15 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
             });
 
             const eligibleIds = mode === 'active'
-                ? new Set(participantRows.filter(p => p.week_date === row.week_period).map(p => p.user_id))
+                ? new Set((await fetchAllRows(() =>
+                      supabase
+                          .from('vw_active_roster_forward_filled')
+                          .select('user_id')
+                          .eq('grade', row.grade)
+                          .eq('slot_name', row.slot_name)
+                          .eq('week_date', row.week_period)
+                          .eq('is_present', true)
+                  )).map(r => r.user_id))
                 : null;
 
             const merged = (classRows || [])
