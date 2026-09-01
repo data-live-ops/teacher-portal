@@ -6,6 +6,7 @@ import Navbar from './Navbar';
 import ICADashboardTab from './ICADashboardTab';
 import ICAAnalyticsTab from './ICAAnalyticsTab';
 import ThresholdConfigManager from './ThresholdConfigManager';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const MAIN_TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -13,6 +14,7 @@ const MAIN_TABS = [
 ];
 
 const InClassAssessment = ({ user, onLogout }) => {
+    const { canEdit } = usePermissions();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [showThresholdManager, setShowThresholdManager] = useState(false);
     // Bumped after saving the global threshold config, forcing both tabs to
@@ -51,27 +53,31 @@ const InClassAssessment = ({ user, onLogout }) => {
                             );
                         })}
                     </div>
-                    <button
-                        className="dropdown-button"
-                        style={{ alignSelf: 'center', marginRight: 12 }}
-                        onClick={() => setShowThresholdManager(true)}
-                        title="Atur ambang batas Below/Optimal/Above untuk semua user"
-                    >
-                        <SlidersHorizontal size={16} />
-                        Ambang Batas
-                    </button>
+                    {canEdit('in_class_assessment') && (
+                        <button
+                            className="dropdown-button"
+                            style={{ alignSelf: 'center', marginRight: 12 }}
+                            onClick={() => setShowThresholdManager(true)}
+                            title="Atur ambang batas Below/Optimal/Above untuk semua user"
+                        >
+                            <SlidersHorizontal size={16} />
+                            Ambang Batas
+                        </button>
+                    )}
                 </div>
             </div>
 
             {activeTab === 'dashboard' && <ICADashboardTab key={`dashboard-${thresholdRefreshKey}`} user={user} />}
             {activeTab === 'analytics' && <ICAAnalyticsTab key={`analytics-${thresholdRefreshKey}`} />}
 
-            <ThresholdConfigManager
-                isOpen={showThresholdManager}
-                onClose={() => setShowThresholdManager(false)}
-                userEmail={user}
-                onSaved={() => setThresholdRefreshKey(k => k + 1)}
-            />
+            {canEdit('in_class_assessment') && (
+                <ThresholdConfigManager
+                    isOpen={showThresholdManager}
+                    onClose={() => setShowThresholdManager(false)}
+                    userEmail={user}
+                    onSaved={() => setThresholdRefreshKey(k => k + 1)}
+                />
+            )}
         </>
     );
 };

@@ -23,7 +23,7 @@ const DEFAULT_PERMISSIONS = {
     piket_schedule: { view: true, edit: false },
     teacher_assignment: { view: false, edit: false },
     teacher_utilization: { view: false, edit: false },
-    in_class_assessment: { view: false, edit: false },
+    in_class_assessment: { view: true, edit: false },
     data_management: { view: false, edit: false },
     teacher_monitoring: { view: false, edit: false },
     attendance_portal: { view: true, edit: false }
