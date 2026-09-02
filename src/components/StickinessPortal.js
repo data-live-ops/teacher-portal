@@ -25,6 +25,7 @@ async function fetchAllRows(client, table, semesterId) {
       .select('*')
       .eq('semester_id', semesterId)
       .order('week_period', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -59,6 +60,7 @@ async function fetchWeekPeriods(client, table, semesterId, semesterStartDate) {
       .select('week_period')
       .eq('semester_id', semesterId)
       .order('week_period', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) break;
     if (!data || data.length === 0) break;
