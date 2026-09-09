@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { X, Search, RefreshCw } from 'lucide-react';
 import '../styles/ImportAssignmentModal.css';
 import '../styles/ICAAnalytics.css';
@@ -16,6 +16,173 @@ const CLASSIFICATION_TOTAL_KEY = {
 
 // classification -> CSS class suffix, e.g. 'Not Considered' -> 'not-considered'
 const classificationSlug = (classification) => classification?.toLowerCase().replace(/\s+/g, '-');
+
+// ============================================================================
+// Score distribution histogram - gap analysis at 10% resolution, requested by
+// the ICA team on top of the existing Below/Optimal/Above buckets (those
+// stay threshold-driven and configurable; this view is a fixed decile split
+// of the same pct_correctness already fetched above, so it needs no new SQL).
+// Each bin is still colored/stacked by the student's real classification
+// (not a hardcoded 50/85 split), so it stays correct under any configured
+// threshold - same red/blue/green as DistributionChart in ICAAnalyticsTab,
+// validated via the dataviz skill's validate_palette.js (all checks pass).
+// ============================================================================
+const SCORE_BIN_COLOR = { below: '#dc2626', optimal: '#3b82f6', above: '#16a34a' };
+const SCORE_BIN_LABEL = { below: 'Below', optimal: 'Optimal', above: 'Above' };
+const SCORE_BIN_GAP = 2;
+const SCORE_BINS_META = Array.from({ length: 10 }, (_, i) => ({
+    label: i === 0 ? '0-10%' : `${i * 10 + 1}-${i * 10 + 10}%`,
+}));
+
+// pct==0 and exact multiples of 10 fall in the LOWER bin (e.g. pct=20 -> "11-20%",
+// not "21-30%"), matching the inclusive upper-bound labels above.
+const binIndexForPct = (pct) => {
+    if (pct <= 0) return 0;
+    return Math.min(9, Math.ceil(pct / 10) - 1);
+};
+
+// Rect with only the top two corners rounded (the free/data end) - the
+// baseline-anchored bottom edge of a stack, or the boundary between two
+// stacked segments, stays square.
+const roundedTopRectPath = (x, y, w, h, r) => {
+    const radius = Math.max(0, Math.min(r, w / 2, h));
+    if (radius === 0) return `M${x},${y + h} L${x},${y} L${x + w},${y} L${x + w},${y + h} Z`;
+    return `M${x},${y + h} L${x},${y + radius} Q${x},${y} ${x + radius},${y} L${x + w - radius},${y} Q${x + w},${y} ${x + w},${y + radius} L${x + w},${y + h} Z`;
+};
+
+const ScoreDistributionHistogram = ({ bins, notConsideredCount }) => {
+    const wrapRef = useRef(null);
+    // { binIndex, key, count, total, x, y } of whichever segment is hovered/focused,
+    // or null - drives both the tooltip and the "lift" highlight on that segment.
+    const [hover, setHover] = useState(null);
+
+    const totalScored = bins.reduce((s, b) => s + b.below + b.optimal + b.above, 0);
+
+    if (totalScored === 0) {
+        return <p className="ica-threshold-footer-warn">Belum ada siswa dengan skor untuk ditampilkan.</p>;
+    }
+
+    const maxCount = Math.max(1, ...bins.map(b => b.below + b.optimal + b.above));
+    const width = 640;
+    const height = 220;
+    const padLeft = 30;
+    const padRight = 8;
+    const padTop = 14;
+    const padBottom = 30;
+    const plotW = width - padLeft - padRight;
+    const plotH = height - padTop - padBottom;
+    const slotW = plotW / bins.length;
+    const barW = slotW * 0.62;
+    const baselineY = padTop + plotH;
+
+    // Mouse events carry a real cursor position; keyboard focus events don't
+    // (clientX/Y are 0), so fall back to the target segment's own bounding box.
+    const showTooltip = (e, binIndex, key, count, total) => {
+        const wrap = wrapRef.current;
+        if (!wrap) return;
+        const wrapRect = wrap.getBoundingClientRect();
+        let x, y;
+        if (e.clientX || e.clientY) {
+            x = e.clientX - wrapRect.left;
+            y = e.clientY - wrapRect.top;
+        } else {
+            const targetRect = e.currentTarget.getBoundingClientRect();
+            x = targetRect.left + targetRect.width / 2 - wrapRect.left;
+            y = targetRect.top - wrapRect.top;
+        }
+        setHover({ binIndex, key, count, total, x, y });
+    };
+    const hideTooltip = () => setHover(null);
+
+    return (
+        <div className="ica-histogram-card">
+            <div className="ica-dumbbell-header">
+                <h3>Distribusi Skor (interval 10%)</h3>
+                <div className="ica-distribution-legend" style={{ marginTop: 0 }}>
+                    <span><i style={{ background: SCORE_BIN_COLOR.below }} />Below</span>
+                    <span><i style={{ background: SCORE_BIN_COLOR.optimal }} />Optimal</span>
+                    <span><i style={{ background: SCORE_BIN_COLOR.above }} />Above</span>
+                </div>
+            </div>
+            <div className="ica-histogram-chart-wrap" ref={wrapRef}>
+                <svg
+                    width="100%"
+                    height={height}
+                    viewBox={`0 0 ${width} ${height}`}
+                    className="ica-histogram-chart"
+                    role="img"
+                    aria-label={bins.map((b, i) => `${SCORE_BINS_META[i].label}: ${b.below + b.optimal + b.above} siswa`).join(', ')}
+                >
+                    <line x1={padLeft} x2={padLeft} y1={padTop} y2={baselineY} stroke="#e1e0d9" strokeWidth={1} />
+                    <line x1={padLeft} x2={width - padRight} y1={baselineY} y2={baselineY} stroke="#e1e0d9" strokeWidth={1} />
+                    <text x={padLeft - 6} y={padTop + 4} textAnchor="end" fontSize="10" fill="#898781">{maxCount}</text>
+                    <text x={padLeft - 6} y={baselineY + 4} textAnchor="end" fontSize="10" fill="#898781">0</text>
+
+                    {bins.map((b, i) => {
+                        const x = padLeft + i * slotW + (slotW - barW) / 2;
+                        const segments = [
+                            { key: 'below', count: b.below, color: SCORE_BIN_COLOR.below },
+                            { key: 'optimal', count: b.optimal, color: SCORE_BIN_COLOR.optimal },
+                            { key: 'above', count: b.above, color: SCORE_BIN_COLOR.above },
+                        ].filter(s => s.count > 0);
+
+                        let yCursor = baselineY;
+                        const total = b.below + b.optimal + b.above;
+
+                        return (
+                            <g key={i}>
+                                {segments.map((s, si) => {
+                                    const isLast = si === segments.length - 1;
+                                    const rawH = (s.count / maxCount) * plotH;
+                                    const topY = yCursor - rawH;
+                                    const visibleY = isLast ? topY : topY + SCORE_BIN_GAP;
+                                    const visibleH = Math.max(1, isLast ? rawH : rawH - SCORE_BIN_GAP);
+                                    yCursor = topY;
+                                    const isHovered = hover?.binIndex === i && hover?.key === s.key;
+                                    return (
+                                        <path
+                                            key={s.key}
+                                            d={roundedTopRectPath(x, visibleY, barW, visibleH, isLast ? 3 : 0)}
+                                            fill={s.color}
+                                            tabIndex={0}
+                                            className="ica-histogram-segment"
+                                            style={isHovered ? { filter: 'brightness(1.15)' } : undefined}
+                                            onMouseEnter={(e) => showTooltip(e, i, s.key, s.count, total)}
+                                            onMouseMove={(e) => showTooltip(e, i, s.key, s.count, total)}
+                                            onMouseLeave={hideTooltip}
+                                            onFocus={(e) => showTooltip(e, i, s.key, s.count, total)}
+                                            onBlur={hideTooltip}
+                                        />
+                                    );
+                                })}
+                                <text x={x + barW / 2} y={baselineY + 14} textAnchor="middle" fontSize="9" fill="#64748b">
+                                    {SCORE_BINS_META[i].label}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+                {hover && (
+                    <div
+                        className="ica-histogram-tooltip"
+                        style={{ left: Math.min(Math.max(hover.x, 56), (wrapRef.current?.getBoundingClientRect().width ?? 640) - 56), top: hover.y }}
+                    >
+                        <strong>{hover.count}</strong> siswa{' '}
+                        <span style={{ color: SCORE_BIN_COLOR[hover.key] }}>{SCORE_BIN_LABEL[hover.key]}</span>
+                        <div className="ica-histogram-tooltip-sub">
+                            {SCORE_BINS_META[hover.binIndex].label} &middot; {hover.total} siswa di bin ini
+                        </div>
+                    </div>
+                )}
+            </div>
+            {notConsideredCount > 0 && (
+                <p className="ica-histogram-note">
+                    {notConsideredCount} siswa "Not Considered" (belum ≥3 attempt) tidak dihitung dalam grafik ini.
+                </p>
+            )}
+        </div>
+    );
+};
 
 // Per-student drill-down behind one Historical/Active row, so the aggregate
 // Total/Below/Optimal/Above numbers can be checked against the actual list
@@ -136,6 +303,22 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
         notConsidered: students.filter(s => s.classification === 'Not Considered').length,
     }), [students]);
 
+    // Same students as computedTotals, regrouped into 10 fixed-width score
+    // bins instead of just Below/Optimal/Above - "Not Considered" (< 3
+    // attempts) is excluded here too since it has no meaningful position on
+    // a score axis.
+    const histogramBins = useMemo(() => {
+        const bins = Array.from({ length: 10 }, () => ({ below: 0, optimal: 0, above: 0 }));
+        students.forEach(s => {
+            if (s.classification === 'Not Considered' || s.pct_correctness == null) return;
+            const idx = binIndexForPct(Number(s.pct_correctness));
+            if (s.classification === 'Below') bins[idx].below++;
+            else if (s.classification === 'Optimal') bins[idx].optimal++;
+            else if (s.classification === 'Above') bins[idx].above++;
+        });
+        return bins;
+    }, [students]);
+
     // New row clicked - drop whatever filter/search was left from the last one.
     useEffect(() => {
         setSearch('');
@@ -231,6 +414,10 @@ const SlotDetailModal = ({ row, onClose, mode, isMandatory, onRefreshed }) => {
                         <div className="ica-threshold-footer-error" style={{ marginBottom: 12 }}>
                             Gagal refresh: {refreshError}
                         </div>
+                    )}
+
+                    {!loading && !error && (
+                        <ScoreDistributionHistogram bins={histogramBins} notConsideredCount={computedTotals.notConsidered} />
                     )}
 
                     <div className="slot-detail-toolbar">

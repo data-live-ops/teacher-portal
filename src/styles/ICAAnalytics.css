@@ -320,6 +320,64 @@
     }
 }
 
+/* Score distribution histogram (SlotDetailModal) - same card shape as
+   .ica-dumbbell-card so it reads as part of the same chart family */
+.ica-histogram-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.ica-histogram-chart-wrap {
+    position: relative;
+}
+
+.ica-histogram-chart {
+    display: block;
+}
+
+.ica-histogram-segment {
+    cursor: default;
+}
+
+.ica-histogram-segment:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}
+
+.ica-histogram-tooltip {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 10px));
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+}
+
+.ica-histogram-tooltip strong {
+    font-size: 13px;
+}
+
+.ica-histogram-tooltip-sub {
+    color: #94a3b8;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.ica-histogram-note {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: #898781;
+}
+
 /* ── Questions Breakdown (Section D) ─────────────────────────────────────── */
 
 /* Mandatory / Optional badges */
