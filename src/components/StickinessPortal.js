@@ -80,9 +80,15 @@ async function fetchWeekPeriods(client, table, semesterId, semesterStartDate) {
     }));
 }
 
+const APPROACHES = [
+  { key: 'bp15', label: 'BP 15' },
+  { key: 'dynamic', label: 'Dynamic Status' },
+];
+
 function StickinessPortal() {
   const [stickinessType, setStickinessType] = useState('historical');
   const [activeView, setActiveView] = useState('weekly_grid');
+  const [approach, setApproach] = useState('bp15');
 
   const [semesters, setSemesters] = useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState(null);
@@ -195,6 +201,14 @@ function StickinessPortal() {
 
   const semesterName = semesters.find((s) => s.id === selectedSemesterId)?.name || 'semester';
 
+  // "BP 15" reads the existing fixed +/-15 threshold status column; "Dynamic
+  // Status" swaps in status_v2 (bound = the group's own mean absolute
+  // deviation) so downstream views don't need to know which approach is active.
+  const displayRows = useMemo(() => {
+    if (approach !== 'dynamic') return stickinessData;
+    return stickinessData.map((r) => ({ ...r, status: r.status_v2 ?? null }));
+  }, [stickinessData, approach]);
+
   return (
     <div className="stickiness-portal">
       <div className="stickiness-type-tabs">
@@ -224,10 +238,25 @@ function StickinessPortal() {
         </select>
 
         {lastSyncedAt && (
-          <span className="attendance-last-synced">
+          <span className="attendance-last-synced" style={{ marginLeft: 'auto' }}>
             Last synced: {new Date(lastSyncedAt).toLocaleString('id-ID')}
           </span>
         )}
+      </div>
+
+      <div className="stickiness-approach-row">
+        <span className="stickiness-approach-label">Approach:</span>
+        <div className="tab-navigation" style={{ maxWidth: 'fit-content' }}>
+          {APPROACHES.map((a) => (
+            <button
+              key={a.key}
+              className={`tab-button ${approach === a.key ? 'active' : ''}`}
+              onClick={() => setApproach(a.key)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="tab-navigation">
@@ -250,7 +279,7 @@ function StickinessPortal() {
         <>
           {activeView === 'weekly_grid' && (
             <StickinessWeeklyGrid
-              stickinessRows={stickinessData}
+              stickinessRows={displayRows}
               rosterRows={rosterRows}
               weekPeriods={weekPeriods}
               stickinessType={stickinessType}
@@ -259,7 +288,7 @@ function StickinessPortal() {
           )}
           {activeView === 'current_week' && (
             <StickinessCurrentWeek
-              stickinessRows={stickinessData}
+              stickinessRows={displayRows}
               rosterRows={rosterRows}
               weekPeriods={weekPeriods}
               stickinessType={stickinessType}
@@ -268,7 +297,7 @@ function StickinessPortal() {
           )}
           {activeView === 'performance_dist' && (
             <StickinessPerformanceDistribution
-              stickinessRows={stickinessData}
+              stickinessRows={displayRows}
               weekPeriods={weekPeriods}
             />
           )}

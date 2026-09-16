@@ -9,6 +9,19 @@
   margin-bottom: 12px;
 }
 
+.stickiness-approach-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stickiness-approach-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
 /* ── Weekly Grid ─────────────────────────────────────────────────── */
 .stickiness-weekly-table {
   font-size: 13px;
