@@ -325,6 +325,20 @@
     cursor: not-allowed;
 }
 
+a.tm-contact-popover-wa {
+    color: #25D366 !important;
+    font-weight: bold !important;
+}
+
+a.tm-contact-popover-wa:hover {
+    color: #1DA851 !important;
+}
+
+.tm-phone {
+    color: #1E5AF6;
+    text-decoration: none;
+    font-weight: 500;
+}
 .tm-phone {
     color: #1E5AF6;
     text-decoration: none;
