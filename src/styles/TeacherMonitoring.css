@@ -325,9 +325,18 @@
     cursor: not-allowed;
 }
 
+.tm-contact-popover-slack:not(:disabled) {
+    cursor: pointer;
+}
+.tm-contact-popover-slack:not(:disabled):hover {
+    text-decoration: underline;
+    color: #1E5AF6;
+}
+
 a.tm-contact-popover-wa {
     color: #25D366 !important;
     font-weight: bold !important;
+    cursor: pointer !important;
 }
 
 a.tm-contact-popover-wa:hover {
