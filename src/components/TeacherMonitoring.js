@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
+import { toWaLink } from '../utils/phone';
 import { supabase } from '../lib/supabaseClient.mjs';
 import { ExternalLink, AlertTriangle, Users, X, Phone, LogOut, Eye, CheckCircle, Loader, MessageSquare, Pencil, MessageCircle, Send, Copy, Check } from 'lucide-react';
 import '../styles/TeacherMonitoring.css';
@@ -217,30 +218,42 @@ const loadTodayClasses = async (supabaseClient) => {
 
     // Load teacher phones from user_emails (if available)
     const teacherEmails = [...new Set(classes.map(c => c.teacher_email).filter(Boolean))];
-    let phonesMap = {};
-    if (teacherEmails.length > 0) {
-        const { data: phones } = await supabaseClient
-            .from('user_emails')
-            .select('email, phone')
-            .in('email', teacherEmails);
-        if (phones) {
-            phonesMap = Object.fromEntries(phones.filter(p => p.phone).map(p => [p.email, p.phone]));
-        }
+        let phonesMap = {};
+let slackMap = {};
+let avatars = null;
+if (teacherEmails.length > 0) {
+    const { data } = await supabaseClient
+        .from('avatars')
+        .select('email, phone_number, slack_id')
+        .in('email', teacherEmails);
+
+    avatars = data;
+
+    if (avatars) {
+        phonesMap = Object.fromEntries(
+            avatars.filter(a => a.phone_number).map(a => [a.email, a.phone_number])
+        );
+        slackMap = Object.fromEntries(
+            avatars.filter(a => a.slack_id).map(a => [a.email, a.slack_id])
+        );
     }
+}
 
     const sessionsMap = sessions ? Object.fromEntries(sessions.map(s => [s.session_id, s.session_topic])) : {};
 
     // Map to UI format
     return classes.map(cls => {
-        const { start, end } = parseClassTime(cls.class_date, cls.time);
-        return {
-            ...cls,
-            session_topic: sessionsMap[cls.schedule_id] || cls.slot_name,
-            teacher_phone: phonesMap[cls.teacher_email] || null,
-            class_start_time: start.toISOString(),
-            class_end_time: end.toISOString(),
-        };
-    });
+    const { start, end } = parseClassTime(cls.class_date, cls.time);
+
+    return {
+        ...cls,
+        session_topic: sessionsMap[cls.schedule_id] || cls.slot_name,
+        teacher_phone: phonesMap[cls.teacher_email] || null,
+        teacher_slack_id: slackMap[cls.teacher_email] || null,
+        class_start_time: start.toISOString(),
+        class_end_time: end.toISOString(),
+    };
+});
 };
 
 // Load zoom events for given schedule IDs
@@ -272,6 +285,7 @@ const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, em
         teacher_name: classSchedule.teacher_name,
         teacher_email: classSchedule.teacher_email,
         teacher_phone: classSchedule.teacher_phone,
+        teacher_slack_id: classSchedule.teacher_slack_id, // sudah di-join dari tabel avatars di loadTodayClasses()
         mentor_name: classSchedule.mentor_name,
         slot_name: classSchedule.slot_name,
         session_topic: classSchedule.session_topic,
@@ -1722,16 +1736,28 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                     <div className="tm-contact-popover" onClick={(e) => e.stopPropagation()}>
                                                         <div className="tm-contact-popover-row">
                                                             <Phone size={14} />
-                                                            <a href={`tel:${item.teacher_phone}`}>{item.teacher_phone || '-'}</a>
-                                                        </div>
-                                                        <button
-                                                            className="tm-contact-popover-slack"
-                                                            disabled
-                                                            title="Coming soon"
-                                                        >
-                                                            <MessageCircle size={14} />
-                                                            Nudge di Slack
-                                                        </button>
+                                                    {item.teacher_phone ? (
+   <a  
+    className="tm-contact-popover-slack tm-contact-popover-wa"
+    href={toWaLink(item.teacher_phone, "Halo Kak, apakah kelasnya ada kendala?")}
+    target="_blank"
+    rel="noopener noreferrer"
+>
+    Nudge di WA
+</a>
+) : (
+    <span>-</span>
+)}
+</div>
+<button
+    className="tm-contact-popover-slack"
+    disabled={!item.teacher_slack_id}
+    title={item.teacher_slack_id ? "Nudge di Slack" : "Slack ID belum tersedia"}
+    onClick={() => window.open(`https://slack.com/app_redirect?channel=${item.teacher_slack_id}`, '_blank')}
+>
+    <MessageCircle size={14} />
+    Nudge di Slack
+</button>
                                                     </div>
                                                 )}
                                             </div>
