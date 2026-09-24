@@ -285,7 +285,7 @@ const mapToUIFormat = (classSchedule, status, joiningTime, rejoinedAfterLeft, em
         teacher_name: classSchedule.teacher_name,
         teacher_email: classSchedule.teacher_email,
         teacher_phone: classSchedule.teacher_phone,
-        teacher_slack_id: classSchedule.teacher_slack_id,
+        teacher_slack_id: classSchedule.teacher_slack_id, // sudah di-join dari tabel avatars di loadTodayClasses()
         mentor_name: classSchedule.mentor_name,
         slot_name: classSchedule.slot_name,
         session_topic: classSchedule.session_topic,
