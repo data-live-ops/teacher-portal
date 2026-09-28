@@ -24,6 +24,8 @@ yarn-debug.log*
 yarn-error.log*
 .vercel
 
+supabase*
+
 # SQL files in root directory
 /*.sql
 
