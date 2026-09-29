@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Navbar from './Navbar';
 import PICSelector from './PICSelector';
 import { toWaLink } from '../utils/phone';
@@ -336,6 +337,7 @@ const TeacherMonitoring = ({ user, onLogout }) => {
 
     // Teacher contact popover (click-to-open, not hover)
     const [openContactId, setOpenContactId] = useState(null);
+    const [contactPopoverPos, setContactPopoverPos] = useState(null);
 
     // Notes state
     const [classNotes, setClassNotes] = useState({});
@@ -360,12 +362,21 @@ const TeacherMonitoring = ({ user, onLogout }) => {
         loadActivePICs();
     }, [userEmail]);
 
-    // Close teacher contact popover when clicking anywhere outside it
+    // Close teacher contact popover when clicking outside it, or on scroll/resize
+    // - it's portal-rendered with a position snapshotted at open time, so it
+    // would otherwise drift away from its trigger instead of following it.
     useEffect(() => {
         if (!openContactId) return;
         const handleOutsideClick = () => setOpenContactId(null);
+        const handleScroll = () => setOpenContactId(null);
         document.addEventListener('click', handleOutsideClick);
-        return () => document.removeEventListener('click', handleOutsideClick);
+        document.addEventListener('scroll', handleScroll, true);
+        window.addEventListener('resize', handleScroll);
+        return () => {
+            document.removeEventListener('click', handleOutsideClick);
+            document.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', handleScroll);
+        };
     }, [openContactId]);
 
     // Auto-check for date change every minute (session expiry)
@@ -1729,14 +1740,24 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                     className="tm-contact-trigger"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setOpenContactId(prev => prev === item.id ? null : item.id);
+                                                        if (openContactId === item.id) {
+                                                            setOpenContactId(null);
+                                                            return;
+                                                        }
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        setContactPopoverPos({ top: rect.bottom + 4, left: rect.right + 4 });
+                                                        setOpenContactId(item.id);
                                                     }}
                                                     title="Contact Info"
                                                 >
                                                     <Phone size={12} />
                                                 </button>
-                                                {openContactId === item.id && (
-                                                    <div className="tm-contact-popover" onClick={(e) => e.stopPropagation()}>
+                                                {openContactId === item.id && contactPopoverPos && createPortal(
+                                                    <div
+                                                        className="tm-contact-popover"
+                                                        style={{ top: contactPopoverPos.top, left: contactPopoverPos.left }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
                                                         <div className="tm-contact-popover-header">
                                                             <Phone size={13} />
                                                             <span className="tm-contact-popover-phone">
@@ -1770,7 +1791,8 @@ const TeacherMonitoring = ({ user, onLogout }) => {
                                                                 Nudge di Slack
                                                             </button>
                                                         </div>
-                                                    </div>
+                                                    </div>,
+                                                    document.body
                                                 )}
                                             </div>
                                         </td>

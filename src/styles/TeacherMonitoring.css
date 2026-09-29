@@ -277,11 +277,12 @@
     color: white;
 }
 
+/* Rendered via portal into document.body - position (top/left) is set inline
+   from the trigger's getBoundingClientRect(), so it always floats above the
+   table's overflow:hidden container instead of getting clipped by it. */
 .tm-contact-popover {
-    position: absolute;
-    top: 28px;
-    left: calc(100% + 4px);
-    z-index: 50;
+    position: fixed;
+    z-index: 2000;
     min-width: 210px;
     background: white;
     border: 1px solid #E5E7EB;
@@ -291,20 +292,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-}
-
-.tm-contact-popover::before {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 14px;
-    width: 12px;
-    height: 12px;
-    background: white;
-    border-left: 1px solid #E5E7EB;
-    border-top: 1px solid #E5E7EB;
-    transform: rotate(45deg);
-    border-radius: 2px 0 0 0;
 }
 
 .tm-contact-popover-header {
