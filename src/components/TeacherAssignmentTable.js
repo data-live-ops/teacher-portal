@@ -201,8 +201,8 @@ const AssignmentModal = ({
             days: uniqueDays,
             times: uniqueTimes,
             subjects: uniqueSubjects,
-            latestClassDate: classDates[0],
-            earliestClassDate: classDates[classDates.length - 1],
+            latestClassDate: classDates[classDates.length - 1],
+            earliestClassDate: classDates[0],
             sampleData: data.slice(0, 3)
           });
         } else {
