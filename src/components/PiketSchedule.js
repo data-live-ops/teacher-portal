@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from "./Navbar";
+import PiketNavSettings from "./PiketNavSettings";
 import { supabase } from "../lib/supabaseClient.mjs";
 import { usePermissions } from '../contexts/PermissionContext';
+import usePiketNavConfig, { pairKey } from '../hooks/usePiketNavConfig';
 
 const styles = {
     container: {
@@ -629,6 +631,7 @@ const PiketSchedule = ({ user, onLogout }) => {
     const [hoveredActionsContainer, setHoveredActionsContainer] = useState(null);
 
     const [showSubjectPopup, setShowSubjectPopup] = useState(null);
+    const [showNavSettings, setShowNavSettings] = useState(false);
 
     const tableRefs = useRef({});
     const dropdownRef = useRef({});
@@ -637,6 +640,28 @@ const PiketSchedule = ({ user, onLogout }) => {
     const userEmail = user?.email;
     const { canEdit } = usePermissions();
     const hasEditPermission = canEdit('piket_schedule');
+    const navConfig = usePiketNavConfig();
+
+    // piket_schedule rows with the group/subject they are shown under, resolved via
+    // piket_group_mappings. Pairs without a rule keep their own grade/subject.
+    const resolvedData = useMemo(() => {
+        const rules = new Map();
+        navConfig.mappings.forEach(m => {
+            rules.set(pairKey(m.source_grade, m.source_subject), m);
+        });
+        const inactiveGroups = new Set(navConfig.groups.filter(g => !g.is_active).map(g => g.name));
+
+        return piketData
+            .map(item => {
+                const rule = rules.get(pairKey(item.grade, item.subject));
+                return {
+                    ...item,
+                    group: rule ? rule.group_name : item.grade,
+                    groupSubject: rule ? (rule.display_subject || item.subject) : item.subject,
+                };
+            })
+            .filter(item => !inactiveGroups.has(item.group));
+    }, [piketData, navConfig.mappings, navConfig.groups]);
 
     const fetchTeachers = async () => {
         try {
@@ -769,11 +794,23 @@ const PiketSchedule = ({ user, onLogout }) => {
     }, [hasEditPermission]);
 
     useEffect(() => {
-        const uniqueGradeSubjects = [...new Set(piketData.map(item => `${item.grade}|||${item.subject}`))];
-        const uniqueGrades = [...new Set(piketData.map(item => item.grade))];
-        const gradeSubjectArr = uniqueGradeSubjects.map(gs => {
-            const [grade, subject] = gs.split('|||');
-            return { grade, subject };
+        const gradeSubjectMap = new Map();
+        resolvedData.forEach(item => {
+            const key = `${item.group}|||${item.groupSubject ?? ''}`;
+            if (!gradeSubjectMap.has(key)) {
+                gradeSubjectMap.set(key, { grade: item.group, subject: item.groupSubject });
+            }
+        });
+        const gradeSubjectArr = [...gradeSubjectMap.values()];
+        const uniqueGrades = [...new Set(resolvedData.map(item => item.group))];
+
+        // Order configured in the settings panel wins; groups without config go after
+        // them in the old heuristic order.
+        const groupPosition = new Map(navConfig.groups.map((g, index) => [g.name, index]));
+        const subjectPosition = new Map();
+        navConfig.mappings.forEach((m, index) => {
+            const key = `${m.group_name}|||${m.display_subject || m.source_subject || ''}`;
+            if (!subjectPosition.has(key)) subjectPosition.set(key, index);
         });
 
         const getGradeSortKey = (grade) => {
@@ -813,16 +850,37 @@ const PiketSchedule = ({ user, onLogout }) => {
         };
 
         const compareGrades = (a, b) => {
-            const keyA = getGradeSortKey(a.grade || a);
-            const keyB = getGradeSortKey(b.grade || b);
+            const nameA = a.grade ?? a;
+            const nameB = b.grade ?? b;
+            const posA = groupPosition.get(nameA);
+            const posB = groupPosition.get(nameB);
 
-            if (keyA.priority !== keyB.priority) {
-                return keyA.priority - keyB.priority;
+            if (posA !== undefined && posB !== undefined) {
+                if (posA !== posB) return posA - posB;
+            } else if (posA !== undefined) {
+                return -1;
+            } else if (posB !== undefined) {
+                return 1;
+            } else {
+                const keyA = getGradeSortKey(nameA);
+                const keyB = getGradeSortKey(nameB);
+
+                if (keyA.priority !== keyB.priority) {
+                    return keyA.priority - keyB.priority;
+                }
+                if (keyA.subPriority !== keyB.subPriority) {
+                    return keyA.subPriority - keyB.subPriority;
+                }
+                return keyA.name.localeCompare(keyB.name);
             }
-            if (keyA.subPriority !== keyB.subPriority) {
-                return keyA.subPriority - keyB.subPriority;
+
+            // Same group: order subjects by mapping order when configured
+            if (a.subject !== undefined && b.subject !== undefined) {
+                const subjA = subjectPosition.get(`${nameA}|||${a.subject ?? ''}`);
+                const subjB = subjectPosition.get(`${nameB}|||${b.subject ?? ''}`);
+                if (subjA !== undefined && subjB !== undefined) return subjA - subjB;
             }
-            return keyA.name.localeCompare(keyB.name);
+            return 0;
         };
 
         gradeSubjectArr.sort(compareGrades);
@@ -830,9 +888,9 @@ const PiketSchedule = ({ user, onLogout }) => {
 
         setGradeSubjects(gradeSubjectArr);
         setUniqueGrades(uniqueGrades);
-        const uniqueTimes = [...new Set(piketData.map(item => item.time))].sort();
+        const uniqueTimes = [...new Set(resolvedData.map(item => item.time))].sort();
         setTimeSlots(uniqueTimes);
-    }, [piketData]);
+    }, [resolvedData, navConfig.groups, navConfig.mappings]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -897,12 +955,22 @@ const PiketSchedule = ({ user, onLogout }) => {
         return '#FFED76';
     };
 
+    // Colors from the settings panel; groups without config keep the old name-based colors.
+    const getNavButtonColors = (grade) => {
+        const configured = navConfig.groups.find(g => g.name === grade);
+        return {
+            backgroundColor: configured?.color || getButtonColor(grade),
+            color: configured?.text_color
+                || (['4', '5', '6', 'SMP', 'SMA', 'IPA'].some(type => grade.includes(type)) ? 'white' : '#333'),
+        };
+    };
+
     const getTeachersForSlot = (time, day, grade, subject) => {
-        const teachers = piketData.filter(item =>
+        const teachers = resolvedData.filter(item =>
             item.time === time &&
             item.day === day &&
-            grade === item.grade &&
-            (subject || null) === (item.subject || null)
+            grade === item.group &&
+            (subject || null) === (item.groupSubject || null)
         );
 
         return teachers.map(item => ({
@@ -913,6 +981,16 @@ const PiketSchedule = ({ user, onLogout }) => {
             note: item.note,
         }));
     };
+
+    // Unique raw (grade, subject) pairs in piket_schedule, for the mapping editor.
+    const detectedPairs = useMemo(() => {
+        const pairs = new Map();
+        piketData.forEach(item => {
+            const key = pairKey(item.grade, item.subject);
+            if (!pairs.has(key)) pairs.set(key, { grade: item.grade, subject: item.subject });
+        });
+        return [...pairs.values()];
+    }, [piketData]);
 
     const getSubjectsForGrade = (grade) => {
         return gradeSubjects.filter(gs => gs.grade === grade).map(gs => gs.subject);
@@ -1010,9 +1088,16 @@ const PiketSchedule = ({ user, onLogout }) => {
 
     const insertNewPiketRecord = async (time, day, grade, subject) => {
         try {
+            // The table on screen is a mapped group; store the row under the raw
+            // grade/subject of a rule that maps to it so it shows up in this same table.
+            const sourceRule = navConfig.mappings.find(m =>
+                m.group_name === grade &&
+                (m.display_subject || m.source_subject || null) === (subject || null)
+            );
+
             const newRecord = {
-                grade: grade,
-                subject: subject || null,
+                grade: sourceRule ? sourceRule.source_grade : grade,
+                subject: sourceRule ? (sourceRule.source_subject || null) : (subject || null),
                 day: day,
                 time: time,
                 teacher_name: null,
@@ -1103,9 +1188,7 @@ const PiketSchedule = ({ user, onLogout }) => {
                                     onClick={() => handleNavButtonClick(grade)}
                                     style={{
                                         ...styles.navButton,
-                                        backgroundColor: getButtonColor(grade),
-                                        color: ['4', '5', '6', 'SMP', 'SMA', 'IPA'].some(type =>
-                                            grade.includes(type)) ? 'white' : '#333',
+                                        ...getNavButtonColors(grade),
                                         ...(hoveredNavButton === index ? styles.navButtonHover : {}),
                                         ...(isPopupOpen ? { boxShadow: '0 0 0 2px rgba(0,0,0,0.3)' } : {}),
                                     }}
@@ -1141,7 +1224,27 @@ const PiketSchedule = ({ user, onLogout }) => {
                         );
                     })}
                 </div>
+                {hasEditPermission && (
+                    <button
+                        style={{ ...styles.navButton, backgroundColor: '#6B7280', marginLeft: '12px', whiteSpace: 'nowrap' }}
+                        onClick={() => setShowNavSettings(true)}
+                    >
+                        ⚙ Atur Navigasi
+                    </button>
+                )}
             </div>
+
+            {showNavSettings && (
+                <PiketNavSettings
+                    groups={navConfig.groups}
+                    mappings={navConfig.mappings}
+                    detectedPairs={detectedPairs}
+                    currentGroups={uniqueGrades}
+                    fallbackColor={getButtonColor}
+                    onSave={(groups, mappings) => navConfig.save(groups, mappings, userEmail)}
+                    onClose={() => setShowNavSettings(false)}
+                />
+            )}
 
             <div style={{ ...styles.content, ...styles.contentWithNav }}>
                 {gradeSubjects.map((gradeSubject, gsIndex) => (
